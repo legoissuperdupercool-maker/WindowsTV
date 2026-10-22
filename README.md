@@ -41,10 +41,10 @@ is pushed. Two files are produced:
 - **`ello-smartTV-<version>-Portable.exe`** — a single self-contained `.exe` you can
   run directly, no install.
 
-**To get the EXE:** open the repo's **Actions** tab → the latest **“Build Windows
-EXE”** run → download the **`ello-smartTV-exe`** artifact (a zip containing both
-`.exe` files). To publish a permanent download instead, push a tag like `v0.1.0`
-and the EXEs are attached to a GitHub Release automatically.
+**To get the EXE:** open the repo's **Releases** page and download the `.exe`
+from the newest **“ello smartTV — build N”** pre-release. Every push publishes a
+new one automatically. Pushing a version tag like `v0.1.0` attaches the EXEs to
+that version's release instead.
 
 Because the build is unsigned, Windows SmartScreen may warn on first launch
 (**More info → Run anyway**). Prefer building it yourself? See *Build a Windows

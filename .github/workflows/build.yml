@@ -45,25 +45,48 @@ jobs:
           }
 
       - name: Build installers
-        run: npm run build:win
+        # Publishing is handled by the release step below, not electron-builder.
+        run: npm run build && npx electron-builder --win --publish never
         env:
           # Unsigned build — no code-signing certificate configured.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload EXEs as workflow artifacts
-        uses: actions/upload-artifact@v4
+      # Every build is published as a GitHub pre-release so the EXEs can be
+      # downloaded from the Releases page. Release assets don't count against the
+      # account's Actions artifact storage quota (which can fill up).
+      - name: Publish build as a pre-release
+        if: github.event_name != 'release' && !startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
         with:
-          name: ello-smartTV-exe
-          path: |
-            release/*.exe
-            dist/*.exe
-          if-no-files-found: warn
+          tag_name: build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: ello smartTV — build ${{ github.run_number }}
+          prerelease: true
+          body: |
+            Automatic Windows build from `${{ github.ref_name }}` @ ${{ github.sha }}.
 
-      - name: Attach EXEs to GitHub Release (on tag)
+            - **ello-smartTV-*-Setup.exe** — installer
+            - **ello-smartTV-*-Portable.exe** — run directly, no install
+
+            Unsigned build: on first launch Windows SmartScreen may warn — choose
+            *More info → Run anyway*.
+          files: release/*.exe
+          fail_on_unmatched_files: true
+
+      - name: Attach EXEs to GitHub Release (on version tag)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            release/*.exe
-            dist/*.exe
+          files: release/*.exe
+          fail_on_unmatched_files: true
+
+      # Best-effort extra copy as a workflow artifact; never fails the build if
+      # the account's artifact storage quota is full.
+      - name: Upload EXEs as workflow artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ello-smartTV-exe
+          path: release/*.exe
+          if-no-files-found: warn
+          retention-days: 3
