@@ -1,17 +1,12 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { CatalogStatus } from '../components/CatalogStatus'
+import { FadeImg } from '../components/FadeImg'
 import { useProgressive } from '../hooks/useProgressive'
-import { Icon } from '../components/Icon'
-import type { Channel, SeriesEpisode } from '@shared/types'
 
 export function Series(): JSX.Element {
-  const { channels, currentSourceId, loadCatalog, playEpisode } = useStore()
+  const { channels, currentSourceId, loadCatalog, openDetail } = useStore()
   const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState<Channel | null>(null)
-  const [episodes, setEpisodes] = useState<SeriesEpisode[] | null>(null)
-  const [loadingEps, setLoadingEps] = useState(false)
-  const [epError, setEpError] = useState<string | null>(null)
 
   useEffect(() => {
     void loadCatalog('series', false)
@@ -23,17 +18,6 @@ export function Series(): JSX.Element {
     return channels.filter((c) => !q || c.name.toLowerCase().includes(q))
   }, [channels, deferredQuery])
   const { visible, sentinelRef } = useProgressive(filtered)
-
-  const openSeries = async (c: Channel): Promise<void> => {
-    setSelected(c)
-    setEpisodes(null)
-    setEpError(null)
-    setLoadingEps(true)
-    const r = await window.api.series.info(c.sourceId, c.providerId)
-    setLoadingEps(false)
-    if (r.data) setEpisodes(r.data)
-    else setEpError(r.error ?? 'Could not load episodes.')
-  }
 
   if (!currentSourceId)
     return (
@@ -47,53 +31,6 @@ export function Series(): JSX.Element {
       </div>
     )
 
-  if (selected) {
-    const bySeason = groupBySeason(episodes ?? [])
-    return (
-      <div className="page pad">
-        <button className="focusable btn" style={{ margin: '4px 0 18px' }} onClick={() => setSelected(null)}>
-          <Icon name="back" size={16} /> Back to series
-        </button>
-        <h1 className="section-title" style={{ margin: '0 0 8px' }}>
-          {selected.name}
-        </h1>
-        {selected.meta?.plot ? (
-          <p style={{ color: 'var(--text-dim)', maxWidth: 760, marginBottom: 22, lineHeight: 1.55 }}>
-            {String(selected.meta.plot)}
-          </p>
-        ) : null}
-
-        {loadingEps && <div className="spinner" />}
-        {epError && <div className="test-result bad">{epError}</div>}
-        {episodes &&
-          [...bySeason.entries()].map(([season, eps]) => (
-            <div key={season}>
-              <div className="rail-title" style={{ margin: '18px 0 12px' }}>
-                Season {season}
-              </div>
-              <div className="channel-grid">
-                {eps.map((ep) => (
-                  <button
-                    key={ep.id}
-                    className="focusable media-card"
-                    onClick={() => void playEpisode(ep.url, `${selected.name} · ${ep.title}`)}
-                  >
-                    <div className="art">
-                      <div className="logo-ph">E{ep.episode || '·'}</div>
-                    </div>
-                    <div className="body">
-                      <div className="title">{ep.title}</div>
-                      <div className="sub">{ep.duration ?? `Season ${ep.season}`}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-      </div>
-    )
-  }
-
   return (
     <div className="page pad">
       <h1 className="section-title">Series</h1>
@@ -106,9 +43,10 @@ export function Series(): JSX.Element {
       ) : (
         <div className="poster-grid">
           {visible.map((c) => (
-            <button key={c.id} className="focusable poster-card" onClick={() => void openSeries(c)}>
+            <button key={c.id} className="focusable poster-card" onClick={() => openDetail(c)}>
               <div className="art">
-                {c.logo ? <img src={c.logo} loading="lazy" /> : <span className="ph-txt">{c.name.slice(0, 2).toUpperCase()}</span>}
+                <span className="ph-txt">{c.name.slice(0, 2).toUpperCase()}</span>
+                {c.logo && <FadeImg src={c.logo} alt="" className="poster-img" />}
               </div>
               <div className="cap">{c.name}</div>
             </button>
@@ -118,14 +56,4 @@ export function Series(): JSX.Element {
       )}
     </div>
   )
-}
-
-function groupBySeason(eps: SeriesEpisode[]): Map<number, SeriesEpisode[]> {
-  const m = new Map<number, SeriesEpisode[]>()
-  for (const ep of eps) {
-    const arr = m.get(ep.season)
-    if (arr) arr.push(ep)
-    else m.set(ep.season, [ep])
-  }
-  return m
 }

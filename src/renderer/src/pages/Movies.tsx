@@ -2,9 +2,10 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { CatalogStatus } from '../components/CatalogStatus'
 import { useProgressive } from '../hooks/useProgressive'
+import { FadeImg } from '../components/FadeImg'
 
 export function Movies(): JSX.Element {
-  const { channels, categories, currentSourceId, loadCatalog, play } = useStore()
+  const { channels, categories, currentSourceId, loadCatalog, openDetail } = useStore()
   const [query, setQuery] = useState('')
   const [cat, setCat] = useState('__all__')
 
@@ -55,13 +56,10 @@ export function Movies(): JSX.Element {
       ) : (
         <div className="poster-grid">
           {visible.map((c) => (
-            <button
-              key={c.id}
-              className="focusable poster-card"
-              onClick={() => void play(c.id, filtered.map((f) => f.id))}
-            >
+            <button key={c.id} className="focusable poster-card" onClick={() => openDetail(c)}>
               <div className="art">
-                {c.logo ? <img src={c.logo} loading="lazy" /> : <span className="ph-txt">{c.name.slice(0, 2).toUpperCase()}</span>}
+                <span className="ph-txt">{c.name.slice(0, 2).toUpperCase()}</span>
+                {c.logo && <FadeImg src={c.logo} alt="" className="poster-img" />}
               </div>
               <div className="cap">{c.name}</div>
             </button>

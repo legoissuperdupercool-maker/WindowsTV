@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { Icon } from '../components/Icon'
 import type { AppTile, Source, SourceKind } from '@shared/types'
+import type { UpdateState } from '@shared/ipc'
 
 const TILE_COLORS = ['#2979FF', '#FF3B30', '#34C759', '#FFCC00', '#7C4DFF', '#00C7BE', '#FF9F0A']
 
@@ -21,14 +22,17 @@ function emptySource(kind: SourceKind): Source {
 
 export function Settings(): JSX.Element {
   const { settings, refreshSettings, setSource } = useStore()
-  const [mpv, setMpv] = useState<{ path?: string; reason?: string }>({})
+  const [mpv, setMpv] = useState<{ path?: string; reason?: string; version?: string }>({})
+  const update = useStore((st) => st.update)
   const [editing, setEditing] = useState<Source | null>(null)
   const [testMsg, setTestMsg] = useState<{ ok: boolean; message: string } | null>(null)
   const [testing, setTesting] = useState(false)
   const [newTile, setNewTile] = useState<AppTile | null>(null)
 
   useEffect(() => {
-    void window.api.appInfo().then((r) => setMpv({ path: r.data?.mpvPath, reason: r.data?.mpvReason }))
+    void window.api.appInfo().then((r) =>
+      setMpv({ path: r.data?.mpvPath, reason: r.data?.mpvReason, version: r.data?.version })
+    )
   }, [])
 
   if (!settings) return <div className="page">Loading…</div>
@@ -90,6 +94,29 @@ export function Settings(): JSX.Element {
     <div className="page">
       <div className="settings-wrap">
         <h1 className="section-title">Settings</h1>
+
+        {/* About & updates */}
+        <div className="card">
+          <h3>About &amp; updates</h3>
+          <p className="hint" style={{ marginBottom: 14 }}>
+            ello smartTV {mpv.version ? `v${mpv.version}` : ''} · {updateText(update)}
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {update?.status === 'ready' ? (
+              <button className="focusable btn accent" onClick={() => void window.api.updates.install()}>
+                <Icon name="refresh" size={18} /> Restart to update to v{update.newVersion}
+              </button>
+            ) : (
+              <button
+                className="focusable btn"
+                data-disabled={update?.status === 'unsupported' ? '' : undefined}
+                onClick={() => void window.api.updates.check()}
+              >
+                <Icon name="refresh" size={18} /> Check for updates
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* mpv status */}
         <div className="card">
@@ -436,4 +463,23 @@ export function Settings(): JSX.Element {
       </div>
     </div>
   )
+}
+
+function updateText(u: UpdateState | null): string {
+  if (!u) return 'Checking update status…'
+  switch (u.status) {
+    case 'checking':
+      return 'Checking for updates…'
+    case 'up-to-date':
+      return 'You’re up to date.'
+    case 'downloading':
+      return `Downloading v${u.newVersion ?? ''}… ${u.percent ?? 0}%`
+    case 'ready':
+      return `v${u.newVersion} is ready — it installs when you restart.`
+    case 'unsupported':
+    case 'error':
+      return u.message ?? 'Updates unavailable.'
+    default:
+      return 'Updates install automatically.'
+  }
 }

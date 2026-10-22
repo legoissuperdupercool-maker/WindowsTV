@@ -13,6 +13,7 @@ import type {
 import * as xtream from './xtream'
 import { loadM3u } from './m3u'
 import { EpgStore } from './epg'
+import type { ServerClock } from './catchup'
 
 type ProgressFn = (p: LoadProgress) => void
 
@@ -20,6 +21,8 @@ interface SourceData {
   channels: Channel[]
   categories: Category[]
   epgUrl?: string
+  /** Provider clock (Xtream), needed for catch-up start times. */
+  clock?: ServerClock
 }
 
 /**
@@ -102,7 +105,8 @@ export class Catalog {
       result = {
         channels: [...live, ...vod, ...series],
         categories,
-        epgUrl: source.epgUrl || xtream.xtreamEpgUrl(source)
+        epgUrl: source.epgUrl || xtream.xtreamEpgUrl(source),
+        clock: auth.clock
       }
     } else {
       onProgress({ sourceId: source.id, phase: 'channels', message: 'Downloading playlist…' })
@@ -192,6 +196,10 @@ export class Catalog {
       if (c) return c
     }
     return undefined
+  }
+
+  getClock(sourceId: string): ServerClock {
+    return this.data.get(sourceId)?.clock ?? {}
   }
 
   drop(sourceId: string): void {

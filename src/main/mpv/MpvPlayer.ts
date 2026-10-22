@@ -10,6 +10,8 @@ interface LoadOptions {
   referrer?: string
   /** Seconds to wait for the stream to actually start before declaring failure. */
   startTimeoutMs?: number
+  /** Start playback at this position (seconds), e.g. to resume a movie. */
+  startSeconds?: number
 }
 
 interface MpvConfig {
@@ -269,7 +271,7 @@ export class MpvPlayer extends EventEmitter {
         const err = this.humanError(String(msg.file_error ?? ''))
         this.setState({ status: 'error', error: err })
       } else if (reason === 'eof' && this.state.status !== 'idle') {
-        this.setState({ status: 'idle' })
+        this.setState({ status: 'idle', ended: true })
       }
     }
   }
@@ -359,6 +361,7 @@ export class MpvPlayer extends EventEmitter {
     this.started = false
     this.setState({
       status: 'loading',
+      ended: false,
       channelId: opts.channelId,
       title: opts.title,
       error: undefined,
@@ -376,6 +379,7 @@ export class MpvPlayer extends EventEmitter {
     // (loadfile url replace {opts}) fails with "invalid parameter".
     const fileOpts: Record<string, string> = {}
     if (headerFields.length) fileOpts['http-header-fields'] = headerFields.join(',')
+    if (opts.startSeconds && opts.startSeconds > 0) fileOpts.start = String(Math.floor(opts.startSeconds))
 
     // Reset the watchdog: if nothing starts in time, tell the user *why* it's blank.
     this.armWatchdog(opts.startTimeoutMs ?? Math.max(12000, this.cfg.networkTimeoutMs + 5000))

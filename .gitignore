@@ -8,7 +8,8 @@ npm-debug.log*
 
 # Build output
 release
-build/icon.*
+# build/icon.png is the app icon (committed); generated .ico files are not.
+build/*.ico
 
 # Bundled mpv binaries are large and fetched on demand (see scripts/fetch-mpv.mjs).
 # Ignore the contents but keep the directory (via .gitkeep).

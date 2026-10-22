@@ -34,6 +34,12 @@ function setFocus(el: HTMLElement | null): void {
 }
 
 export function focusFirst(): void {
+  // A screen can mark its main action (e.g. "Play") as the default focus.
+  const preferred = document.querySelector<HTMLElement>('.focusable[data-autofocus]')
+  if (preferred && preferred.offsetParent !== null) {
+    setFocus(preferred)
+    return
+  }
   const els = focusables()
   if (!els.length) {
     setFocus(null)
@@ -167,6 +173,11 @@ export function useSpatialNavigation(): void {
       window.removeEventListener('mouseover', onOver)
     }
   }, [])
+}
+
+/** Move focus to a specific element (e.g. restore it after closing a screen). */
+export function focusElement(el: HTMLElement): void {
+  setFocus(el)
 }
 
 export function getFocused(): HTMLElement | null {

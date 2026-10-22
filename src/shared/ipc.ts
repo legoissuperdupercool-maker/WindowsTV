@@ -25,10 +25,17 @@ export const IPC = {
 
   // Catalogue extras
   seriesInfo: 'series:info',
+  vodInfo: 'vod:info',
+
+  // Watch progress (continue watching / resume)
+  progressList: 'progress:list',
+  progressGet: 'progress:get',
+  progressSeries: 'progress:series',
 
   // Player (mpv)
   playerLoad: 'player:load',
   playerLoadUrl: 'player:loadUrl',
+  playerCatchup: 'player:catchup',
   playerCommand: 'player:command', // generic: play/pause/stop/seek/volume…
   playerState: 'player:state', // main -> renderer event
   playerSetRegion: 'player:setRegion', // renderer tells main where video should draw
@@ -48,6 +55,12 @@ export const IPC = {
 
   // Launch an installed Windows app (Store/desktop) by protocol or path
   appLaunch: 'app:launch',
+
+  // Auto-update
+  updateState: 'update:state', // main -> renderer event
+  updateGetState: 'update:getState',
+  updateCheck: 'update:check',
+  updateInstall: 'update:install',
 
   // Misc
   openExternal: 'app:openExternal',
@@ -93,4 +106,12 @@ export interface VideoRegion {
   height: number
   /** When false, mpv is hidden (home screen / browsing with no video). */
   visible: boolean
+}
+
+export interface UpdateState {
+  status: 'idle' | 'unsupported' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'
+  currentVersion: string
+  newVersion?: string
+  percent?: number
+  message?: string
 }

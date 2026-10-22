@@ -21,6 +21,10 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      # Token that can publish to the public update-feed repo. Optional: when it
+      # isn't set, that step is skipped and builds still go to this repo.
+      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +47,11 @@ jobs:
           } else {
             Write-Warning "mpv.exe not bundled; the app will rely on a system/Settings mpv."
           }
+
+      # Every build gets a unique, increasing version (0.1.<run number>) so the
+      # in-app updater can tell which build is newer.
+      - name: Set build version
+        run: npm version "0.1.${{ github.run_number }}" --no-git-tag-version
 
       - name: Build installers
         # Publishing is handled by the release step below, not electron-builder.
@@ -71,6 +80,28 @@ jobs:
             Unsigned build: on first launch Windows SmartScreen may warn — choose
             *More info → Run anyway*.
           files: release/*.exe
+          fail_on_unmatched_files: true
+
+      - name: Publish to public update feed (ello-smarttv-releases)
+        if: env.RELEASES_TOKEN != '' && github.event_name != 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: legoissuperdupercool-maker/ello-smarttv-releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: v0.1.${{ github.run_number }}
+          name: ello smartTV 0.1.${{ github.run_number }}
+          body: |
+            ello smartTV 0.1.${{ github.run_number }} for Windows.
+
+            - **ello-smartTV-*-Setup.exe** — installer (updates itself automatically)
+            - **ello-smartTV-*-Portable.exe** — run directly, no install (no auto-update)
+
+            Unsigned build: Windows SmartScreen may warn on first launch — choose
+            *More info → Run anyway*.
+          files: |
+            release/*.exe
+            release/*.exe.blockmap
+            release/latest.yml
           fail_on_unmatched_files: true
 
       - name: Attach EXEs to GitHub Release (on version tag)

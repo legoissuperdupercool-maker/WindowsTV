@@ -7,6 +7,10 @@ import { Catalog } from './services/catalog'
 import { registerIpc, type MainContext } from './ipcHandlers'
 import { getSettings } from './store'
 import { IPC } from '../shared/ipc'
+import { initUpdater } from './updater'
+import { WatchProgress } from './progress'
+
+const progress = new WatchProgress()
 
 // Single instance only — a second launch focuses the existing window.
 if (!app.requestSingleInstanceLock()) {
@@ -30,7 +34,10 @@ function buildPlayer(wid: number): MpvPlayer {
     deinterlace: settings.deinterlace,
     networkTimeoutMs: settings.networkTimeoutMs
   })
-  p.on('state', (state) => windows.send(IPC.playerState, state))
+  p.on('state', (state) => {
+    windows.send(IPC.playerState, state)
+    progress.onState(state)
+  })
   p.on('log', (line: string) => {
     if (process.env['WTV_DEBUG']) console.log('[mpv]', line.trim())
   })
@@ -71,7 +78,9 @@ app.whenReady().then(async () => {
     get mpvInfo() {
       return mpvInfo
     },
-    restartPlayer
+    restartPlayer,
+    updater: initUpdater((state) => windows.send(IPC.updateState, state)),
+    progress
   } as unknown as MainContext
 
   registerIpc(ctx)
@@ -103,6 +112,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', async () => {
+  progress.flush()
   try {
     await player?.quit()
   } catch {

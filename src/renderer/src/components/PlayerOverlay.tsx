@@ -2,14 +2,31 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { useFullscreenVideoRegion } from '../hooks/useVideoRegion'
 import { Icon } from './Icon'
-import type { EpgNowNext } from '@shared/types'
+import { Initials } from './Initials'
+import type { EpgNowNext, Programme } from '@shared/types'
 
 export function PlayerOverlay(): JSX.Element {
-  const { playback, stopPlayback, setPlayerVisible, playAdjacent, channels, currentSourceId, nowPlayingKind } =
-    useStore()
+  const {
+    playback,
+    stopPlayback,
+    setPlayerVisible,
+    playAdjacent,
+    play,
+    playQueue,
+    channels,
+    currentSourceId,
+    nowPlayingKind,
+    episodeCtx,
+    playEpisode,
+    playNextEpisode
+  } = useStore()
   const [showControls, setShowControls] = useState(true)
   const [showStats, setShowStats] = useState(false)
   const [nowNext, setNowNext] = useState<EpgNowNext>({})
+  const [digits, setDigits] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
+  const [volumeHud, setVolumeHud] = useState(false)
+  const [countdown, setCountdown] = useState<number | null>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useFullscreenVideoRegion(true)
@@ -19,6 +36,11 @@ export function PlayerOverlay(): JSX.Element {
   const playing = playback.status === 'playing'
   const busy = playback.status === 'loading' || playback.status === 'buffering'
   const errored = playback.status === 'error'
+  const nextEp = episodeCtx ? episodeCtx.episodes[episodeCtx.index + 1] : undefined
+  const close = useCallback(() => {
+    stopPlayback()
+    setPlayerVisible(false)
+  }, [stopPlayback, setPlayerVisible])
 
   const reveal = useCallback(() => {
     setShowControls(true)
@@ -36,22 +58,96 @@ export function PlayerOverlay(): JSX.Element {
     }
   }, [reveal, playback.status, playback.channelId])
 
-  // Current programme for the info bar.
+  // Now/next for live channels (refreshed every minute).
   useEffect(() => {
-    if (!currentSourceId || !channel) {
+    if (!currentSourceId || !channel || !isLive) {
       setNowNext({})
       return
     }
-    void window.api.epg
-      .nowNext(currentSourceId, channel.epgChannelId, channel.name)
-      .then((r) => setNowNext(r.data ?? {}))
-  }, [currentSourceId, channel?.id])
+    const load = (): void =>
+      void window.api.epg.nowNext(currentSourceId, channel.epgChannelId, channel.name).then((r) => setNowNext(r.data ?? {}))
+    load()
+    const t = setInterval(load, 60_000)
+    return () => clearInterval(t)
+  }, [currentSourceId, channel?.id, isLive])
 
-  // Player key handling (works even when controls are hidden).
+  // Volume indicator: flash briefly when *the user* changes volume or mute
+  // (not when mpv reports its initial volume as a stream opens).
+  const lastVolAction = useRef(0)
+  const volAction = (): void => {
+    lastVolAction.current = Date.now()
+  }
+  useEffect(() => {
+    if (Date.now() - lastVolAction.current > 2000) return
+    setVolumeHud(true)
+    const t = setTimeout(() => setVolumeHud(false), 1500)
+    return () => clearTimeout(t)
+  }, [playback.volume, playback.muted])
+
+  // End of a title: episodes count down to the next one; movies close.
+  useEffect(() => {
+    if (!playback.ended) {
+      setCountdown(null)
+      return
+    }
+    if (nextEp) {
+      setCountdown(10)
+      return
+    }
+    const t = setTimeout(close, 1500)
+    return () => clearTimeout(t)
+  }, [playback.ended])
+  useEffect(() => {
+    if (countdown == null) return
+    if (countdown <= 0) {
+      setCountdown(null)
+      void playNextEpisode()
+      return
+    }
+    const t = setTimeout(() => setCountdown((c) => (c == null ? c : c - 1)), 1000)
+    return () => clearTimeout(t)
+  }, [countdown, playNextEpisode])
+
+  // Typed channel number (live): "1", "0", "3" → jump to channel 103.
+  useEffect(() => {
+    if (!digits) return
+    const t = setTimeout(() => {
+      const n = Number(digits)
+      setDigits('')
+      const target = channels.find((c) => c.type === 'live' && c.number === n)
+      if (target) void play(target.id, playQueue.length ? playQueue : channels.filter((c) => c.type === 'live').map((c) => c.id))
+      else {
+        setNotice(`No channel ${n}`)
+        setTimeout(() => setNotice(null), 1600)
+      }
+    }, 1400)
+    return () => clearTimeout(t)
+  }, [digits])
+
+  // Player keys (work even when controls are hidden).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT') return
+      if (isLive && /^[0-9]$/.test(e.key)) {
+        setDigits((d) => (d + e.key).slice(0, 4))
+        return
+      }
+      switch (e.key) {
+        case '+':
+        case '=':
+          volAction()
+          window.api.player.command({ action: 'volume', value: Math.min(130, playback.volume + 5) })
+          return
+        case '-':
+          volAction()
+          window.api.player.command({ action: 'volume', value: Math.max(0, playback.volume - 5) })
+          return
+        case 'm':
+          volAction()
+          window.api.player.command({ action: 'toggleMute' })
+          return
+      }
       // First interaction just reveals controls.
       if (!showControls && ['ArrowUp', 'ArrowDown', 'Enter', ' '].includes(e.key)) {
         reveal()
@@ -65,12 +161,16 @@ export function PlayerOverlay(): JSX.Element {
           reveal()
           break
         case 'ArrowUp':
-          e.preventDefault()
-          void playAdjacent(-1)
+          if (isLive) {
+            e.preventDefault()
+            void playAdjacent(-1)
+          }
           break
         case 'ArrowDown':
-          e.preventDefault()
-          void playAdjacent(1)
+          if (isLive) {
+            e.preventDefault()
+            void playAdjacent(1)
+          }
           break
         case 'ArrowRight':
           if (!isLive) {
@@ -84,16 +184,19 @@ export function PlayerOverlay(): JSX.Element {
             reveal()
           }
           break
-        case 'm':
-          window.api.player.command({ action: 'toggleMute' })
-          break
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [showControls, reveal, playAdjacent, isLive])
+  }, [showControls, reveal, playAdjacent, isLive, playback.volume])
+
+  const retry = (): void => {
+    if (episodeCtx) void playEpisode(episodeCtx.series, episodeCtx.episodes, episodeCtx.index)
+    else if (playback.channelId) void window.api.player.load(playback.channelId)
+  }
 
   const title = channel?.name ?? playback.title ?? 'Playing'
+  const kindLabel = nowPlayingKind === 'series' ? 'episode' : nowPlayingKind === 'movie' ? 'movie' : 'channel'
 
   return (
     <div
@@ -110,42 +213,59 @@ export function PlayerOverlay(): JSX.Element {
       <div className="player-hit" style={{ position: 'absolute', inset: 0 }} />
       <div className="player-scrim" />
 
-      {/* Top bar */}
+      {/* Top bar: channel identity */}
       <div className="player-top">
-        <button className="focusable tbtn" onClick={() => (stopPlayback(), setPlayerVisible(false))}>
+        <button className="focusable tbtn" title="Back" onClick={close}>
           <Icon name="back" />
         </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>
-            {title}
-            {isLive && (
-              <span
-                style={{
-                  marginLeft: 12,
-                  fontSize: 12,
-                  padding: '3px 8px',
-                  borderRadius: 6,
-                  background: 'var(--bad)',
-                  verticalAlign: 'middle'
-                }}
-              >
-                ● LIVE
-              </span>
-            )}
+        {isLive && channel && (
+          <div className="player-chlogo">
+            {channel.logo ? <img src={channel.logo} alt="" /> : <Initials name={channel.name} className="player-chlogo-ph" />}
           </div>
-          {nowNext.now && (
-            <div style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 2 }}>
-              {fmtTime(nowNext.now.start)}–{fmtTime(nowNext.now.stop)} · {nowNext.now.title}
-              {nowNext.next && (
-                <span style={{ color: 'var(--text-faint)' }}> · Next: {nowNext.next.title}</span>
-              )}
-            </div>
-          )}
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="player-title">
+            {isLive && channel?.number ? <span className="player-chno">{channel.number}</span> : null}
+            {title}
+            {isLive && <span className="live-pill">● LIVE</span>}
+          </div>
         </div>
-        <button className="focusable tbtn" title="Stats" onClick={() => setShowStats((v) => !v)}>
+        <button className="focusable tbtn" title="Stream info" onClick={() => setShowStats((v) => !v)}>
           <Icon name="info" />
         </button>
       </div>
+
+      {/* Typed channel number / notices */}
+      {(digits || notice) && <div className="player-digits">{digits || notice}</div>}
+
+      {/* Volume */}
+      {volumeHud && (
+        <div className="player-volume">
+          <Icon name={playback.muted ? 'mute' : 'volume'} size={24} />
+          <div className="vol-bar">
+            <span style={{ width: `${playback.muted ? 0 : Math.min(100, playback.volume)}%` }} />
+          </div>
+          <span className="vol-num">{playback.muted ? 'Muted' : playback.volume}</span>
+        </div>
+      )}
+
+      {/* Up next (series) */}
+      {countdown != null && nextEp && (
+        <div className="up-next">
+          <div className="up-next-label">Up next · playing in {countdown}s</div>
+          <div className="up-next-title">
+            S{nextEp.season} E{nextEp.episode} · {nextEp.title}
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+            <button className="focusable btn primary" data-autofocus onClick={() => (setCountdown(null), void playNextEpisode())}>
+              <Icon name="play" size={20} /> Play now
+            </button>
+            <button className="focusable btn" onClick={() => (setCountdown(null), close())}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Center status: loading / buffering / error — never a silent black screen. */}
       {(busy || errored) && (
@@ -153,19 +273,13 @@ export function PlayerOverlay(): JSX.Element {
           {busy && <div className="spinner" />}
           {errored ? (
             <>
-              <div className="title">Couldn’t play this channel</div>
+              <div className="title">Couldn’t play this {kindLabel}</div>
               <div className="msg">{playback.error ?? 'Unknown error.'}</div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 18 }}>
-                <button
-                  className="focusable ghost-btn primary"
-                  onClick={() => playback.channelId && window.api.player.load(playback.channelId)}
-                >
-                  <Icon name="refresh" size={16} /> Retry
+                <button className="focusable btn accent" onClick={retry}>
+                  <Icon name="refresh" size={18} /> Retry
                 </button>
-                <button
-                  className="focusable ghost-btn"
-                  onClick={() => (stopPlayback(), setPlayerVisible(false))}
-                >
+                <button className="focusable btn" onClick={close}>
                   Back
                 </button>
               </div>
@@ -173,11 +287,7 @@ export function PlayerOverlay(): JSX.Element {
           ) : (
             <div className="msg">
               {playback.status === 'buffering'
-                ? `Buffering…${
-                    playback.cacheBufferingPercent != null
-                      ? ` ${playback.cacheBufferingPercent}%`
-                      : ''
-                  }`
+                ? `Buffering…${playback.cacheBufferingPercent != null ? ` ${playback.cacheBufferingPercent}%` : ''}`
                 : `Loading ${title}…`}
             </div>
           )}
@@ -187,10 +297,9 @@ export function PlayerOverlay(): JSX.Element {
       {/* Bottom controls */}
       <div className="player-controls">
         {showStats && (
-          <div className="stats-chip" style={{ marginBottom: 14 }}>
+          <div className="stats-chip">
             <span>
-              <b>Resolution</b>{' '}
-              {playback.stats?.width ? `${playback.stats.width}×${playback.stats.height}` : '—'}
+              <b>Resolution</b> {playback.stats?.width ? `${playback.stats.width}×${playback.stats.height}` : '—'}
             </span>
             <span>
               <b>Video</b> {playback.stats?.videoCodec ?? '—'}
@@ -202,8 +311,7 @@ export function PlayerOverlay(): JSX.Element {
               <b>FPS</b> {playback.stats?.fps ?? '—'}
             </span>
             <span>
-              <b>Bitrate</b>{' '}
-              {playback.stats?.bitrateKbps ? `${(playback.stats.bitrateKbps / 1000).toFixed(1)} Mbps` : '—'}
+              <b>Bitrate</b> {playback.stats?.bitrateKbps ? `${(playback.stats.bitrateKbps / 1000).toFixed(1)} Mbps` : '—'}
             </span>
             <span>
               <b>Buffer</b> {playback.stats?.demuxerCacheSeconds ?? 0}s
@@ -211,50 +319,89 @@ export function PlayerOverlay(): JSX.Element {
           </div>
         )}
 
+        {/* Live: now / next mini guide */}
+        {isLive && (nowNext.now || nowNext.next) && (
+          <div className="mini-guide">
+            {nowNext.now && <GuideCell label="Now" p={nowNext.now} progress />}
+            {nowNext.next && <GuideCell label="Next" p={nowNext.next} />}
+          </div>
+        )}
+
+        {/* VOD: seek bar */}
         {!isLive && playback.duration > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div className="epg-progress" style={{ height: 6 }}>
+          <div className="seek">
+            <span>{fmtDur(playback.position)}</span>
+            <div className="seek-bar">
               <span style={{ width: `${(playback.position / playback.duration) * 100}%` }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
-              <span>{fmtDur(playback.position)}</span>
-              <span>{fmtDur(playback.duration)}</span>
-            </div>
+            <span>-{fmtDur(playback.duration - playback.position)}</span>
           </div>
         )}
 
         <div className="transport">
-          <button className="focusable tbtn" title="Previous channel" onClick={() => void playAdjacent(-1)}>
-            <Icon name="prev" size={26} />
-          </button>
-          <button
-            className="focusable tbtn primary"
-            onClick={() => window.api.player.command({ action: 'toggle' })}
-          >
+          {isLive && (
+            <button className="focusable tbtn" title="Previous channel" onClick={() => void playAdjacent(-1)}>
+              <Icon name="prev" size={26} />
+            </button>
+          )}
+          {!isLive && (
+            <button className="focusable tbtn" title="Back 15 s" onClick={() => window.api.player.command({ action: 'seekRelative', value: -15 })}>
+              <Icon name="prev" size={26} />
+            </button>
+          )}
+          <button className="focusable tbtn primary" data-autofocus onClick={() => window.api.player.command({ action: 'toggle' })}>
             <Icon name={playing ? 'pause' : 'play'} size={32} />
           </button>
-          <button className="focusable tbtn" title="Next channel" onClick={() => void playAdjacent(1)}>
-            <Icon name="next" size={26} />
-          </button>
+          {isLive ? (
+            <button className="focusable tbtn" title="Next channel" onClick={() => void playAdjacent(1)}>
+              <Icon name="next" size={26} />
+            </button>
+          ) : nextEp ? (
+            <button className="focusable tbtn" title={`Next episode: ${nextEp.title}`} onClick={() => void playNextEpisode()}>
+              <Icon name="next" size={26} />
+            </button>
+          ) : (
+            <button className="focusable tbtn" title="Forward 15 s" onClick={() => window.api.player.command({ action: 'seekRelative', value: 15 })}>
+              <Icon name="next" size={26} />
+            </button>
+          )}
           <button
             className="focusable tbtn"
             title={playback.muted ? 'Unmute' : 'Mute'}
-            onClick={() => window.api.player.command({ action: 'toggleMute' })}
+            onClick={() => (volAction(), window.api.player.command({ action: 'toggleMute' }))}
           >
             <Icon name={playback.muted ? 'mute' : 'volume'} />
           </button>
           <div style={{ flex: 1 }} />
+          {isLive && <span className="key-hint">Type a channel number to jump</span>}
           <button className="focusable tbtn" title="Audio track" onClick={() => window.api.player.command({ action: 'cycleAudio' })}>
             <Icon name="audio" />
           </button>
           <button className="focusable tbtn" title="Subtitles" onClick={() => window.api.player.command({ action: 'cycleSub' })}>
             <Icon name="subtitle" />
           </button>
-          <button className="focusable tbtn" title="Stop" onClick={() => (stopPlayback(), setPlayerVisible(false))}>
+          <button className="focusable tbtn" title="Stop" onClick={close}>
             <Icon name="stop" />
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function GuideCell({ label, p, progress }: { label: string; p: Programme; progress?: boolean }): JSX.Element {
+  const pct = Math.max(0, Math.min(100, ((Date.now() - p.start) / (p.stop - p.start)) * 100))
+  return (
+    <div className="mg-cell">
+      <div className="mg-label">
+        {label} · {fmtTime(p.start)}–{fmtTime(p.stop)}
+      </div>
+      <div className="mg-title">{p.title}</div>
+      {progress && (
+        <div className="epg-progress">
+          <span style={{ width: `${pct}%` }} />
+        </div>
+      )}
     </div>
   )
 }
@@ -267,7 +414,5 @@ function fmtDur(sec: number): string {
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   const ss = s % 60
-  return h > 0
-    ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
-    : `${m}:${String(ss).padStart(2, '0')}`
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${m}:${String(ss).padStart(2, '0')}`
 }

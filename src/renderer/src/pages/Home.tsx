@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore, type RouteName } from '../store'
 import { Icon } from '../components/Icon'
 import { Initials } from '../components/Initials'
 import { detectBrand } from '../components/brands'
-import type { AppTile, Channel, EpgNowNext, Programme } from '@shared/types'
+import { FadeImg } from '../components/FadeImg'
+import { getFocused } from '../hooks/useSpatialNavigation'
+import type { AppTile, Channel, EpgNowNext, MediaDetails, Programme } from '@shared/types'
 
 export function Home(): JSX.Element {
-  const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog } = useStore()
+  const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog, openDetail, fetchList, continueItems, resumeItem } =
+    useStore()
 
   // Home shows live channels; make sure the live list is the active one (served
   // from cache after the first load, so this is instant).
@@ -61,82 +64,110 @@ export function Home(): JSX.Element {
 
   const featuredNow = featured ? nn[featured.id]?.now : undefined
 
+  // Newest movies (by "added" date) with backdrop artwork for the carousel.
+  const [movieSlides, setMovieSlides] = useState<MovieSlide[]>([])
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const movies = await fetchList('movie')
+      const newest = [...movies]
+        .sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0))
+        .slice(0, 8)
+      const infos = await Promise.all(
+        newest.map(async (c) => ({ channel: c, info: (await window.api.vod.info(c.sourceId, c.providerId)).data }))
+      )
+      if (!cancelled) setMovieSlides(infos.filter((x): x is MovieSlide => Boolean(x.info?.backdrop)).slice(0, 5))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentSourceId, fetchList])
+
+  const liveHero = (
+    <section className="hero" style={{ ['--hero' as string]: heroColor(featured?.name ?? 'ello') }}>
+      <div className="hero-main">
+        {featured ? (
+          <>
+            <span className="hero-kicker">
+              <span className="live-dot" /> {featured.type === 'live' ? 'Live now' : 'Continue watching'}
+            </span>
+            <h1 className="hero-title">{featured.name}</h1>
+            {featuredNow ? (
+              <div className="hero-prog">
+                <div className="hero-prog-title">{featuredNow.title}</div>
+                <div className="hero-prog-row">
+                  <span>{fmt(featuredNow.start)}</span>
+                  <div className="hero-bar">
+                    <span style={{ width: `${progress(featuredNow)}%` }} />
+                  </div>
+                  <span>{fmt(featuredNow.stop)}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="hero-meta">Pick up where you left off.</p>
+            )}
+            <div className="hero-actions">
+              <button className="focusable btn on-color" onClick={() => void play(featured.id)}>
+                <Icon name="play" size={22} /> Watch
+              </button>
+              <button className="focusable btn on-color" onClick={() => navigate('guide')}>
+                <Icon name="guide" size={20} /> Guide
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="hero-kicker">Welcome</span>
+            <h1 className="hero-title">ello smartTV</h1>
+            <p className="hero-meta">
+              {hasSources
+                ? 'Your channels are loading…'
+                : 'Add your IPTV provider (Xtream login or M3U playlist) to start watching.'}
+            </p>
+            <div className="hero-actions">
+              <button className="focusable btn on-color" onClick={() => navigate('settings')}>
+                <Icon name={hasSources ? 'settings' : 'add'} size={20} />
+                {hasSources ? 'Manage sources' : 'Add a source'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {onNow.length > 0 && (
+        <div className="hero-side">
+          <div className="hero-side-title">On now</div>
+          {onNow.map((c) => {
+            const p = nn[c.id]?.now
+            return (
+              <button key={c.id} className="focusable on-now" onClick={() => void play(c.id, live.map((l) => l.id))}>
+                {c.logo ? <img className="on-now-logo" src={c.logo} loading="lazy" /> : <Initials name={c.name} className="on-now-logo" />}
+                <div className="on-now-text">
+                  <div className="on-now-ch">{c.name}</div>
+                  <div className="on-now-prog">{p ? p.title : 'Live'}</div>
+                  {p && (
+                    <div className="hero-bar thin">
+                      <span style={{ width: `${progress(p)}%` }} />
+                    </div>
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+
   return (
     <div className="page">
-      {/* ---- hero ---- */}
-      <section className="hero" style={{ ['--hero' as string]: heroColor(featured?.name ?? 'ello') }}>
-        <div className="hero-main">
-          {featured ? (
-            <>
-              <span className="hero-kicker">
-                <span className="live-dot" /> {featured.type === 'live' ? 'Live now' : 'Continue watching'}
-              </span>
-              <h1 className="hero-title">{featured.name}</h1>
-              {featuredNow ? (
-                <div className="hero-prog">
-                  <div className="hero-prog-title">{featuredNow.title}</div>
-                  <div className="hero-prog-row">
-                    <span>{fmt(featuredNow.start)}</span>
-                    <div className="hero-bar">
-                      <span style={{ width: `${progress(featuredNow)}%` }} />
-                    </div>
-                    <span>{fmt(featuredNow.stop)}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="hero-meta">Pick up where you left off.</p>
-              )}
-              <div className="hero-actions">
-                <button className="focusable btn on-color" onClick={() => void play(featured.id)}>
-                  <Icon name="play" size={22} /> Watch
-                </button>
-                <button className="focusable btn on-color" onClick={() => navigate('guide')}>
-                  <Icon name="guide" size={20} /> Guide
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="hero-kicker">Welcome</span>
-              <h1 className="hero-title">ello smartTV</h1>
-              <p className="hero-meta">
-                {hasSources
-                  ? 'Your channels are loading…'
-                  : 'Add your IPTV provider (Xtream login or M3U playlist) to start watching.'}
-              </p>
-              <div className="hero-actions">
-                <button className="focusable btn on-color" onClick={() => navigate('settings')}>
-                  <Icon name={hasSources ? 'settings' : 'add'} size={20} />
-                  {hasSources ? 'Manage sources' : 'Add a source'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {onNow.length > 0 && (
-          <div className="hero-side">
-            <div className="hero-side-title">On now</div>
-            {onNow.map((c) => {
-              const p = nn[c.id]?.now
-              return (
-                <button key={c.id} className="focusable on-now" onClick={() => void play(c.id, live.map((l) => l.id))}>
-                  {c.logo ? <img className="on-now-logo" src={c.logo} loading="lazy" /> : <Initials name={c.name} className="on-now-logo" />}
-                  <div className="on-now-text">
-                    <div className="on-now-ch">{c.name}</div>
-                    <div className="on-now-prog">{p ? p.title : 'Live'}</div>
-                    {p && (
-                      <div className="hero-bar thin">
-                        <span style={{ width: `${progress(p)}%` }} />
-                      </div>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </section>
+      {/* ---- hero: newest movies with real artwork, plus the live slide ---- */}
+      <HeroCarousel
+        slides={[
+          ...movieSlides.map((m) => ({ key: m.channel.id, node: <MovieHero item={m} onPlay={() => void play(m.channel.id)} onInfo={() => openDetail(m.channel)} /> })),
+          { key: 'live', node: liveHero }
+        ]}
+      />
 
       {/* ---- row 1: apps ---- */}
       <div className="rail">
@@ -151,6 +182,30 @@ export function Home(): JSX.Element {
           </button>
         </div>
       </div>
+
+      {/* ---- continue watching ---- */}
+      {continueItems.length > 0 && (
+        <div className="rail">
+          <div className="rail-title">Continue watching</div>
+          <div className="rail-track">
+            {continueItems.map((it) => (
+              <button key={it.key} className="focusable media-card" onClick={() => void resumeItem(it)}>
+                <div className="art cover">
+                  <Initials name={it.title} />
+                  {it.poster && <FadeImg src={it.poster} alt="" className="cover-img" />}
+                </div>
+                <div className="epg-progress flush">
+                  <span style={{ width: `${Math.min(100, (it.position / Math.max(1, it.duration)) * 100)}%` }} />
+                </div>
+                <div className="body">
+                  <div className="title">{it.title}</div>
+                  <div className="sub">{it.subtitle ?? `${Math.max(1, Math.round((it.duration - it.position) / 60))} min left`}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ---- row 2: live channels ---- */}
       {live.length > 0 && (
@@ -172,6 +227,66 @@ export function Home(): JSX.Element {
         />
       )}
     </div>
+  )
+}
+
+interface MovieSlide {
+  channel: Channel
+  info: MediaDetails
+}
+
+/** Rotating hero: crossfades every 9 s, pauses while something in it is focused. */
+function HeroCarousel({ slides }: { slides: Array<{ key: string; node: JSX.Element }> }): JSX.Element {
+  const [i, setI] = useState(0)
+  const ref = useRef<HTMLDivElement>(null)
+  const index = slides.length ? i % slides.length : 0
+  useEffect(() => {
+    if (slides.length < 2) return
+    const t = setInterval(() => {
+      const f = getFocused()
+      if (f && ref.current?.contains(f)) return
+      setI((n) => n + 1)
+    }, 9000)
+    return () => clearInterval(t)
+  }, [slides.length])
+  return (
+    <div className="hero-carousel" ref={ref}>
+      <div key={slides[index]?.key} className="hero-slide">
+        {slides[index]?.node}
+      </div>
+      {slides.length > 1 && (
+        <div className="hero-dots">
+          {slides.map((s, n) => (
+            <button key={s.key} className={`hero-dot ${n === index ? 'on' : ''}`} onClick={() => setI(n)} aria-label={`Slide ${n + 1}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MovieHero({ item, onPlay, onInfo }: { item: MovieSlide; onPlay: () => void; onInfo: () => void }): JSX.Element {
+  const { info, channel } = item
+  const meta = [info.year, info.rating ? `★ ${info.rating}` : undefined, info.genre].filter(Boolean).join('  ·  ')
+  return (
+    <section className="hero art-hero">
+      <FadeImg src={info.backdrop} alt="" className="hero-backdrop" />
+      <div className="hero-shade" />
+      <div className="hero-main">
+        <span className="hero-kicker">New movie</span>
+        <h1 className="hero-title">{info.title || channel.name}</h1>
+        {meta && <div className="hero-artmeta">{meta}</div>}
+        {info.plot && <p className="hero-plot">{info.plot}</p>}
+        <div className="hero-actions">
+          <button className="focusable btn primary" onClick={onPlay}>
+            <Icon name="play" size={22} /> Play
+          </button>
+          <button className="focusable btn on-color" onClick={onInfo}>
+            <Icon name="info" size={20} /> More info
+          </button>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -218,7 +333,7 @@ function MediaRail({
           return (
             <button key={c.id} className="focusable media-card" onClick={() => onPlay(c.id)}>
               <div className="art">
-                {c.logo ? <img src={c.logo} loading="lazy" /> : <Initials name={c.name} />}
+                {c.logo ? <FadeImg src={c.logo} alt="" /> : <Initials name={c.name} />}
                 {c.number ? <span className="chno">{c.number}</span> : null}
                 {favorites.includes(c.id) && (
                   <span className="fav-pin">

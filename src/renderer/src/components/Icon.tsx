@@ -30,6 +30,7 @@ import apps from '@material-symbols/svg-400/rounded/apps-fill.svg?raw'
 import add from '@material-symbols/svg-400/rounded/add-fill.svg?raw'
 import open from '@material-symbols/svg-400/rounded/open_in_new-fill.svg?raw'
 import chevron from '@material-symbols/svg-400/rounded/chevron_right-fill.svg?raw'
+import history from '@material-symbols/svg-400/rounded/history-fill.svg?raw'
 
 const ICONS: Record<string, string> = {
   live,
@@ -60,7 +61,8 @@ const ICONS: Record<string, string> = {
   apps,
   add,
   open,
-  chevron
+  chevron,
+  history
 }
 
 export function Icon({ name, size = 22 }: { name: string; size?: number; stroke?: number }): JSX.Element {

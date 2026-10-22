@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type PlayerCommand, type VideoRegion, type WebAppState } from '../shared/ipc'
+import { IPC, type PlayerCommand, type UpdateState, type VideoRegion, type WebAppState } from '../shared/ipc'
 import type {
   AppSettings,
   Category,
@@ -9,7 +9,10 @@ import type {
   PlaybackState,
   Programme,
   Result,
-  SeriesEpisode,
+  MediaDetails,
+  PlayOptions,
+  WatchItem,
+  SeriesDetails,
   Source,
   StreamType
 } from '../shared/types'
@@ -59,7 +62,16 @@ const api = {
   },
   series: {
     info: (sourceId: string, seriesId: string) =>
-      invoke<SeriesEpisode[]>(IPC.seriesInfo, { sourceId, seriesId })
+      invoke<SeriesDetails>(IPC.seriesInfo, { sourceId, seriesId })
+  },
+  progress: {
+    list: (sourceId?: string) => invoke<WatchItem[]>(IPC.progressList, sourceId),
+    get: (key: string) => invoke<WatchItem | null>(IPC.progressGet, key),
+    series: (sourceId: string, seriesId: string) =>
+      invoke<Record<string, WatchItem>>(IPC.progressSeries, { sourceId, seriesId })
+  },
+  vod: {
+    info: (sourceId: string, vodId: string) => invoke<MediaDetails>(IPC.vodInfo, { sourceId, vodId })
   },
   favorites: {
     toggle: (channelId: string) => invoke<AppSettings>(IPC.favoriteToggle, channelId)
@@ -68,9 +80,11 @@ const api = {
     add: (channelId: string) => invoke<AppSettings>(IPC.recentAdd, channelId)
   },
   player: {
-    load: (channelId: string) => invoke<boolean>(IPC.playerLoad, { channelId }),
-    loadUrl: (url: string, title?: string, sourceId?: string) =>
-      invoke<boolean>(IPC.playerLoadUrl, { url, title, sourceId }),
+    load: (channelId: string, opts?: PlayOptions) => invoke<boolean>(IPC.playerLoad, { channelId, opts }),
+    loadUrl: (url: string, title?: string, sourceId?: string, opts?: PlayOptions) =>
+      invoke<boolean>(IPC.playerLoadUrl, { url, title, sourceId, opts }),
+    catchup: (channelId: string, start: number, stop: number, title?: string) =>
+      invoke<boolean>(IPC.playerCatchup, { channelId, start, stop, title }),
     command: (cmd: PlayerCommand) => invoke<boolean>(IPC.playerCommand, cmd),
     setRegion: (region: VideoRegion) => invoke<boolean>(IPC.playerSetRegion, region),
     probe: (channelId: string) =>
@@ -87,15 +101,21 @@ const api = {
     home: () => invoke<boolean>(IPC.webappHome),
     reload: () => invoke<boolean>(IPC.webappReload)
   },
+  updates: {
+    getState: () => invoke<UpdateState>(IPC.updateGetState),
+    check: () => invoke<boolean>(IPC.updateCheck),
+    install: () => invoke<boolean>(IPC.updateInstall)
+  },
   launchApp: (target: string) => invoke<{ ok: boolean; message: string }>(IPC.appLaunch, target),
   openExternal: (url: string) => invoke<boolean>(IPC.openExternal, url),
   appInfo: () =>
-    invoke<{ mpvPath?: string; mpvReason?: string; versions: NodeJS.ProcessVersions }>(IPC.appInfo),
+    invoke<{ version: string; mpvPath?: string; mpvReason?: string; versions: NodeJS.ProcessVersions }>(IPC.appInfo),
 
   onPlayerState: (cb: (s: PlaybackState) => void) => subscribe<PlaybackState>(IPC.playerState, cb),
   onCatalogProgress: (cb: (p: LoadProgress) => void) =>
     subscribe<LoadProgress>(IPC.catalogProgress, cb),
-  onWebAppState: (cb: (s: WebAppState) => void) => subscribe<WebAppState>(IPC.webappState, cb)
+  onWebAppState: (cb: (s: WebAppState) => void) => subscribe<WebAppState>(IPC.webappState, cb),
+  onUpdateState: (cb: (s: UpdateState) => void) => subscribe<UpdateState>(IPC.updateState, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)

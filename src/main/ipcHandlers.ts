@@ -1,12 +1,14 @@
-import { ipcMain, shell } from 'electron'
-import { IPC, type PlayerCommand, type VideoRegion } from '../shared/ipc'
-import type { Result, Source, StreamType } from '../shared/types'
+import { app, ipcMain, shell } from 'electron'
+import { IPC, type PlayerCommand, type UpdateState, type VideoRegion } from '../shared/ipc'
+import type { PlayOptions, Result, Source, StreamType } from '../shared/types'
+import type { WatchProgress } from './progress'
 import { getSettings, updateSettings } from './store'
 import type { Catalog } from './services/catalog'
 import type { MpvPlayer } from './mpv/MpvPlayer'
 import { type WindowManager, launchInstalledApp } from './windows'
 import * as xtream from './services/xtream'
 import { probeStream } from './net/http'
+import { buildCatchupUrl } from './services/catchup'
 
 export interface MainContext {
   catalog: Catalog
@@ -14,6 +16,8 @@ export interface MainContext {
   windows: WindowManager
   mpvInfo: { path?: string; reason?: string }
   restartPlayer: () => Promise<void>
+  updater: { check: () => void; install: () => void; getState: () => UpdateState }
+  progress: WatchProgress
 }
 
 function ok<T>(data: T): Result<T> {
@@ -130,6 +134,23 @@ export function registerIpc(ctx: MainContext): void {
     }
   )
 
+  // Movie info rarely changes; cache it for the session (key: source + vod id).
+  const vodInfoCache = new Map<string, unknown>()
+  ipcMain.handle(IPC.vodInfo, async (_e, args: { sourceId: string; vodId: string }) => {
+    const key = `${args.sourceId}:${args.vodId}`
+    if (vodInfoCache.has(key)) return ok(vodInfoCache.get(key))
+    const settings = getSettings()
+    const source = settings.sources.find((s) => s.id === args.sourceId)
+    if (!source || source.kind !== 'xtream') return fail('Movie details need an Xtream source.')
+    try {
+      const info = await xtream.getVodInfo(source, args.vodId, source.userAgent || settings.userAgent, settings.networkTimeoutMs)
+      vodInfoCache.set(key, info)
+      return ok(info)
+    } catch (e) {
+      return fail(e)
+    }
+  })
+
   ipcMain.handle(IPC.seriesInfo, async (_e, args: { sourceId: string; seriesId: string }) => {
     const settings = getSettings()
     const source = settings.sources.find((s) => s.id === args.sourceId)
@@ -219,18 +240,27 @@ export function registerIpc(ctx: MainContext): void {
   })
 
   // ---------------------------------------------------------------- player
-  ipcMain.handle(IPC.playerLoad, async (_e, args: { channelId: string }) => {
+  ipcMain.handle(IPC.playerLoad, async (_e, args: { channelId: string; opts?: PlayOptions }) => {
     const settings = getSettings()
     const channel = catalog.getChannel(args.channelId)
     if (!channel) return fail('Channel not found')
     const source = settings.sources.find((s) => s.id === channel.sourceId)
     const ua = source?.userAgent || settings.userAgent
+    // Movies are tracked for "Continue watching"; live TV isn't.
+    const isMovie = channel.type === 'movie'
+    ctx.progress.begin(
+      isMovie
+        ? { key: channel.id, kind: 'movie', sourceId: channel.sourceId, channelId: channel.id, title: channel.name, poster: args.opts?.poster ?? channel.logo }
+        : null
+    )
+    const startSeconds = isMovie && args.opts?.resume !== false ? ctx.progress.resumePosition(channel.id) : undefined
     try {
       await ctx.player.load(channel.url, {
         title: channel.name,
         channelId: channel.id,
         userAgent: ua,
-        startTimeoutMs: settings.networkTimeoutMs + 6000
+        startTimeoutMs: settings.networkTimeoutMs + 6000,
+        startSeconds
       })
       return ok(true)
     } catch (e) {
@@ -240,14 +270,58 @@ export function registerIpc(ctx: MainContext): void {
 
   ipcMain.handle(
     IPC.playerLoadUrl,
-    async (_e, args: { url: string; title?: string; sourceId?: string }) => {
+    async (_e, args: { url: string; title?: string; sourceId?: string; opts?: PlayOptions }) => {
       const settings = getSettings()
       const source = settings.sources.find((s) => s.id === args.sourceId)
       const ua = source?.userAgent || settings.userAgent
+      const ep = args.opts?.episode
+      const key = ep && args.sourceId ? `${args.sourceId}:ep:${ep.episodeId}` : null
+      ctx.progress.begin(
+        key && ep && args.sourceId
+          ? {
+              key,
+              kind: 'episode',
+              sourceId: args.sourceId,
+              url: args.url,
+              title: ep.seriesName,
+              subtitle: `S${ep.season} E${ep.episode} · ${ep.title}`,
+              poster: args.opts?.poster,
+              series: { id: ep.seriesId, name: ep.seriesName, season: ep.season, episode: ep.episode, episodeId: ep.episodeId, title: ep.title }
+            }
+          : null
+      )
+      const startSeconds = key && args.opts?.resume !== false ? ctx.progress.resumePosition(key) : undefined
       try {
         await ctx.player.load(args.url, {
           title: args.title,
           userAgent: ua,
+          startTimeoutMs: settings.networkTimeoutMs + 6000,
+          startSeconds
+        })
+        return ok(true)
+      } catch (e) {
+        return fail(e)
+      }
+    }
+  )
+
+  // Replay a past programme from the Guide (catch-up / timeshift).
+  ipcMain.handle(
+    IPC.playerCatchup,
+    async (_e, args: { channelId: string; start: number; stop: number; title?: string }) => {
+      const settings = getSettings()
+      const channel = catalog.getChannel(args.channelId)
+      if (!channel) return fail('Channel not found')
+      const source = settings.sources.find((s) => s.id === channel.sourceId)
+      if (!source) return fail('Source not found')
+      const { url, reason } = buildCatchupUrl(channel, source, args.start, args.stop, catalog.getClock(source.id))
+      if (!url) return fail(reason ?? 'Catch-up isn’t available for this programme.')
+      ctx.progress.begin(null)
+      try {
+        await ctx.player.load(url, {
+          title: args.title ?? channel.name,
+          channelId: channel.id,
+          userAgent: source.userAgent || settings.userAgent,
           startTimeoutMs: settings.networkTimeoutMs + 6000
         })
         return ok(true)
@@ -358,8 +432,19 @@ export function registerIpc(ctx: MainContext): void {
     return ok(await launchInstalledApp(target))
   })
 
+  ipcMain.handle(IPC.progressList, (_e, sourceId?: string) => ok(ctx.progress.list(sourceId)))
+  ipcMain.handle(IPC.progressGet, (_e, key: string) => ok(ctx.progress.get(key) ?? null))
+  ipcMain.handle(IPC.progressSeries, (_e, args: { sourceId: string; seriesId: string }) =>
+    ok(ctx.progress.forSeries(args.sourceId, args.seriesId))
+  )
+
+  ipcMain.handle(IPC.updateGetState, () => ok(ctx.updater.getState()))
+  ipcMain.handle(IPC.updateCheck, () => (ctx.updater.check(), ok(true)))
+  ipcMain.handle(IPC.updateInstall, () => (ctx.updater.install(), ok(true)))
+
   ipcMain.handle(IPC.appInfo, () =>
     ok({
+      version: app.getVersion(),
       mpvPath: ctx.mpvInfo.path,
       mpvReason: ctx.mpvInfo.reason,
       versions: process.versions

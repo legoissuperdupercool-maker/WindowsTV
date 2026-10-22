@@ -33,3 +33,10 @@ nsis:
   artifactName: ello-smartTV-${version}-Setup.${ext}
 portable:
   artifactName: ello-smartTV-${version}-Portable.${ext}
+# Auto-update feed: a separate PUBLIC repo that only holds release installers
+# (the source repo is private). CI publishes there; the app reads from there.
+publish:
+  provider: github
+  owner: legoissuperdupercool-maker
+  repo: ello-smarttv-releases
+  releaseType: release

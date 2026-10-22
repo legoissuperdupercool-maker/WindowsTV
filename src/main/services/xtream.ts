@@ -1,5 +1,6 @@
-import type { Category, Channel, SeriesEpisode, Source } from '../../shared/types'
+import type { Category, Channel, MediaDetails, SeriesDetails, SeriesEpisode, Source } from '../../shared/types'
 import { fetchJson, fetchUrl } from '../net/http'
+import { serverOffsetMin, type ServerClock } from './catchup'
 
 /**
  * Minimal, resilient Xtream Codes API client.
@@ -11,7 +12,15 @@ import { fetchJson, fetchUrl } from '../net/http'
 
 interface XtreamAuth {
   user_info?: { auth?: number; status?: string; message?: string; exp_date?: string | null }
-  server_info?: { url?: string; port?: string; https_port?: string; server_protocol?: string }
+  server_info?: {
+    url?: string
+    port?: string
+    https_port?: string
+    server_protocol?: string
+    timezone?: string
+    time_now?: string
+    timestamp_now?: number | string
+  }
 }
 
 function base(source: Source): string {
@@ -48,7 +57,7 @@ export async function authenticate(
   source: Source,
   userAgent: string,
   timeoutMs: number
-): Promise<{ ok: boolean; message: string; expiry?: string }> {
+): Promise<{ ok: boolean; message: string; expiry?: string; clock?: ServerClock }> {
   const data = await fetchJson<XtreamAuth>(api(source, {}), {
     userAgent: source.userAgent || userAgent,
     timeoutMs,
@@ -62,7 +71,9 @@ export async function authenticate(
   const expiry = info.exp_date
     ? new Date(Number(info.exp_date) * 1000).toLocaleDateString()
     : undefined
-  return { ok: true, message: `Connected${expiry ? ` · expires ${expiry}` : ''}`, expiry }
+  const si = data.server_info ?? {}
+  const clock: ServerClock = { offsetMin: serverOffsetMin(si.time_now, si.timestamp_now), timezone: si.timezone || undefined }
+  return { ok: true, message: `Connected${expiry ? ` · expires ${expiry}` : ''}`, expiry, clock }
 }
 
 export async function getCategories(
@@ -122,7 +133,9 @@ export async function getLiveStreams(
         group: str(r.category_id) ? `${source.id}:live:${str(r.category_id)}` : undefined,
         epgChannelId: str(r.epg_channel_id),
         number: num(r.num),
-        url: liveUrl(source, streamId)
+        url: liveUrl(source, streamId),
+        // tv_archive=1 → the provider keeps recordings for tv_archive_duration days.
+        catchup: num(r.tv_archive) === 1 ? { days: num(r.tv_archive_duration) || 1, kind: 'xtream' } : undefined
       }
       return channel
     })
@@ -202,7 +215,7 @@ export async function getSeriesInfo(
   seriesId: string,
   userAgent: string,
   timeoutMs: number
-): Promise<SeriesEpisode[]> {
+): Promise<SeriesDetails> {
   const data = await fetchJson<Record<string, unknown>>(
     api(source, { action: 'get_series_info', series_id: seriesId }),
     { userAgent: source.userAgent || userAgent, timeoutMs, retries: 1 }
@@ -223,12 +236,51 @@ export async function getSeriesInfo(
         episode: num(e.episode_num) ?? 0,
         url: `${base(source)}/series/${source.username}/${source.password}/${epId}.${ext}`,
         plot: str(info.plot),
-        duration: str(info.duration)
+        duration: str(info.duration),
+        thumb: str(info.movie_image)
       })
     }
   }
   out.sort((a, b) => a.season - b.season || a.episode - b.episode)
-  return out
+  const info = (data.info ?? {}) as Record<string, unknown>
+  return { details: toDetails(info, str(info.name) ?? ''), episodes: out }
+}
+
+/** Full movie info: artwork, plot, cast… (Xtream get_vod_info). */
+export async function getVodInfo(
+  source: Source,
+  vodId: string,
+  userAgent: string,
+  timeoutMs: number
+): Promise<MediaDetails> {
+  const data = await fetchJson<Record<string, unknown>>(api(source, { action: 'get_vod_info', vod_id: vodId }), {
+    userAgent: source.userAgent || userAgent,
+    timeoutMs,
+    retries: 1
+  })
+  const info = (Array.isArray(data.info) ? {} : (data.info ?? {})) as Record<string, unknown>
+  const movie = (data.movie_data ?? {}) as Record<string, unknown>
+  return toDetails(info, str(info.name) ?? str(movie.name) ?? '')
+}
+
+/** Normalise the many field spellings Xtream panels use for media info. */
+function toDetails(info: Record<string, unknown>, title: string): MediaDetails {
+  const backdrops = info.backdrop_path
+  const backdrop = Array.isArray(backdrops) ? str(backdrops[0]) : str(backdrops)
+  const released = str(info.releasedate) ?? str(info.releaseDate) ?? str(info.release_date) ?? str(info.year)
+  const ratingNum = num(info.rating) ?? (num(info.rating_5based) != null ? num(info.rating_5based)! * 2 : undefined)
+  return {
+    title,
+    poster: str(info.movie_image) ?? str(info.cover) ?? str(info.cover_big),
+    backdrop,
+    plot: str(info.plot) ?? str(info.description),
+    year: released?.match(/\d{4}/)?.[0],
+    genre: str(info.genre),
+    rating: ratingNum && ratingNum > 0 ? ratingNum.toFixed(1) : undefined,
+    duration: str(info.duration) ?? (num(info.episode_run_time) ? `${num(info.episode_run_time)} min` : undefined),
+    cast: str(info.cast) ?? str(info.actors),
+    director: str(info.director)
+  }
 }
 
 export function liveUrl(source: Source, streamId: string): string {

@@ -43,6 +43,14 @@ export interface Channel {
   number?: number
   /** For VOD/series: extra metadata. */
   meta?: Record<string, unknown>
+  /** Live channels that support catch-up (replaying past programmes). */
+  catchup?: {
+    /** How many days back the provider keeps recordings. */
+    days: number
+    /** `xtream` = /timeshift/ URLs; `append`/`default` = M3U catchup-source template. */
+    kind: 'xtream' | 'append' | 'default'
+    template?: string
+  }
 }
 
 export interface SeriesEpisode {
@@ -53,6 +61,57 @@ export interface SeriesEpisode {
   url: string
   plot?: string
   duration?: string
+  /** Episode still/thumbnail, when the provider has one. */
+  thumb?: string
+}
+
+/** Rich info for a movie or series (Xtream get_vod_info / get_series_info). */
+export interface MediaDetails {
+  title: string
+  poster?: string
+  backdrop?: string
+  plot?: string
+  year?: string
+  genre?: string
+  /** Rating out of 10, as a display string (e.g. "7.4"). */
+  rating?: string
+  duration?: string
+  cast?: string
+  director?: string
+}
+
+/** A movie or episode the user has started (for "Continue watching"/resume). */
+export interface WatchItem {
+  key: string
+  kind: 'movie' | 'episode'
+  sourceId: string
+  /** Movies: catalogue channel id (played via player.load). */
+  channelId?: string
+  /** Episodes: direct stream URL (played via player.loadUrl). */
+  url?: string
+  /** Movie title, or the series name for episodes. */
+  title: string
+  /** Episodes: "S1 E3 · Episode title". */
+  subtitle?: string
+  poster?: string
+  position: number
+  duration: number
+  updatedAt: number
+  finished: boolean
+  series?: { id: string; name: string; season: number; episode: number; episodeId: string; title: string }
+}
+
+/** Extra info passed when starting VOD playback. */
+export interface PlayOptions {
+  /** Resume from the saved position (default true). false = start over. */
+  resume?: boolean
+  poster?: string
+  episode?: { seriesId: string; seriesName: string; episodeId: string; season: number; episode: number; title: string }
+}
+
+export interface SeriesDetails {
+  details: MediaDetails
+  episodes: SeriesEpisode[]
 }
 
 export interface Category {
@@ -89,6 +148,8 @@ export interface PlaybackState {
   paused: boolean
   volume: number
   muted: boolean
+  /** True once a movie/episode played to its end (cleared on the next load). */
+  ended?: boolean
   /** Human-readable error for the UI (addresses "nothing loads" with a reason). */
   error?: string
   /** Live stream stats for a diagnostics overlay. */

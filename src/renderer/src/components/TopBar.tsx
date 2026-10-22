@@ -31,7 +31,7 @@ function Clock(): JSX.Element {
 }
 
 export function TopBar(): JSX.Element {
-  const { settings, currentSourceId, setSource, navigate, route } = useStore()
+  const { settings, currentSourceId, setSource, navigate, route, update } = useStore()
   const sources = settings?.sources ?? []
 
   return (
@@ -64,6 +64,15 @@ export function TopBar(): JSX.Element {
             </option>
           ))}
         </select>
+      )}
+
+      {update?.status === 'ready' && (
+        <button className="focusable update-pill" onClick={() => void window.api.updates.install()}>
+          <Icon name="refresh" size={18} /> Update ready · Restart
+        </button>
+      )}
+      {update?.status === 'downloading' && (
+        <span className="update-pill quiet">Updating… {update.percent ?? 0}%</span>
       )}
 
       <button className="focusable icon-btn" title="Search channels" onClick={() => navigate('live')}>

@@ -59,7 +59,8 @@ export function parseM3u(text: string, source: Source): M3uResult {
         name: attrs['tvg-name'] || name || 'Unknown',
         logo: attrs['tvg-logo'] || undefined,
         epgChannelId: attrs['tvg-id'] || undefined,
-        number: attrs['tvg-chno'] ? Number(attrs['tvg-chno']) : undefined
+        number: attrs['tvg-chno'] ? Number(attrs['tvg-chno']) : undefined,
+        catchup: parseCatchup(attrs)
       }
       continue
     }
@@ -96,7 +97,8 @@ export function parseM3u(text: string, source: Source): M3uResult {
       group: groupId,
       epgChannelId: pending?.epgChannelId,
       number: pending?.number,
-      url
+      url,
+      catchup: type === 'live' ? pending?.catchup : undefined
     })
 
     pending = null
@@ -111,6 +113,20 @@ export function parseM3u(text: string, source: Source): M3uResult {
   }))
 
   return { channels, categories, epgUrl }
+}
+
+/** M3U catch-up attributes: catchup="xc|append|default|shift|flussonic", catchup-days, catchup-source. */
+function parseCatchup(attrs: Record<string, string>): Channel['catchup'] {
+  const kind = (attrs['catchup'] || attrs['catchup-type'] || '').toLowerCase()
+  const days = Number(attrs['catchup-days'] || attrs['tvg-rec'] || 0) || 0
+  if (!kind && !days) return undefined
+  const d = days || 1
+  if (kind === 'xc' || kind === 'xtream') return { days: d, kind: 'xtream' }
+  const template = attrs['catchup-source']
+  if (kind === 'append' && template) return { days: d, kind: 'append', template }
+  if ((kind === 'default' || kind === 'flussonic' || kind === 'fs') && template) return { days: d, kind: 'default', template }
+  if (kind === 'shift' || kind === 'timeshift') return { days: d, kind: 'append', template: '?utc={utc}&lutc={lutc}' }
+  return undefined
 }
 
 function guessType(url: string, group?: string): Channel['type'] {

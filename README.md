@@ -21,13 +21,18 @@ than a browser video element.
 
 > Captured from the **real app UI** running with sample channel/EPG data. Real
 > channel logos and posters load from your provider at runtime, and in the
-> player the picture comes from mpv (shown here as a placeholder).
+> player the picture comes from mpv (shown here as a placeholder). The movie
+> artwork in these shots is generated placeholder imagery.
 
-| Home | Live TV |
+| Home | Continue watching |
 | :---: | :---: |
-| ![Home screen](docs/screenshots/home.png) | ![Live TV](docs/screenshots/livetv.png) |
-| **TV Guide** | **Player** |
+| ![Home screen](docs/screenshots/home.png) | ![Continue watching](docs/screenshots/home-continue.png) |
+| **Movie details** | **Series details** |
+| ![Movie details](docs/screenshots/movie-detail.png) | ![Series details](docs/screenshots/series-detail.png) |
+| **TV Guide (with catch-up)** | **Player** |
 | ![TV Guide](docs/screenshots/guide.png) | ![Player](docs/screenshots/player.png) |
+| **Live TV** | |
+| ![Live TV](docs/screenshots/livetv.png) | |
 
 ---
 
@@ -45,6 +50,26 @@ is pushed. Two files are produced:
 from the newest **“ello smartTV — build N”** pre-release. Every push publishes a
 new one automatically. Pushing a version tag like `v0.1.0` attaches the EXEs to
 that version's release instead.
+
+### Automatic updates
+
+Install the **Setup.exe** once and the app keeps itself up to date: it checks
+for a new build shortly after launch and every few hours, downloads it in the
+background, and installs it when you close the app (or right away from
+**Settings → About & updates**). The portable EXE can't update itself — just
+download a newer one.
+
+Updates are served from a separate **public** repo, `ello-smarttv-releases`, so
+this source repo can stay private. To switch it on (one time):
+
+1. Create a public GitHub repo named **`ello-smarttv-releases`** (tick *Add a README*).
+2. Create a **fine-grained personal access token** with access to only that repo
+   and **Contents: Read and write**.
+3. In this repo go to **Settings → Secrets and variables → Actions** and add it
+   as a secret named **`RELEASES_TOKEN`**.
+
+Every build after that also publishes `v0.1.<build>` to the releases repo,
+which is the feed installed copies update from.
 
 Because the build is unsigned, Windows SmartScreen may warn on first launch
 (**More info → Run anyway**). Prefer building it yourself? See *Build a Windows
@@ -79,9 +104,19 @@ Two specific UHF pain points drove the design:
 - 🗂️ Categories, search, **favorites**, recently-watched.
 - 🕗 **EPG** — now/next on every channel card, plus a full scrolling **TV Guide**
   grid with a live "now" line.
-- 🎬 **Movies & Series (VOD)** with poster browsing and per-episode playback.
-- ⚡ **Channel zapping** (prev/next) and a clean player overlay with live stats
-  (resolution, codecs, bitrate, buffer).
+- 🎬 **Movies & Series (VOD)** with poster browsing and Google-TV-style
+  **detail pages** — full-bleed artwork, plot, cast, season tabs and an
+  episode row with watched ticks.
+- ▶️ **Continue watching** — movies and episodes remember where you stopped;
+  **Resume** or **Start over**, and series pick up at the next episode
+  (with an "up next" countdown at the end of each one).
+- ⏪ **Catch-up TV** — on channels your provider archives (Xtream
+  `tv_archive`, or M3U `catchup` attributes), pick a past programme in the
+  TV Guide and watch it from the start.
+- ⚡ **Channel zapping** (prev/next, or type a channel number) and a polished
+  player overlay: channel logo, now/next mini-guide, seek bar with time left,
+  and live stats (resolution, codecs, bitrate, buffer).
+- 🔄 **Automatic updates** (installer version) — see above.
 - 🛠️ Tunable player settings: hardware-decode mode, cache size, timeouts,
   deinterlacing, User-Agent (global and per-source).
 
@@ -151,6 +186,8 @@ panels only allow specific UAs — the default is a VLC UA, which most accept).
 | Backspace / Esc | Back (close player → home) |
 | `F` | Favorite the highlighted channel (Live TV) |
 | `M` | Mute |
+| `+` / `-` | Volume up / down (player) |
+| `0`–`9` | Type a channel number to jump to it (player) |
 
 ---
 
@@ -165,8 +202,10 @@ src/
 │   ├── ipcHandlers.ts   all IPC endpoints (wrapped so errors surface to UI)
 │   ├── store.ts         persisted settings (electron-store)
 │   ├── net/http.ts      resilient fetch: retries, timeouts, gzip, UA, probes
+│   ├── updater.ts       auto-update (electron-updater, public releases repo)
+│   ├── progress.ts      watch progress for Continue watching / resume
 │   ├── mpv/             MpvPlayer (JSON-IPC) + binary resolver
-│   └── services/        xtream · m3u · epg · catalog (with disk caching)
+│   └── services/        xtream · m3u · epg · catalog · catchup
 ├── preload/           # contextBridge-exposed, typed `window.api`
 └── renderer/          # React UI (zustand + custom spatial navigation)
     └── src/{pages,components,hooks,styles}
@@ -188,7 +227,8 @@ the diagram in `src/main/windows.ts`.
 - Streaming services that use **Widevine DRM** (Netflix, Disney+, Prime Video,
   Max…) can't play in the in-app browser — stock Electron has no Widevine CDM.
   Add them as **installed-app** tiles instead (they launch the real Windows app).
-- Catch-up/time-shift and multi-view are future work.
+- Catch-up needs provider support (archived channels show a ⟲ badge in the
+  guide). Multi-view is future work.
 - Series episode browsing requires an Xtream source.
 
 ## License

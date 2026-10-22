@@ -43,8 +43,11 @@ body {
   user-select: none;
   -webkit-font-smoothing: antialiased;
 }
-body.playing {
-  background: transparent;
+/* During playback BOTH html and body must be transparent: the mpv video is a
+   separate window behind this one and shows through. */
+html.playing,
+html.playing body {
+  background: transparent !important;
 }
 #root {
   display: flex;
@@ -1104,7 +1107,8 @@ img {
   bottom: 5px;
   border-radius: var(--radius-sm);
   padding: 9px 12px;
-  overflow: hidden;
+  /* clip (not hidden) so the sticky title inside can follow horizontal scroll */
+  overflow: clip;
   background: var(--surface-2);
   text-align: left;
   outline-offset: 0;
@@ -1200,4 +1204,552 @@ img {
   /* Rows must keep their natural height and overflow (scroll) instead of
      being squeezed to fit the now fixed-height grid. */
   grid-auto-rows: max-content;
+}
+
+/* ================================================================ update pill */
+.update-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 6px;
+  outline-offset: 0;
+}
+.update-pill.quiet {
+  background: var(--pill);
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.update-pill.is-focused {
+  background: #fff;
+  color: #111;
+  outline-color: transparent;
+}
+
+/* ================================================================ images fade in */
+.fade-img {
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+.fade-img.loaded {
+  opacity: 1;
+}
+
+/* ================================================================ detail screen */
+.detail {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  animation: page-in 0.28s var(--ease);
+}
+.detail-art {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 78%;
+  height: 78vh;
+  overflow: hidden;
+}
+.detail-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+.detail-art img.blur {
+  filter: blur(40px) saturate(1.3);
+  transform: scale(1.2);
+  opacity: 0.55;
+}
+.detail-scrim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 78vh;
+  background:
+    linear-gradient(90deg, var(--bg) 22%, rgba(14, 16, 19, 0.75) 45%, rgba(14, 16, 19, 0) 75%),
+    linear-gradient(0deg, var(--bg) 0%, rgba(14, 16, 19, 0) 45%);
+  pointer-events: none;
+}
+.detail-back {
+  position: absolute;
+  top: 24px;
+  left: 32px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+}
+.detail-body {
+  position: relative;
+  z-index: 1;
+  padding: 120px 56px 60px;
+}
+.detail-main {
+  max-width: 620px;
+  min-height: calc(78vh - 150px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.detail-poster {
+  width: 150px;
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.detail-title {
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.08;
+  margin: 0 0 12px;
+}
+.detail-meta {
+  font-size: 16px;
+  color: var(--text-dim);
+  margin-bottom: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.detail-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.btn.primary {
+  background: #fff;
+  color: #111;
+}
+.detail-plot {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0 0 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.detail-credits {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+.detail-credits span {
+  color: var(--text-faint);
+  margin-right: 6px;
+}
+.detail-episodes {
+  margin-top: 36px;
+}
+.season-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.episode-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 6px 4px 10px;
+}
+.episode-card {
+  flex: 0 0 280px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  text-align: left;
+}
+.episode-card.is-focused {
+  transform: scale(1.04);
+}
+.ep-art {
+  aspect-ratio: 16 / 9;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.ep-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ep-num {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+.ep-body {
+  padding: 12px 14px 14px;
+}
+.ep-title {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ep-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+/* Page transitions */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Posters: initials sit underneath; the artwork fades in over them. */
+.poster-card .art {
+  position: relative;
+}
+.poster-card .art .poster-img {
+  position: absolute;
+  inset: 0;
+}
+
+/* ================================================================ hero carousel */
+.hero-carousel {
+  position: relative;
+  margin: 4px 40px 30px;
+}
+.hero-carousel .hero {
+  margin: 0;
+}
+.hero-slide {
+  animation: hero-fade 0.6s ease;
+}
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.hero-dots {
+  position: absolute;
+  right: 28px;
+  bottom: 22px;
+  display: flex;
+  gap: 8px;
+  z-index: 2;
+}
+.hero-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.4);
+  transition: all 0.3s var(--ease);
+}
+.hero-dot.on {
+  width: 24px;
+  background: #fff;
+}
+/* Artwork slide: real movie backdrop, darkened on the left for the text. */
+.hero.art-hero {
+  background: #000;
+}
+.hero-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+}
+.hero-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 45%, rgba(0, 0, 0, 0) 75%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 40%);
+}
+.art-hero .hero-main {
+  position: relative;
+  z-index: 1;
+  max-width: 560px;
+}
+.hero-artmeta {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 8px;
+}
+.hero-plot {
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.78);
+  margin: 0 0 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ================================================================ watch progress */
+.detail-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 360px;
+  margin: -8px 0 20px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.detail-progress .epg-progress {
+  flex: 1;
+  margin: 0;
+}
+.epg-progress.flush {
+  margin: 0;
+  border-radius: 0;
+}
+.ep-art {
+  position: relative;
+}
+.ep-watched {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+.media-card .art.cover {
+  position: relative;
+}
+.media-card .art .cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+}
+
+/* ================================================================ player polish */
+.player-chlogo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 56px;
+}
+.player-chlogo img {
+  max-width: 82%;
+  max-height: 82%;
+  object-fit: contain;
+}
+.player-chlogo-ph {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  color: #fff;
+}
+.player-title {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.player-chno {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-right: 12px;
+}
+.player-digits {
+  position: absolute;
+  top: 40px;
+  right: 48px;
+  font-size: 64px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+  z-index: 3;
+}
+.player-volume {
+  position: absolute;
+  top: 50%;
+  right: 48px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: 999px;
+  background: rgba(28, 31, 36, 0.92);
+  z-index: 3;
+}
+.vol-bar {
+  width: 160px;
+  height: 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+.vol-bar > span {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+.vol-num {
+  min-width: 46px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.mini-guide {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  max-width: 860px;
+  margin-bottom: 18px;
+}
+.mg-cell {
+  background: rgba(28, 31, 36, 0.8);
+  border-radius: var(--radius);
+  padding: 12px 16px 14px;
+}
+.mg-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.mg-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.seek {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.seek-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+.seek-bar > span {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+.key-hint {
+  font-size: 13px;
+  color: var(--text-faint);
+  margin-right: 8px;
+}
+.up-next {
+  position: absolute;
+  right: 40px;
+  bottom: 150px;
+  width: 400px;
+  padding: 20px 22px;
+  border-radius: var(--radius-lg);
+  background: rgba(28, 31, 36, 0.95);
+  z-index: 4;
+}
+.up-next-label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.up-next-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* ================================================================ guide: catch-up */
+.guide-prog.past {
+  opacity: 0.45;
+}
+.guide-prog.on-air {
+  background: var(--surface-3);
+}
+.guide-prog .pt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ch-replay {
+  margin-left: auto;
+  color: var(--text-faint);
+  display: inline-flex;
+}
+
+/* ================================================================ motion */
+/* Pages fade/slide in when you switch tabs (and when returning from a detail
+   screen or the player, since they go from display:none to visible). */
+.page {
+  animation: page-in 0.26s var(--ease);
+}
+.tab {
+  transition:
+    background-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Guide: keep titles of programmes that started off-screen readable, and keep
+   the corner cell above the scrolling time row. */
+.guide-prog .pt,
+.guide-prog .pw {
+  /* Slide titles of programmes that started off-screen into view. --sx is the
+     guide's scrollLeft, --l/--w the block's position/width (px). */
+  transform: translateX(clamp(0px, calc(var(--sx, 0px) - var(--l, 0px)), max(0px, calc(var(--w, 0px) - 110px))));
+}
+.guide-head .corner {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+.player-digits {
+  top: 120px;
 }

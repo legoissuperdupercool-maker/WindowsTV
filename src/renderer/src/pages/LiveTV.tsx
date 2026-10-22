@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { CatalogStatus } from '../components/CatalogStatus'
 import { Initials } from '../components/Initials'
+import { FadeImg } from '../components/FadeImg'
 import { getFocused } from '../hooks/useSpatialNavigation'
 import { useProgressive } from '../hooks/useProgressive'
 import { Icon } from '../components/Icon'
@@ -145,7 +146,7 @@ export function LiveTV(): JSX.Element {
                   >
                     <div className="art">
                       {c.logo ? (
-                        <img src={c.logo} loading="lazy" />
+                        <FadeImg src={c.logo} alt="" />
                       ) : (
                         <Initials name={c.name} />
                       )}
