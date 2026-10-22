@@ -41,10 +41,11 @@ export function Settings(): JSX.Element {
     }
     await window.api.sources.save(editing)
     await refreshSettings()
-    const wasFirst = settings.sources.length === 0
     setEditing(null)
     setTestMsg(null)
-    if (wasFirst) await setSource(editing.id)
+    // Always (re)load a source after saving it, so fixing a wrong URL or
+    // password takes effect immediately.
+    if (editing.enabled) await setSource(editing.id)
   }
 
   const removeSource = async (id: string): Promise<void> => {

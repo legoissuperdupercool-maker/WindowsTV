@@ -23,6 +23,8 @@ interface State {
   activeType: StreamType
   loading: boolean
   progress: LoadProgress | null
+  /** Last catalogue load failure for the current source (shown on pages). */
+  loadError: string | null
 
   playback: PlaybackState
   playerVisible: boolean
@@ -38,6 +40,8 @@ interface State {
   init: () => Promise<void>
   navigate: (route: RouteName) => void
   setSource: (id: string) => Promise<void>
+  /** Re-download the current source's channels (e.g. the Retry button). */
+  reloadSource: () => Promise<void>
   loadCatalog: (type: StreamType, force?: boolean) => Promise<void>
   refreshSettings: () => Promise<void>
   toggleFavorite: (channelId: string) => Promise<void>
@@ -69,6 +73,7 @@ export const useStore = create<State>((set, get) => ({
   activeType: 'live',
   loading: false,
   progress: null,
+  loadError: null,
   playback: idlePlayback,
   playerVisible: false,
   playQueue: [],
@@ -91,10 +96,15 @@ export const useStore = create<State>((set, get) => ({
     window.api.onWebAppState((webApp) => set({ webApp }))
     window.api.onCatalogProgress((progress) => {
       set({ progress })
+      if (progress.sourceId === get().currentSourceId) {
+        if (progress.phase === 'error') set({ loadError: progress.message })
+        if (progress.phase === 'done') set({ loadError: null })
+      }
       if (progress.phase === 'done' || progress.phase === 'error') {
+        // Errors stay on screen longer than success messages.
         setTimeout(() => {
           if (get().progress === progress) set({ progress: null, loading: false })
-        }, 1800)
+        }, progress.phase === 'error' ? 8000 : 1800)
         // Refresh the in-memory catalogue when a background refresh finishes.
         if (progress.phase === 'done' && progress.sourceId === get().currentSourceId) {
           void get().loadCatalog(get().activeType, false)
@@ -113,9 +123,20 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async setSource(id) {
-    set({ currentSourceId: id, loading: true })
+    set({ currentSourceId: id, loading: true, loadError: null, channels: [], categories: [] })
     await window.api.settings.update({ lastSourceId: id })
-    await window.api.catalog.load(id, false)
+    const res = await window.api.catalog.load(id, false)
+    if (!res.ok) set({ loadError: res.error ?? 'Could not load this source.' })
+    await get().loadCatalog(get().activeType, false)
+    set({ loading: false })
+  },
+
+  async reloadSource() {
+    const id = get().currentSourceId
+    if (!id) return
+    set({ loading: true, loadError: null })
+    const res = await window.api.catalog.load(id, true)
+    if (!res.ok) set({ loadError: res.error ?? 'Could not load this source.' })
     await get().loadCatalog(get().activeType, false)
     set({ loading: false })
   },

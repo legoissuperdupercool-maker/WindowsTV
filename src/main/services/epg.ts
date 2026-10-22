@@ -83,7 +83,7 @@ export class EpgStore {
     }
 
     try {
-      const r = await fetchUrl(epgUrl, { userAgent, timeoutMs, retries: 2 })
+      const r = await fetchUrl(epgUrl, { userAgent, timeoutMs: Math.max(timeoutMs, 120_000), retries: 2 })
       const raw = r.body.toString('utf8')
       this.ingest(raw)
       this.loadedAt = Date.now()

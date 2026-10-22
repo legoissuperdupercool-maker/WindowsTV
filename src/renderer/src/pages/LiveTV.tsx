@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { CatalogStatus } from '../components/CatalogStatus'
 import { Initials } from '../components/Initials'
 import { getFocused } from '../hooks/useSpatialNavigation'
 import { Icon } from '../components/Icon'
@@ -109,13 +110,14 @@ export function LiveTV(): JSX.Element {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="empty">
-              <div>
-                <div className="big">📺</div>
-                <h2>No channels</h2>
-                <p>{channels.length ? 'Try a different category or search.' : 'Loading…'}</p>
+            channels.length === 0 ? (
+              <CatalogStatus what="channels" />
+            ) : (
+              <div className="catalog-status">
+                <h2>No matches</h2>
+                <p>Try a different category or search.</p>
               </div>
-            </div>
+            )
           ) : (
             <div className="channel-grid">
               {filtered.slice(0, 600).map((c) => {

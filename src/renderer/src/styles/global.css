@@ -1156,3 +1156,32 @@ img {
   background: var(--bad);
   z-index: 3;
 }
+
+/* ================================================================ empty / load status */
+.catalog-status {
+  max-width: 560px;
+  margin: 60px auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.catalog-status h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 12px 0 4px;
+}
+.catalog-status p {
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 18px;
+}
+.catalog-status.error h2 {
+  color: #ff8a80;
+}
+.catalog-status-actions {
+  display: flex;
+  gap: 10px;
+}

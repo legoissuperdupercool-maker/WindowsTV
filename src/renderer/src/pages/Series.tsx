@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
+import { CatalogStatus } from '../components/CatalogStatus'
 import { Icon } from '../components/Icon'
 import type { Channel, SeriesEpisode } from '@shared/types'
 
@@ -98,13 +99,7 @@ export function Series(): JSX.Element {
       </div>
 
       {channels.length === 0 ? (
-        <div className="empty">
-          <div>
-            <div className="big">📺</div>
-            <h2>No series</h2>
-            <p>This source may not offer series, or they are still loading.</p>
-          </div>
-        </div>
+        <CatalogStatus what="series" />
       ) : (
         <div className="poster-grid">
           {filtered.slice(0, 400).map((c) => (

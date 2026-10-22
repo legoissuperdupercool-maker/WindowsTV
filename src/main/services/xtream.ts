@@ -27,6 +27,11 @@ function api(source: Source, params: Record<string, string>): string {
   return `${base(source)}/player_api.php?${q.toString()}`
 }
 
+/** Minimum timeout for the big list endpoints (live/VOD/series): panels often
+ *  spend 20–60 s building multi-MB JSON before sending the first byte. */
+const LIST_TIMEOUT_MS = 90_000
+const listTimeout = (t: number): number => Math.max(t, LIST_TIMEOUT_MS)
+
 function num(v: unknown): number | undefined {
   if (v == null || v === '') return undefined
   const n = Number(v)
@@ -75,7 +80,7 @@ export async function getCategories(
     try {
       const rows = await fetchJson<Array<Record<string, unknown>>>(api(source, { action }), {
         userAgent: source.userAgent || userAgent,
-        timeoutMs,
+        timeoutMs: listTimeout(timeoutMs),
         retries: 1
       })
       if (Array.isArray(rows)) {
@@ -99,7 +104,7 @@ export async function getLiveStreams(
 ): Promise<Channel[]> {
   const rows = await fetchJson<Array<Record<string, unknown>>>(
     api(source, { action: 'get_live_streams' }),
-    { userAgent: source.userAgent || userAgent, timeoutMs, retries: 2 }
+    { userAgent: source.userAgent || userAgent, timeoutMs: listTimeout(timeoutMs), retries: 2 }
   )
   if (!Array.isArray(rows)) return []
   return rows
@@ -131,7 +136,7 @@ export async function getVod(
 ): Promise<Channel[]> {
   const rows = await fetchJson<Array<Record<string, unknown>>>(
     api(source, { action: 'get_vod_streams' }),
-    { userAgent: source.userAgent || userAgent, timeoutMs, retries: 1 }
+    { userAgent: source.userAgent || userAgent, timeoutMs: listTimeout(timeoutMs), retries: 1 }
   ).catch(() => [])
   if (!Array.isArray(rows)) return []
   return rows
@@ -168,7 +173,7 @@ export async function getSeries(
 ): Promise<Channel[]> {
   const rows = await fetchJson<Array<Record<string, unknown>>>(
     api(source, { action: 'get_series' }),
-    { userAgent: source.userAgent || userAgent, timeoutMs, retries: 1 }
+    { userAgent: source.userAgent || userAgent, timeoutMs: listTimeout(timeoutMs), retries: 1 }
   ).catch(() => [])
   if (!Array.isArray(rows)) return []
   return rows

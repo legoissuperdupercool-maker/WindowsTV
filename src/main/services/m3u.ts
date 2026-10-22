@@ -138,9 +138,10 @@ export async function loadM3u(
 ): Promise<M3uResult> {
   let text: string
   if (/^https?:\/\//i.test(source.url)) {
+    // Big playlists can take a while before the first byte arrives.
     const r = await fetchUrl(source.url, {
       userAgent: source.userAgent || userAgent,
-      timeoutMs,
+      timeoutMs: Math.max(timeoutMs, 90_000),
       retries: 2
     })
     text = r.body.toString('utf8')

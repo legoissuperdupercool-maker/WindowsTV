@@ -78,19 +78,26 @@ export class Catalog {
       onProgress({ sourceId: source.id, phase: 'categories', message: 'Fetching categories…' })
       const categories = await xtream.getCategories(source, ua, timeout)
 
-      onProgress({ sourceId: source.id, phase: 'channels', message: 'Fetching live channels…' })
-      const live = await xtream.getLiveStreams(source, ua, timeout)
-
-      onProgress({
-        sourceId: source.id,
-        phase: 'channels',
-        message: 'Fetching movies & series…',
-        count: live.length
-      })
-      const [vod, series] = await Promise.all([
-        xtream.getVod(source, ua, timeout).catch(() => []),
-        xtream.getSeries(source, ua, timeout).catch(() => [])
+      onProgress({ sourceId: source.id, phase: 'channels', message: 'Fetching channels, movies & series…' })
+      // Fetch all three lists together and keep whatever succeeds, so one slow
+      // or broken list (common on overloaded panels) doesn't leave you with nothing.
+      const [liveR, vodR, seriesR] = await Promise.allSettled([
+        xtream.getLiveStreams(source, ua, timeout),
+        xtream.getVod(source, ua, timeout),
+        xtream.getSeries(source, ua, timeout)
       ])
+      const live = liveR.status === 'fulfilled' ? liveR.value : []
+      const vod = vodR.status === 'fulfilled' ? vodR.value : []
+      const series = seriesR.status === 'fulfilled' ? seriesR.value : []
+      if (!live.length && !vod.length && !series.length) {
+        const err = [liveR, vodR, seriesR].find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
+        throw new Error(
+          err ? `Logged in, but couldn't download the channel list: ${(err.reason as Error).message}` : 'Logged in, but the provider returned no channels, movies or series.'
+        )
+      }
+      if (liveR.status === 'rejected') {
+        onProgress({ sourceId: source.id, phase: 'channels', message: `Live channels failed: ${(liveR.reason as Error).message}` })
+      }
 
       result = {
         channels: [...live, ...vod, ...series],

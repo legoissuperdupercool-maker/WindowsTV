@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
+import { CatalogStatus } from '../components/CatalogStatus'
 
 export function Movies(): JSX.Element {
   const { channels, categories, currentSourceId, loadCatalog, play } = useStore()
@@ -47,13 +48,7 @@ export function Movies(): JSX.Element {
       </div>
 
       {channels.length === 0 ? (
-        <div className="empty">
-          <div>
-            <div className="big">🎬</div>
-            <h2>No movies</h2>
-            <p>This source may not offer video-on-demand.</p>
-          </div>
-        </div>
+        <CatalogStatus what="movies" />
       ) : (
         <div className="poster-grid">
           {filtered.slice(0, 400).map((c) => (
