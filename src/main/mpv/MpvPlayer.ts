@@ -198,7 +198,8 @@ export class MpvPlayer extends EventEmitter {
   }
 
   /** Send a command and await its reply. */
-  private command<T = unknown>(cmd: unknown[], timeoutMs = 5000): Promise<T> {
+  /** Positional (`[name, ...args]`) or named (`{ name, ...args }`) mpv command. */
+  private command<T = unknown>(cmd: unknown[] | Record<string, unknown>, timeoutMs = 5000): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       if (!this.sock) return reject(new Error('mpv is not connected'))
       const id = this.reqId++
@@ -370,7 +371,9 @@ export class MpvPlayer extends EventEmitter {
     if (opts.userAgent) headerFields.push(`User-Agent: ${opts.userAgent}`)
     if (opts.referrer) headerFields.push(`Referer: ${opts.referrer}`)
 
-    // Per-file options are passed as the 3rd arg to loadfile.
+    // Per-file options. Sent as a *named* argument: mpv 0.38 inserted an
+    // `index` parameter before `options`, so the old positional form
+    // (loadfile url replace {opts}) fails with "invalid parameter".
     const fileOpts: Record<string, string> = {}
     if (headerFields.length) fileOpts['http-header-fields'] = headerFields.join(',')
 
@@ -378,7 +381,12 @@ export class MpvPlayer extends EventEmitter {
     this.armWatchdog(opts.startTimeoutMs ?? Math.max(12000, this.cfg.networkTimeoutMs + 5000))
 
     try {
-      await this.command(['loadfile', url, 'replace', fileOpts])
+      await this.command({
+        name: 'loadfile',
+        url,
+        flags: 'replace',
+        ...(Object.keys(fileOpts).length ? { options: fileOpts } : {})
+      })
     } catch (e) {
       this.clearWatchdog()
       this.setState({
