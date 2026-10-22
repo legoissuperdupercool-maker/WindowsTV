@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { CatalogStatus } from '../components/CatalogStatus'
+import { useProgressive } from '../hooks/useProgressive'
 
 export function Movies(): JSX.Element {
   const { channels, categories, currentSourceId, loadCatalog, play } = useStore()
@@ -11,14 +12,16 @@ export function Movies(): JSX.Element {
     void loadCatalog('movie', false)
   }, [loadCatalog, currentSourceId])
 
+  const deferredQuery = useDeferredValue(query)
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = deferredQuery.trim().toLowerCase()
     return channels.filter((c) => {
       if (cat !== '__all__' && c.group !== cat) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [channels, query, cat])
+  }, [channels, deferredQuery, cat])
+  const { visible, sentinelRef } = useProgressive(filtered)
 
   if (!currentSourceId)
     return (
@@ -51,7 +54,7 @@ export function Movies(): JSX.Element {
         <CatalogStatus what="movies" />
       ) : (
         <div className="poster-grid">
-          {filtered.slice(0, 400).map((c) => (
+          {visible.map((c) => (
             <button
               key={c.id}
               className="focusable poster-card"
@@ -63,6 +66,7 @@ export function Movies(): JSX.Element {
               <div className="cap">{c.name}</div>
             </button>
           ))}
+          <div ref={sentinelRef} style={{ gridColumn: '1 / -1', height: 1 }} />
         </div>
       )}
     </div>

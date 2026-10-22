@@ -54,6 +54,16 @@ interface State {
   closeWebApp: () => void
 }
 
+/**
+ * Per-source, per-type list cache (`${sourceId}:${type}`). Lists can be tens of
+ * thousands of items, so each is fetched from the main process once and reused
+ * on every tab switch, until the source is reloaded or changed.
+ */
+const listCache = new Map<string, { channels: Channel[]; categories: Category[] }>()
+function clearListCache(sourceId?: string): void {
+  for (const k of [...listCache.keys()]) if (!sourceId || k.startsWith(sourceId + ':')) listCache.delete(k)
+}
+
 const idlePlayback: PlaybackState = {
   status: 'idle',
   position: 0,
@@ -107,6 +117,7 @@ export const useStore = create<State>((set, get) => ({
         }, progress.phase === 'error' ? 8000 : 1800)
         // Refresh the in-memory catalogue when a background refresh finishes.
         if (progress.phase === 'done' && progress.sourceId === get().currentSourceId) {
+          clearListCache(progress.sourceId)
           void get().loadCatalog(get().activeType, false)
         }
       }
@@ -123,6 +134,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async setSource(id) {
+    clearListCache(id)
     set({ currentSourceId: id, loading: true, loadError: null, channels: [], categories: [] })
     await window.api.settings.update({ lastSourceId: id })
     const res = await window.api.catalog.load(id, false)
@@ -135,6 +147,7 @@ export const useStore = create<State>((set, get) => ({
     const id = get().currentSourceId
     if (!id) return
     set({ loading: true, loadError: null })
+    clearListCache(id)
     const res = await window.api.catalog.load(id, true)
     if (!res.ok) set({ loadError: res.error ?? 'Could not load this source.' })
     await get().loadCatalog(get().activeType, false)
@@ -145,13 +158,25 @@ export const useStore = create<State>((set, get) => ({
     const id = get().currentSourceId
     if (!id) return
     set({ activeType: type })
+    const key = `${id}:${type}`
     if (force) {
       set({ loading: true })
+      clearListCache(id)
       await window.api.catalog.load(id, true)
     }
-    const res = await window.api.catalog.get(id, type)
-    if (res.data) {
-      set({ channels: res.data.channels, categories: res.data.categories })
+    const cached = listCache.get(key)
+    if (cached) {
+      set({ channels: cached.channels, categories: cached.categories })
+    } else {
+      const res = await window.api.catalog.get(id, type)
+      if (res.data) {
+        const list = { channels: res.data.channels, categories: res.data.categories }
+        if (list.channels.length) listCache.set(key, list)
+        // Ignore a slow response if the user has already moved to another tab/source.
+        if (get().activeType === type && get().currentSourceId === id) {
+          set({ channels: list.channels, categories: list.categories })
+        }
+      }
     }
     if (force) set({ loading: false })
   },

@@ -6,7 +6,13 @@ import { detectBrand } from '../components/brands'
 import type { AppTile, Channel, EpgNowNext, Programme } from '@shared/types'
 
 export function Home(): JSX.Element {
-  const { settings, navigate, channels, play, openWebApp, currentSourceId } = useStore()
+  const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog } = useStore()
+
+  // Home shows live channels; make sure the live list is the active one (served
+  // from cache after the first load, so this is instant).
+  useEffect(() => {
+    void loadCatalog('live', false)
+  }, [loadCatalog, currentSourceId])
   const hasSources = (settings?.sources.length ?? 0) > 0
 
   // Built-in sections (Live TV, Guide…) live in the top tabs, so the apps row

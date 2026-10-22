@@ -1185,3 +1185,19 @@ img {
   display: flex;
   gap: 10px;
 }
+
+/* Live TV: categories + search stay put; only the channel grid scrolls. */
+.page.fixed {
+  overflow: hidden;
+  padding-bottom: 16px;
+}
+.livetv > * {
+  min-height: 0;
+}
+.livetv .channel-grid {
+  flex: 1;
+  min-height: 0;
+  /* Rows must keep their natural height and overflow (scroll) instead of
+     being squeezed to fit the now fixed-height grid. */
+  grid-auto-rows: max-content;
+}

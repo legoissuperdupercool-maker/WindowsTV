@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { CatalogStatus } from '../components/CatalogStatus'
 import { Initials } from '../components/Initials'
 import { getFocused } from '../hooks/useSpatialNavigation'
+import { useProgressive } from '../hooks/useProgressive'
 import { Icon } from '../components/Icon'
 import type { EpgNowNext, Programme } from '@shared/types'
 
@@ -15,22 +16,34 @@ export function LiveTV(): JSX.Element {
   const [cat, setCat] = useState<string>(ALL)
   const [query, setQuery] = useState('')
   const [nowNext, setNowNext] = useState<Record<string, EpgNowNext>>({})
-  const favorites = settings?.favorites ?? []
+  const favorites = useMemo(() => settings?.favorites ?? [], [settings?.favorites])
 
   // Live channels only on this page.
   useEffect(() => {
     void loadCatalog('live', false)
   }, [loadCatalog, currentSourceId])
 
+  // Search runs on a deferred copy of the query so typing never stutters.
+  const deferredQuery = useDeferredValue(query)
+  const favSet = useMemo(() => new Set(favorites), [favorites])
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = deferredQuery.trim().toLowerCase()
     return channels.filter((c) => {
-      if (cat === FAV && !favorites.includes(c.id)) return false
+      if (cat === FAV && !favSet.has(c.id)) return false
       if (cat !== ALL && cat !== FAV && c.group !== cat) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [channels, cat, query, favorites])
+  }, [channels, cat, deferredQuery, favSet])
+
+  // Category counts in a single pass (was: one full scan per category).
+  const groupCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of channels) if (c.group) m.set(c.group, (m.get(c.group) ?? 0) + 1)
+    return m
+  }, [channels])
+
+  const { visible, sentinelRef } = useProgressive(filtered)
 
   // Fetch EPG now/next for the visible channels in one batched call.
   const reqRef = useRef(0)
@@ -78,12 +91,12 @@ export function LiveTV(): JSX.Element {
     ...categories.map((c) => ({
       id: c.id,
       name: c.name,
-      count: channels.filter((ch) => ch.group === c.id).length
+      count: groupCounts.get(c.id) ?? 0
     }))
   ]
 
   return (
-    <div className="page" style={{ paddingBottom: 30 }}>
+    <div className="page fixed">
       <div className="livetv">
         <div className="cat-rail">
           {cats.map((c) => (
@@ -120,7 +133,7 @@ export function LiveTV(): JSX.Element {
             )
           ) : (
             <div className="channel-grid">
-              {filtered.slice(0, 600).map((c) => {
+              {visible.map((c) => {
                 const nn = nowNext[c.id]
                 const fav = favorites.includes(c.id)
                 return (
@@ -152,6 +165,7 @@ export function LiveTV(): JSX.Element {
                   </button>
                 )
               })}
+              <div ref={sentinelRef} style={{ gridColumn: '1 / -1', height: 1 }} />
             </div>
           )}
           <div className="hint-line">

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { CatalogStatus } from '../components/CatalogStatus'
+import { useProgressive } from '../hooks/useProgressive'
 import { Icon } from '../components/Icon'
 import type { Channel, SeriesEpisode } from '@shared/types'
 
@@ -16,10 +17,12 @@ export function Series(): JSX.Element {
     void loadCatalog('series', false)
   }, [loadCatalog, currentSourceId])
 
+  const deferredQuery = useDeferredValue(query)
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = deferredQuery.trim().toLowerCase()
     return channels.filter((c) => !q || c.name.toLowerCase().includes(q))
-  }, [channels, query])
+  }, [channels, deferredQuery])
+  const { visible, sentinelRef } = useProgressive(filtered)
 
   const openSeries = async (c: Channel): Promise<void> => {
     setSelected(c)
@@ -102,7 +105,7 @@ export function Series(): JSX.Element {
         <CatalogStatus what="series" />
       ) : (
         <div className="poster-grid">
-          {filtered.slice(0, 400).map((c) => (
+          {visible.map((c) => (
             <button key={c.id} className="focusable poster-card" onClick={() => void openSeries(c)}>
               <div className="art">
                 {c.logo ? <img src={c.logo} loading="lazy" /> : <span className="ph-txt">{c.name.slice(0, 2).toUpperCase()}</span>}
@@ -110,6 +113,7 @@ export function Series(): JSX.Element {
               <div className="cap">{c.name}</div>
             </button>
           ))}
+          <div ref={sentinelRef} style={{ gridColumn: '1 / -1', height: 1 }} />
         </div>
       )}
     </div>
