@@ -1,0 +1,43 @@
+{
+  "name": "windowstv",
+  "version": "0.1.0",
+  "description": "A high-quality smart-TV launcher and IPTV player for Windows, powered by mpv.",
+  "main": "./out/main/index.js",
+  "author": "legoissuperdupercool-maker",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "dev:watch": "electron-vite dev --watch",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "lint": "eslint . --ext .ts,.tsx",
+    "postinstall": "node scripts/fetch-mpv.mjs || echo \"mpv not fetched automatically; see README\"",
+    "build:win": "npm run build && electron-builder --win",
+    "build:unpack": "npm run build && electron-builder --dir"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "3.0.1",
+    "@electron-toolkit/utils": "3.0.0",
+    "electron-store": "8.2.0",
+    "fast-xml-parser": "4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.6",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "electron": "33.2.1",
+    "electron-builder": "24.13.3",
+    "electron-vite": "2.3.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "zustand": "5.0.2"
+  }
+}

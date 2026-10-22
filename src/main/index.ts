@@ -1,0 +1,111 @@
+import { app, BrowserWindow } from 'electron'
+import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { WindowManager } from './windows'
+import { MpvPlayer } from './mpv/MpvPlayer'
+import { resolveMpvPath } from './mpv/resolveMpv'
+import { Catalog } from './services/catalog'
+import { registerIpc, type MainContext } from './ipcHandlers'
+import { getSettings } from './store'
+import { IPC } from '../shared/ipc'
+
+// Single instance only — a second launch focuses the existing window.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
+
+let windows: WindowManager
+let player: MpvPlayer
+let catalog: Catalog
+let mpvInfo: { path?: string; reason?: string }
+
+function buildPlayer(wid: number): MpvPlayer {
+  const settings = getSettings()
+  mpvInfo = resolveMpvPath(settings.mpvPath)
+  const p = new MpvPlayer({
+    binaryPath: mpvInfo.path || 'mpv',
+    wid,
+    userAgent: settings.userAgent,
+    cacheSeconds: settings.cacheSeconds,
+    hwdec: settings.hwdec,
+    deinterlace: settings.deinterlace,
+    networkTimeoutMs: settings.networkTimeoutMs
+  })
+  p.on('state', (state) => windows.send(IPC.playerState, state))
+  p.on('log', (line: string) => {
+    if (process.env['WTV_DEBUG']) console.log('[mpv]', line.trim())
+  })
+  return p
+}
+
+async function restartPlayer(): Promise<void> {
+  try {
+    await player.quit()
+  } catch {
+    /* ignore */
+  }
+  player = buildPlayer(windows.getVideoWindowId())
+  // Re-point IPC context's player reference by re-registering is avoided; instead
+  // the context holds a getter — see MainContext below.
+  ctx.player = player
+}
+
+let ctx: MainContext
+
+app.whenReady().then(async () => {
+  electronApp.setAppUserModelId('com.windowstv.app')
+
+  app.on('browser-window-created', (_, win) => {
+    optimizer.watchWindowShortcuts(win)
+  })
+
+  windows = new WindowManager()
+  windows.create()
+
+  catalog = new Catalog()
+  player = buildPlayer(windows.getVideoWindowId())
+
+  ctx = {
+    catalog,
+    player,
+    windows,
+    get mpvInfo() {
+      return mpvInfo
+    },
+    restartPlayer
+  } as unknown as MainContext
+
+  registerIpc(ctx)
+
+  // Start mpv eagerly so the first channel zaps instantly. If mpv is missing the
+  // error surfaces through player state, not a crash.
+  if (mpvInfo.path) {
+    player.start().catch(() => {
+      /* state carries the reason */
+    })
+  }
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      windows.create()
+    }
+  })
+})
+
+app.on('second-instance', () => {
+  if (windows?.uiWindow && !windows.uiWindow.isDestroyed()) {
+    if (windows.uiWindow.isMinimized()) windows.uiWindow.restore()
+    windows.uiWindow.focus()
+  }
+})
+
+app.on('window-all-closed', () => {
+  app.quit()
+})
+
+app.on('before-quit', async () => {
+  try {
+    await player?.quit()
+  } catch {
+    /* ignore */
+  }
+})

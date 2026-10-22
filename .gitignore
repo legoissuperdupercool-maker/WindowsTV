@@ -1,0 +1,20 @@
+node_modules
+dist
+out
+.DS_Store
+*.log
+npm-debug.log*
+.eslintcache
+
+# Build output
+release
+build/icon.*
+
+# Bundled mpv binaries are large and fetched on demand (see scripts/fetch-mpv.mjs).
+# Ignore the contents but keep the directory (via .gitkeep).
+resources/mpv/*
+!resources/mpv/.gitkeep
+
+# Local env / secrets
+.env
+.env.local

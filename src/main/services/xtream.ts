@@ -1,0 +1,266 @@
+import type { Category, Channel, SeriesEpisode, Source } from '../../shared/types'
+import { fetchJson, fetchUrl } from '../net/http'
+
+/**
+ * Minimal, resilient Xtream Codes API client.
+ *
+ * Xtream panels are notoriously inconsistent (fields come back as strings,
+ * numbers, or null; some actions 404 on some panels). We normalise everything
+ * into our own Channel/Category types and never throw on a single bad row.
+ */
+
+interface XtreamAuth {
+  user_info?: { auth?: number; status?: string; message?: string; exp_date?: string | null }
+  server_info?: { url?: string; port?: string; https_port?: string; server_protocol?: string }
+}
+
+function base(source: Source): string {
+  return source.url.replace(/\/+$/, '')
+}
+
+function api(source: Source, params: Record<string, string>): string {
+  const q = new URLSearchParams({
+    username: source.username ?? '',
+    password: source.password ?? '',
+    ...params
+  })
+  return `${base(source)}/player_api.php?${q.toString()}`
+}
+
+function num(v: unknown): number | undefined {
+  if (v == null || v === '') return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
+}
+
+function str(v: unknown): string | undefined {
+  if (v == null) return undefined
+  const s = String(v).trim()
+  return s ? s : undefined
+}
+
+export async function authenticate(
+  source: Source,
+  userAgent: string,
+  timeoutMs: number
+): Promise<{ ok: boolean; message: string; expiry?: string }> {
+  const data = await fetchJson<XtreamAuth>(api(source, {}), {
+    userAgent: source.userAgent || userAgent,
+    timeoutMs,
+    retries: 2
+  })
+  const info = data.user_info
+  if (!info) return { ok: false, message: 'No account info returned — check the server URL.' }
+  if (info.auth === 0 || info.status === 'Expired' || info.status === 'Banned') {
+    return { ok: false, message: info.message || `Account status: ${info.status ?? 'invalid'}` }
+  }
+  const expiry = info.exp_date
+    ? new Date(Number(info.exp_date) * 1000).toLocaleDateString()
+    : undefined
+  return { ok: true, message: `Connected${expiry ? ` · expires ${expiry}` : ''}`, expiry }
+}
+
+export async function getCategories(
+  source: Source,
+  userAgent: string,
+  timeoutMs: number
+): Promise<Category[]> {
+  const out: Category[] = []
+  const actions: Array<[string, Category['type']]> = [
+    ['get_live_categories', 'live'],
+    ['get_vod_categories', 'movie'],
+    ['get_series_categories', 'series']
+  ]
+  for (const [action, type] of actions) {
+    try {
+      const rows = await fetchJson<Array<Record<string, unknown>>>(api(source, { action }), {
+        userAgent: source.userAgent || userAgent,
+        timeoutMs,
+        retries: 1
+      })
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          const id = str(r.category_id)
+          const name = str(r.category_name)
+          if (id && name) out.push({ id: `${source.id}:${type}:${id}`, name, type, sourceId: source.id })
+        }
+      }
+    } catch {
+      // A panel may not offer VOD/series — skip silently, keep the rest.
+    }
+  }
+  return out
+}
+
+export async function getLiveStreams(
+  source: Source,
+  userAgent: string,
+  timeoutMs: number
+): Promise<Channel[]> {
+  const rows = await fetchJson<Array<Record<string, unknown>>>(
+    api(source, { action: 'get_live_streams' }),
+    { userAgent: source.userAgent || userAgent, timeoutMs, retries: 2 }
+  )
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((r) => {
+      const streamId = str(r.stream_id ?? r.num)
+      const name = str(r.name)
+      if (!streamId || !name) return null
+      const channel: Channel = {
+        id: `${source.id}:live:${streamId}`,
+        sourceId: source.id,
+        type: 'live',
+        providerId: streamId,
+        name,
+        logo: str(r.stream_icon),
+        group: str(r.category_id) ? `${source.id}:live:${str(r.category_id)}` : undefined,
+        epgChannelId: str(r.epg_channel_id),
+        number: num(r.num),
+        url: liveUrl(source, streamId)
+      }
+      return channel
+    })
+    .filter((c): c is Channel => c !== null)
+}
+
+export async function getVod(
+  source: Source,
+  userAgent: string,
+  timeoutMs: number
+): Promise<Channel[]> {
+  const rows = await fetchJson<Array<Record<string, unknown>>>(
+    api(source, { action: 'get_vod_streams' }),
+    { userAgent: source.userAgent || userAgent, timeoutMs, retries: 1 }
+  ).catch(() => [])
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((r) => {
+      const streamId = str(r.stream_id)
+      const name = str(r.name)
+      if (!streamId || !name) return null
+      const ext = str(r.container_extension) || 'mp4'
+      const channel: Channel = {
+        id: `${source.id}:movie:${streamId}`,
+        sourceId: source.id,
+        type: 'movie',
+        providerId: streamId,
+        name,
+        logo: str(r.stream_icon) || str(r.cover),
+        group: str(r.category_id) ? `${source.id}:movie:${str(r.category_id)}` : undefined,
+        url: `${base(source)}/movie/${source.username}/${source.password}/${streamId}.${ext}`,
+        meta: {
+          rating: str(r.rating),
+          added: str(r.added),
+          plot: str(r.plot)
+        }
+      }
+      return channel
+    })
+    .filter((c): c is Channel => c !== null)
+}
+
+/** Series listing (top-level series; episodes are fetched lazily via getSeriesInfo). */
+export async function getSeries(
+  source: Source,
+  userAgent: string,
+  timeoutMs: number
+): Promise<Channel[]> {
+  const rows = await fetchJson<Array<Record<string, unknown>>>(
+    api(source, { action: 'get_series' }),
+    { userAgent: source.userAgent || userAgent, timeoutMs, retries: 1 }
+  ).catch(() => [])
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((r) => {
+      const seriesId = str(r.series_id)
+      const name = str(r.name)
+      if (!seriesId || !name) return null
+      const channel: Channel = {
+        id: `${source.id}:series:${seriesId}`,
+        sourceId: source.id,
+        type: 'series',
+        providerId: seriesId,
+        name,
+        logo: str(r.cover),
+        group: str(r.category_id) ? `${source.id}:series:${str(r.category_id)}` : undefined,
+        url: '', // resolved per-episode
+        meta: { plot: str(r.plot), rating: str(r.rating) }
+      }
+      return channel
+    })
+    .filter((c): c is Channel => c !== null)
+}
+
+export async function getSeriesInfo(
+  source: Source,
+  seriesId: string,
+  userAgent: string,
+  timeoutMs: number
+): Promise<SeriesEpisode[]> {
+  const data = await fetchJson<Record<string, unknown>>(
+    api(source, { action: 'get_series_info', series_id: seriesId }),
+    { userAgent: source.userAgent || userAgent, timeoutMs, retries: 1 }
+  )
+  const episodesBySeason = (data.episodes ?? {}) as Record<string, Array<Record<string, unknown>>>
+  const out: SeriesEpisode[] = []
+  for (const [season, eps] of Object.entries(episodesBySeason)) {
+    if (!Array.isArray(eps)) continue
+    for (const e of eps) {
+      const epId = str(e.id)
+      if (!epId) continue
+      const ext = str(e.container_extension) || 'mp4'
+      const info = (e.info ?? {}) as Record<string, unknown>
+      out.push({
+        id: epId,
+        title: str(e.title) || `Episode ${str(e.episode_num) ?? ''}`,
+        season: num(season) ?? num(e.season) ?? 1,
+        episode: num(e.episode_num) ?? 0,
+        url: `${base(source)}/series/${source.username}/${source.password}/${epId}.${ext}`,
+        plot: str(info.plot),
+        duration: str(info.duration)
+      })
+    }
+  }
+  out.sort((a, b) => a.season - b.season || a.episode - b.episode)
+  return out
+}
+
+export function liveUrl(source: Source, streamId: string): string {
+  // `.ts` is the most broadly compatible live container across panels; mpv also
+  // handles `.m3u8` fine if a provider needs it (switchable later per source).
+  return `${base(source)}/live/${source.username}/${source.password}/${streamId}.ts`
+}
+
+/** Derived XMLTV EPG endpoint for an Xtream source. */
+export function xtreamEpgUrl(source: Source): string {
+  const q = new URLSearchParams({
+    username: source.username ?? '',
+    password: source.password ?? ''
+  })
+  return `${base(source)}/xmltv.php?${q.toString()}`
+}
+
+/** Quick connectivity test used by the "Test" button in Settings. */
+export async function testXtream(
+  source: Source,
+  userAgent: string,
+  timeoutMs: number
+): Promise<{ ok: boolean; message: string }> {
+  try {
+    const auth = await authenticate(source, userAgent, timeoutMs)
+    return auth
+  } catch (e) {
+    return { ok: false, message: (e as Error).message }
+  }
+}
+
+/** Touch the base URL to distinguish "server down" from "bad credentials". */
+export async function reachable(source: Source, userAgent: string): Promise<boolean> {
+  try {
+    const r = await fetchUrl(base(source), { userAgent, timeoutMs: 6000, retries: 0, maxBytes: 1024 })
+    return r.status > 0
+  } catch {
+    return false
+  }
+}

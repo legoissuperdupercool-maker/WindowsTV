@@ -1,0 +1,3 @@
+# mpv.exe (and mpv's dependencies) live here at build time.
+# Run `node scripts/fetch-mpv.mjs` or `npm install` to populate this directory,
+# or drop a Windows mpv build in here manually. See README.md.

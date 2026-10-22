@@ -1,0 +1,35 @@
+appId: com.windowstv.app
+productName: WindowsTV
+directories:
+  buildResources: build
+  output: release
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!scripts/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintrc.cjs,.prettierrc,.prettierignore,.editorconfig}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{.env,.env.*,.npmrc}'
+asarUnpack:
+  - resources/**
+win:
+  target:
+    - nsis        # a normal installer .exe
+    - portable    # a single self-contained .exe (no install needed)
+  # The mpv binary is shipped as an unpacked resource so it can be spawned as a
+  # child process at runtime.
+  extraResources:
+    - from: resources/mpv
+      to: mpv
+      filter:
+        - '**/*'
+  artifactName: ${productName}-${version}-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  artifactName: ${productName}-${version}-Setup.${ext}
+portable:
+  artifactName: ${productName}-${version}-Portable.${ext}
