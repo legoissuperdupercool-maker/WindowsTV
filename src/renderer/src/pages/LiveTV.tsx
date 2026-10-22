@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { Initials } from '../components/Initials'
 import { getFocused } from '../hooks/useSpatialNavigation'
 import { Icon } from '../components/Icon'
 import type { EpgNowNext, Programme } from '@shared/types'
@@ -131,7 +132,7 @@ export function LiveTV(): JSX.Element {
                       {c.logo ? (
                         <img src={c.logo} loading="lazy" />
                       ) : (
-                        <div className="logo-ph">{c.name.slice(0, 2).toUpperCase()}</div>
+                        <Initials name={c.name} />
                       )}
                       {c.type === 'live' && <span className="badge-live">LIVE</span>}
                       {c.number ? <span className="chno">{c.number}</span> : null}

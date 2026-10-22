@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
+import { Initials } from '../components/Initials'
 import type { Programme } from '@shared/types'
 
 const PX_PER_MIN = 6
@@ -90,7 +91,7 @@ export function Guide(): JSX.Element {
                     {c.logo ? (
                       <img src={c.logo} loading="lazy" style={{ width: 38, height: 38, objectFit: 'contain' }} />
                     ) : (
-                      <div className="logo-ph">{c.name.slice(0, 2).toUpperCase()}</div>
+                      <Initials name={c.name} />
                     )}
                     <span className="nm">{c.name}</span>
                   </div>

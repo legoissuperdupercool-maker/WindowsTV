@@ -245,30 +245,24 @@ img {
 /* ================================================================ hero */
 .hero {
   position: relative;
-  margin: 4px 40px 28px;
-  height: 248px;
+  margin: 4px 40px 30px;
+  height: 280px;
   border-radius: var(--radius-lg);
   display: flex;
-  align-items: flex-end;
-  padding: 0 36px 30px;
+  gap: 28px;
+  padding: 28px 28px 28px 36px;
   overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(110% 140% at 100% 0%, color-mix(in srgb, var(--hero) 70%, #fff) 0%, transparent 55%),
+    linear-gradient(115deg, color-mix(in srgb, var(--hero) 62%, #000) 0%, var(--hero) 100%);
 }
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: #1f6feb;
-}
-.hero-bg::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0.12) 55%, transparent 100%);
-}
-.hero-inner {
-  position: relative;
-  z-index: 1;
-  max-width: 640px;
+.hero-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 .hero-kicker {
   display: inline-flex;
@@ -276,30 +270,146 @@ img {
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.92);
 }
-.hero-kicker .dot {
+.live-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
 }
 .hero-title {
-  font-size: 42px;
+  font-size: 40px;
   font-weight: 600;
-  line-height: 1.08;
-  margin: 10px 0 6px;
-  color: #fff;
+  line-height: 1.1;
+  margin: 8px 0 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .hero-meta {
   font-size: 16px;
   color: rgba(255, 255, 255, 0.85);
   margin: 0 0 20px;
-  max-width: 540px;
+}
+.hero-prog {
+  max-width: 460px;
+  margin-bottom: 20px;
+}
+.hero-prog-title {
+  font-size: 17px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-prog-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+.hero-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.28);
+  overflow: hidden;
+}
+.hero-bar > span {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+.hero-bar.thin {
+  height: 3px;
+  margin-top: 5px;
 }
 .hero-actions {
   display: flex;
   gap: 10px;
+}
+
+/* "On now" panel inside the hero */
+.hero-side {
+  width: 360px;
+  flex: 0 0 360px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 18px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hero-side-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  padding: 4px 10px 8px;
+}
+.on-now {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  text-align: left;
+  color: #fff;
+  outline-offset: 0;
+}
+.on-now:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.on-now.is-focused {
+  background: #fff;
+  color: #111;
+  outline-color: transparent;
+}
+.on-now.is-focused .on-now-prog {
+  color: #555;
+}
+.on-now.is-focused .hero-bar {
+  background: rgba(0, 0, 0, 0.12);
+}
+.on-now.is-focused .hero-bar > span {
+  background: #111;
+}
+.on-now-logo {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+  object-fit: contain;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}
+.on-now-text {
+  flex: 1;
+  min-width: 0;
+}
+.on-now-ch {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.on-now-prog {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ================================================================ rows */
@@ -362,6 +472,21 @@ img {
 }
 .app-card.is-focused {
   transform: scale(1.05);
+}
+.rail-track > .app-card {
+  flex: 0 0 184px;
+}
+.app-card.add-app {
+  background: transparent;
+  border: 2px dashed rgba(255, 255, 255, 0.18);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 500;
+  gap: 4px;
+}
+.app-card.add-app.is-focused {
+  border-color: #fff;
+  color: #fff;
 }
 
 /* ---- landscape cards (channels / recents) ---- */
