@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore, type RouteName } from '../store'
 import { Icon } from '../components/Icon'
+import { detectBrand } from '../components/brands'
 import type { AppTile, Channel, EpgNowNext, Programme } from '@shared/types'
 
 export function Home(): JSX.Element {
@@ -134,10 +135,24 @@ export function Home(): JSX.Element {
 
 function AppCard({ tile, onClick }: { tile: AppTile; onClick: () => void }): JSX.Element {
   const sub = tile.kind === 'web' ? 'Open in app' : tile.kind === 'app' ? 'Launch app' : sectionSub(tile.target)
+  const brand = tile.kind === 'section' ? null : detectBrand(tile.target, tile.label)
+  if (brand) {
+    // Brand tiles: bright brand colour + the real logo, centred.
+    return (
+      <button
+        className="focusable app-card brand"
+        style={{ ['--c1' as string]: brand.color }}
+        onClick={onClick}
+        title={tile.label}
+      >
+        <span className="brand-mark" dangerouslySetInnerHTML={{ __html: brand.svg }} />
+      </button>
+    )
+  }
   return (
     <button
       className="focusable app-card"
-      style={{ ['--c1' as string]: tile.color ?? '#39425a' }}
+      style={{ ['--c1' as string]: tile.color ?? '#2979ff' }}
       onClick={onClick}
     >
       <span className="ac-icon">
@@ -239,10 +254,11 @@ function deriveNowNext(progs: Programme[], at: number): EpgNowNext {
   return { now, next }
 }
 
-/** A calm, flat single-hue wash for the hero (derived from the featured title). */
+/** A bright single-hue banner colour (derived from the featured title), fading to
+ *  dark at the bottom-left so the text stays readable. */
 function gradientFor(seed: string): string {
-  const h = hash(seed) % 360
-  return `linear-gradient(135deg, hsl(${h} 34% 22%) 0%, hsl(${h} 30% 14%) 52%, #07090e 100%)`
+  const h = [215, 0, 140, 265, 28, 190][hash(seed) % 6]
+  return `linear-gradient(115deg, hsl(${h} 85% 34%) 0%, hsl(${h} 90% 48%) 60%, hsl(${h} 95% 56%) 100%)`
 }
 function hash(s: string): number {
   let h = 0

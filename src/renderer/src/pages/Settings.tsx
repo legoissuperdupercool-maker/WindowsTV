@@ -3,7 +3,7 @@ import { useStore } from '../store'
 import { Icon } from '../components/Icon'
 import type { AppTile, Source, SourceKind } from '@shared/types'
 
-const TILE_COLORS = ['#3f6fa6', '#b0514e', '#4e9c6a', '#c3a650', '#6a62a0', '#3f8f9c', '#c07a45']
+const TILE_COLORS = ['#2979FF', '#FF3B30', '#34C759', '#FFCC00', '#7C4DFF', '#00C7BE', '#FF9F0A']
 
 function emptySource(kind: SourceKind): Source {
   return {

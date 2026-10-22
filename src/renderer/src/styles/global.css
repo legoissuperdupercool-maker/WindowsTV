@@ -310,6 +310,20 @@ img {
   color: rgba(255, 255, 255, 0.66);
   margin-top: 1px;
 }
+.app-card.brand {
+  align-items: center;
+  justify-content: center;
+}
+.app-card .brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-card .brand-mark svg {
+  display: block;
+  width: auto;
+  max-width: 140px;
+}
 .app-card.is-focused {
   transform: translateY(-5px) scale(1.045);
   box-shadow: var(--shadow-focus);

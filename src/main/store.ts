@@ -1,14 +1,20 @@
 import Store from 'electron-store'
 import type { AppSettings, AppTile } from '../shared/types'
 
-// Calm, flat solid colors (plain blue / purple / red / amber / green / slate).
+// Bright, flat solid colours for the built-in sections. Brand tiles (YouTube,
+// Netflix, …) get their own brand colour + logo automatically in the UI.
+// Installed-app targets are best-effort protocol links; edit them in Settings.
 const defaultTiles: AppTile[] = [
-  { id: 'live', label: 'Live TV', kind: 'section', target: 'live', color: '#3f6fa6', icon: 'live', builtin: true },
-  { id: 'guide', label: 'TV Guide', kind: 'section', target: 'guide', color: '#6a62a0', icon: 'guide', builtin: true },
-  { id: 'movies', label: 'Movies', kind: 'section', target: 'movies', color: '#b0514e', icon: 'movie', builtin: true },
-  { id: 'series', label: 'Series', kind: 'section', target: 'series', color: '#c3a650', icon: 'series', builtin: true },
-  { id: 'youtube', label: 'YouTube', kind: 'web', target: 'https://www.youtube.com', color: '#b84a44', icon: 'web' },
-  { id: 'settings', label: 'Settings', kind: 'section', target: 'settings', color: '#4a5160', icon: 'settings', builtin: true }
+  { id: 'live', label: 'Live TV', kind: 'section', target: 'live', color: '#2979FF', icon: 'live', builtin: true },
+  { id: 'guide', label: 'TV Guide', kind: 'section', target: 'guide', color: '#7C4DFF', icon: 'guide', builtin: true },
+  { id: 'movies', label: 'Movies', kind: 'section', target: 'movies', color: '#FF3B30', icon: 'movie', builtin: true },
+  { id: 'series', label: 'Series', kind: 'section', target: 'series', color: '#FF9F0A', icon: 'series', builtin: true },
+  { id: 'youtube', label: 'YouTube', kind: 'web', target: 'https://www.youtube.com', icon: 'web' },
+  { id: 'netflix', label: 'Netflix', kind: 'app', target: 'netflix:', icon: 'tv' },
+  { id: 'disney', label: 'Disney+', kind: 'app', target: 'disneyplus:', icon: 'tv' },
+  { id: 'prime', label: 'Prime Video', kind: 'app', target: 'primevideo:', icon: 'tv' },
+  { id: 'spotify', label: 'Spotify', kind: 'app', target: 'spotify:', icon: 'tv' },
+  { id: 'settings', label: 'Settings', kind: 'section', target: 'settings', color: '#34C759', icon: 'settings', builtin: true }
 ]
 
 const defaults: AppSettings = {
