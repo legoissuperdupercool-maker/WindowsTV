@@ -4,7 +4,7 @@ import type { Result, Source, StreamType } from '../shared/types'
 import { getSettings, updateSettings } from './store'
 import type { Catalog } from './services/catalog'
 import type { MpvPlayer } from './mpv/MpvPlayer'
-import type { WindowManager } from './windows'
+import { type WindowManager, launchInstalledApp } from './windows'
 import * as xtream from './services/xtream'
 import { probeStream } from './net/http'
 
@@ -329,6 +329,33 @@ export function registerIpc(ctx: MainContext): void {
   ipcMain.handle(IPC.openExternal, (_e, url: string) => {
     shell.openExternal(url)
     return ok(true)
+  })
+
+  // ---------------------------------------------------------------- in-app web apps
+  ipcMain.handle(IPC.webappOpen, (_e, args: { url: string; userAgent?: string }) => {
+    windows.openWebApp(args.url, args.userAgent)
+    return ok(true)
+  })
+  ipcMain.handle(IPC.webappClose, () => {
+    windows.closeWebApp()
+    return ok(true)
+  })
+  ipcMain.handle(IPC.webappBack, () => {
+    windows.webAppBack()
+    return ok(true)
+  })
+  ipcMain.handle(IPC.webappHome, () => {
+    windows.webAppHome()
+    return ok(true)
+  })
+  ipcMain.handle(IPC.webappReload, () => {
+    windows.webAppReload()
+    return ok(true)
+  })
+
+  // ---------------------------------------------------------------- installed apps
+  ipcMain.handle(IPC.appLaunch, async (_e, target: string) => {
+    return ok(await launchInstalledApp(target))
   })
 
   ipcMain.handle(IPC.appInfo, () =>

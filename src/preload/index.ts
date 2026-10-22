@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type PlayerCommand, type VideoRegion } from '../shared/ipc'
+import { IPC, type PlayerCommand, type VideoRegion, type WebAppState } from '../shared/ipc'
 import type {
   AppSettings,
   Category,
@@ -80,13 +80,22 @@ const api = {
     control: (action: 'minimize' | 'maximize' | 'close' | 'fullscreen') =>
       invoke<boolean>(IPC.windowControl, action)
   },
+  webapp: {
+    open: (url: string, userAgent?: string) => invoke<boolean>(IPC.webappOpen, { url, userAgent }),
+    close: () => invoke<boolean>(IPC.webappClose),
+    back: () => invoke<boolean>(IPC.webappBack),
+    home: () => invoke<boolean>(IPC.webappHome),
+    reload: () => invoke<boolean>(IPC.webappReload)
+  },
+  launchApp: (target: string) => invoke<{ ok: boolean; message: string }>(IPC.appLaunch, target),
   openExternal: (url: string) => invoke<boolean>(IPC.openExternal, url),
   appInfo: () =>
     invoke<{ mpvPath?: string; mpvReason?: string; versions: NodeJS.ProcessVersions }>(IPC.appInfo),
 
   onPlayerState: (cb: (s: PlaybackState) => void) => subscribe<PlaybackState>(IPC.playerState, cb),
   onCatalogProgress: (cb: (p: LoadProgress) => void) =>
-    subscribe<LoadProgress>(IPC.catalogProgress, cb)
+    subscribe<LoadProgress>(IPC.catalogProgress, cb),
+  onWebAppState: (cb: (s: WebAppState) => void) => subscribe<WebAppState>(IPC.webappState, cb)
 }
 
 contextBridge.exposeInMainWorld('api', api)

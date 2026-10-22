@@ -130,12 +130,24 @@ export interface AppSettings {
 export interface AppTile {
   id: string
   label: string
-  /** Built-in section route, or an external URL to open. */
-  kind: 'section' | 'web'
-  /** For section tiles: 'live' | 'movies' | 'series' | 'settings' | 'guide'. */
+  /**
+   * - `section`: a built-in WindowsTV page.
+   * - `web`: a web app opened INSIDE WindowsTV (in-app browser).
+   * - `app`: an installed Windows app launched by protocol URI or .exe path.
+   */
+  kind: 'section' | 'web' | 'app'
+  /**
+   * - section: 'live' | 'movies' | 'series' | 'settings' | 'guide'
+   * - web: the URL to load in-app
+   * - app: a protocol URI (e.g. `netflix:`, `spotify:`) or a full path to an .exe
+   */
   target: string
   color?: string
   icon?: string
+  /** web tiles: optional custom User-Agent (e.g. to request a TV/leanback UI). */
+  userAgent?: string
+  /** True for the built-in tiles that ship with the app (not user-removable). */
+  builtin?: boolean
 }
 
 /** Result wrapper so the UI always gets a reason on failure. */

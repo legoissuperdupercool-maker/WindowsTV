@@ -13,11 +13,22 @@ import { Movies } from './pages/Movies'
 import { Series } from './pages/Series'
 import { Settings } from './pages/Settings'
 import { PlayerOverlay } from './components/PlayerOverlay'
+import { WebAppView } from './components/WebAppView'
 import { LoadToast } from './components/LoadToast'
 
 export default function App(): JSX.Element {
-  const { ready, route, init, playback, playerVisible, navigate, stopPlayback, setPlayerVisible } =
-    useStore()
+  const {
+    ready,
+    route,
+    init,
+    playback,
+    playerVisible,
+    navigate,
+    stopPlayback,
+    setPlayerVisible,
+    webApp,
+    closeWebApp
+  } = useStore()
 
   useSpatialNavigation()
 
@@ -40,6 +51,10 @@ export default function App(): JSX.Element {
   // Global back behaviour: close player → return home → (root).
   useEffect(() => {
     setBackHandler(() => {
+      if (webApp.open) {
+        closeWebApp()
+        return true
+      }
       if (playerVisible) {
         stopPlayback()
         setPlayerVisible(false)
@@ -52,7 +67,7 @@ export default function App(): JSX.Element {
       return false
     })
     return () => setBackHandler(null)
-  }, [playerVisible, route, navigate, stopPlayback, setPlayerVisible])
+  }, [playerVisible, route, navigate, stopPlayback, setPlayerVisible, webApp.open, closeWebApp])
 
   if (!ready) {
     return (
@@ -65,16 +80,21 @@ export default function App(): JSX.Element {
     )
   }
 
+  // The full-screen player and the in-app browser bring their own top controls,
+  // so the main top bar is hidden while either is active.
+  const showChrome = !playerVisible && !webApp.open
+
   return (
     <>
-      <TopBar />
+      {showChrome && <TopBar />}
       {route === 'home' && <Home />}
       {route === 'live' && <LiveTV />}
       {route === 'guide' && <Guide />}
       {route === 'movies' && <Movies />}
       {route === 'series' && <Series />}
       {route === 'settings' && <Settings />}
-      {playerVisible && <PlayerOverlay />}
+      {playerVisible && !webApp.open && <PlayerOverlay />}
+      {webApp.open && <WebAppView />}
       <LoadToast />
     </>
   )

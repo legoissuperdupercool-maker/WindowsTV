@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
+import { Icon } from '../components/Icon'
 import type { Channel, SeriesEpisode } from '@shared/types'
 
 export function Series(): JSX.Element {
@@ -32,7 +33,7 @@ export function Series(): JSX.Element {
 
   if (!currentSourceId)
     return (
-      <div className="page">
+      <div className="page pad">
         <div className="empty">
           <div>
             <div className="big">📺</div>
@@ -45,13 +46,15 @@ export function Series(): JSX.Element {
   if (selected) {
     const bySeason = groupBySeason(episodes ?? [])
     return (
-      <div className="page">
-        <button className="focusable ghost-btn" style={{ marginBottom: 18 }} onClick={() => setSelected(null)}>
-          ← Back to series
+      <div className="page pad">
+        <button className="focusable btn" style={{ margin: '4px 0 18px' }} onClick={() => setSelected(null)}>
+          <Icon name="back" size={16} /> Back to series
         </button>
-        <h1 className="section-title">{selected.name}</h1>
+        <h1 className="section-title" style={{ margin: '0 0 8px' }}>
+          {selected.name}
+        </h1>
         {selected.meta?.plot ? (
-          <p style={{ color: 'var(--text-dim)', maxWidth: 760, marginTop: -12, marginBottom: 20 }}>
+          <p style={{ color: 'var(--text-dim)', maxWidth: 760, marginBottom: 22, lineHeight: 1.55 }}>
             {String(selected.meta.plot)}
           </p>
         ) : null}
@@ -61,18 +64,22 @@ export function Series(): JSX.Element {
         {episodes &&
           [...bySeason.entries()].map(([season, eps]) => (
             <div key={season}>
-              <div className="row-label">Season {season}</div>
-              <div className="channel-grid" style={{ maxHeight: 'none' }}>
+              <div className="rail-title" style={{ margin: '18px 0 12px' }}>
+                Season {season}
+              </div>
+              <div className="channel-grid">
                 {eps.map((ep) => (
                   <button
                     key={ep.id}
-                    className="focusable channel-card"
+                    className="focusable media-card"
                     onClick={() => void playEpisode(ep.url, `${selected.name} · ${ep.title}`)}
                   >
-                    <div className="logo ph">E{ep.episode || '·'}</div>
-                    <div className="meta">
-                      <div className="name">{ep.title}</div>
-                      <div className="epg-now">{ep.duration ?? ''}</div>
+                    <div className="art">
+                      <div className="logo-ph">E{ep.episode || '·'}</div>
+                    </div>
+                    <div className="body">
+                      <div className="title">{ep.title}</div>
+                      <div className="sub">{ep.duration ?? `Season ${ep.season}`}</div>
                     </div>
                   </button>
                 ))}
@@ -84,7 +91,7 @@ export function Series(): JSX.Element {
   }
 
   return (
-    <div className="page">
+    <div className="page pad">
       <h1 className="section-title">Series</h1>
       <div className="search-bar" style={{ maxWidth: 680 }}>
         <input placeholder="Search series…" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -99,35 +106,13 @@ export function Series(): JSX.Element {
           </div>
         </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-            gap: 18
-          }}
-        >
+        <div className="poster-grid">
           {filtered.slice(0, 400).map((c) => (
-            <button
-              key={c.id}
-              className="focusable"
-              onClick={() => void openSeries(c)}
-              style={{
-                background: 'var(--bg-2)',
-                border: '1px solid var(--line)',
-                borderRadius: 14,
-                padding: 0,
-                overflow: 'hidden',
-                textAlign: 'left'
-              }}
-            >
-              <div style={{ aspectRatio: '2/3', background: '#0a0d14' }}>
-                {c.logo && (
-                  <img src={c.logo} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                )}
+            <button key={c.id} className="focusable poster-card" onClick={() => void openSeries(c)}>
+              <div className="art">
+                {c.logo ? <img src={c.logo} loading="lazy" /> : <span className="ph-txt">{c.name.slice(0, 2).toUpperCase()}</span>}
               </div>
-              <div style={{ padding: '10px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {c.name}
-              </div>
+              <div className="cap">{c.name}</div>
             </button>
           ))}
         </div>

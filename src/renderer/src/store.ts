@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { WebAppState } from '@shared/ipc'
 import type {
   AppSettings,
   Category,
@@ -30,6 +31,9 @@ interface State {
   /** What kind of content is currently playing (controls live vs VOD UI). */
   nowPlayingKind: StreamType
 
+  /** In-app web browser (e.g. YouTube opened inside WindowsTV). */
+  webApp: WebAppState
+
   // actions
   init: () => Promise<void>
   navigate: (route: RouteName) => void
@@ -42,6 +46,8 @@ interface State {
   playAdjacent: (dir: 1 | -1) => Promise<void>
   stopPlayback: () => void
   setPlayerVisible: (v: boolean) => void
+  openWebApp: (url: string, userAgent?: string) => void
+  closeWebApp: () => void
 }
 
 const idlePlayback: PlaybackState = {
@@ -67,6 +73,7 @@ export const useStore = create<State>((set, get) => ({
   playerVisible: false,
   playQueue: [],
   nowPlayingKind: 'live',
+  webApp: { open: false, url: '', title: '', canGoBack: false, loading: false },
 
   async init() {
     const res = await window.api.settings.get()
@@ -81,6 +88,7 @@ export const useStore = create<State>((set, get) => ({
       set({ playback })
       if (playback.status !== 'idle') set({ playerVisible: true })
     })
+    window.api.onWebAppState((webApp) => set({ webApp }))
     window.api.onCatalogProgress((progress) => {
       set({ progress })
       if (progress.phase === 'done' || progress.phase === 'error') {
@@ -171,5 +179,17 @@ export const useStore = create<State>((set, get) => ({
     if (!v) {
       window.api.player.setRegion({ x: 0, y: 0, width: 0, height: 0, visible: false })
     }
+  },
+
+  openWebApp(url, userAgent) {
+    // Stop IPTV playback so the two don't fight over the screen.
+    if (useStore.getState().playerVisible) get().stopPlayback()
+    set({ webApp: { open: true, url, title: '', canGoBack: false, loading: true } })
+    void window.api.webapp.open(url, userAgent)
+  },
+
+  closeWebApp() {
+    void window.api.webapp.close()
+    set({ webApp: { open: false, url: '', title: '', canGoBack: false, loading: false } })
   }
 }))

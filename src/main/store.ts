@@ -1,13 +1,14 @@
 import Store from 'electron-store'
 import type { AppSettings, AppTile } from '../shared/types'
 
+// Calm, flat solid colors (plain blue / purple / red / amber / green / slate).
 const defaultTiles: AppTile[] = [
-  { id: 'live', label: 'Live TV', kind: 'section', target: 'live', color: '#2f6bff', icon: 'live' },
-  { id: 'guide', label: 'TV Guide', kind: 'section', target: 'guide', color: '#7a3cff', icon: 'guide' },
-  { id: 'movies', label: 'Movies', kind: 'section', target: 'movies', color: '#ff5a3c', icon: 'movie' },
-  { id: 'series', label: 'Series', kind: 'section', target: 'series', color: '#ff9f1c', icon: 'series' },
-  { id: 'youtube', label: 'YouTube', kind: 'web', target: 'https://www.youtube.com/tv', color: '#ff0033', icon: 'web' },
-  { id: 'settings', label: 'Settings', kind: 'section', target: 'settings', color: '#4b5563', icon: 'settings' }
+  { id: 'live', label: 'Live TV', kind: 'section', target: 'live', color: '#3f6fa6', icon: 'live', builtin: true },
+  { id: 'guide', label: 'TV Guide', kind: 'section', target: 'guide', color: '#6a62a0', icon: 'guide', builtin: true },
+  { id: 'movies', label: 'Movies', kind: 'section', target: 'movies', color: '#b0514e', icon: 'movie', builtin: true },
+  { id: 'series', label: 'Series', kind: 'section', target: 'series', color: '#c3a650', icon: 'series', builtin: true },
+  { id: 'youtube', label: 'YouTube', kind: 'web', target: 'https://www.youtube.com', color: '#b84a44', icon: 'web' },
+  { id: 'settings', label: 'Settings', kind: 'section', target: 'settings', color: '#4a5160', icon: 'settings', builtin: true }
 ]
 
 const defaults: AppSettings = {

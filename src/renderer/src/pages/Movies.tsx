@@ -19,10 +19,20 @@ export function Movies(): JSX.Element {
     })
   }, [channels, query, cat])
 
-  if (!currentSourceId) return <div className="page"><div className="empty"><div><div className="big">🎬</div><h2>No source</h2></div></div></div>
+  if (!currentSourceId)
+    return (
+      <div className="page pad">
+        <div className="empty">
+          <div>
+            <div className="big">🎬</div>
+            <h2>No source</h2>
+          </div>
+        </div>
+      </div>
+    )
 
   return (
-    <div className="page">
+    <div className="page pad">
       <h1 className="section-title">Movies</h1>
       <div className="search-bar" style={{ maxWidth: 680 }}>
         <input placeholder="Search movies…" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -45,39 +55,17 @@ export function Movies(): JSX.Element {
           </div>
         </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-            gap: 18
-          }}
-        >
+        <div className="poster-grid">
           {filtered.slice(0, 400).map((c) => (
             <button
               key={c.id}
-              className="focusable"
+              className="focusable poster-card"
               onClick={() => void play(c.id, filtered.map((f) => f.id))}
-              style={{
-                background: 'var(--bg-2)',
-                border: '1px solid var(--line)',
-                borderRadius: 14,
-                padding: 0,
-                overflow: 'hidden',
-                textAlign: 'left'
-              }}
             >
-              <div style={{ aspectRatio: '2/3', background: '#0a0d14' }}>
-                {c.logo && (
-                  <img
-                    src={c.logo}
-                    loading="lazy"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                )}
+              <div className="art">
+                {c.logo ? <img src={c.logo} loading="lazy" /> : <span className="ph-txt">{c.name.slice(0, 2).toUpperCase()}</span>}
               </div>
-              <div style={{ padding: '10px 12px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {c.name}
-              </div>
+              <div className="cap">{c.name}</div>
             </button>
           ))}
         </div>

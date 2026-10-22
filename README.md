@@ -17,6 +17,20 @@ than a browser video element.
 
 ---
 
+## Screenshots
+
+> UI previews rendered from the app's **actual stylesheet**. Real artwork
+> (channel logos, movie/series posters, EPG data) loads from your provider at
+> runtime.
+
+| Home | Live TV |
+| :---: | :---: |
+| ![Home screen](docs/screenshots/home.png) | ![Live TV](docs/screenshots/livetv.png) |
+| **TV Guide** | **Player** |
+| ![TV Guide](docs/screenshots/guide.png) | ![Player](docs/screenshots/player.png) |
+
+---
+
 ## Download the app (.exe)
 
 A GitHub Actions workflow (`.github/workflows/build.yml`) builds the real Windows
@@ -52,8 +66,12 @@ Two specific UHF pain points drove the design:
 
 ## Features
 
-- 📺 **Classic TV home screen** — tiled app launcher (Live TV, Guide, Movies,
-  Series, Settings, plus web-app tiles like YouTube).
+- 📺 **Modern TV home screen** — cinematic hero spotlight + horizontal content
+  rows (Apple TV / Google TV style), with an app launcher.
+- 🧩 **Real apps on the home screen** — open web apps like **YouTube inside
+  WindowsTV** (an in-app browser), or launch **installed Windows apps**
+  (Netflix, Spotify, Prime Video…) you add yourself. (Streaming sites that use
+  DRM only play through their installed app, not their website — see below.)
 - 🎮 **Remote/D-pad navigation** — arrow keys move focus to the nearest tile,
   Enter selects, Backspace/Esc goes back. Mouse works too.
 - 📡 **IPTV sources** — **Xtream Codes** logins *and* **M3U/M3U8** playlists
@@ -167,8 +185,10 @@ the diagram in `src/main/windows.ts`.
 - Video playback and the window compositing require **Windows** (Win32 `--wid`);
   the current build targets Windows only.
 - Stalker/MAC portals are not implemented (M3U + Xtream only for now).
-- Catch-up/time-shift, multi-view, and an in-app web browser for the web tiles
-  are future work (web tiles currently open in the system browser).
+- Streaming services that use **Widevine DRM** (Netflix, Disney+, Prime Video,
+  Max…) can't play in the in-app browser — stock Electron has no Widevine CDM.
+  Add them as **installed-app** tiles instead (they launch the real Windows app).
+- Catch-up/time-shift and multi-view are future work.
 - Series episode browsing requires an Xtream source.
 
 ## License

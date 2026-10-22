@@ -61,7 +61,7 @@ export function Guide(): JSX.Element {
   const nowX = CH_WIDTH + ((Date.now() - from) / 60_000) * PX_PER_MIN
 
   return (
-    <div className="page" style={{ display: 'flex', flexDirection: 'column' }}>
+    <div className="page pad" style={{ display: 'flex', flexDirection: 'column' }}>
       <h1 className="section-title">TV Guide</h1>
       <div className="guide-wrap">
         <div className="guide-scroll">
@@ -87,7 +87,11 @@ export function Guide(): JSX.Element {
               return (
                 <div className="guide-row" key={c.id}>
                   <div className="guide-ch">
-                    {c.logo ? <img src={c.logo} loading="lazy" /> : null}
+                    {c.logo ? (
+                      <img src={c.logo} loading="lazy" style={{ width: 38, height: 38, objectFit: 'contain' }} />
+                    ) : (
+                      <div className="logo-ph">{c.name.slice(0, 2).toUpperCase()}</div>
+                    )}
                     <span className="nm">{c.name}</span>
                   </div>
                   <div className="guide-progs" style={{ width: widthPx }}>
@@ -104,13 +108,7 @@ export function Guide(): JSX.Element {
                             key={`${p.start}-${p.title}`}
                             className="focusable guide-prog"
                             onClick={() => void play(c.id, rows.map((r) => r.id))}
-                            style={{
-                              position: 'absolute',
-                              left,
-                              width: Math.max(28, right - left),
-                              top: 0,
-                              bottom: 0
-                            }}
+                            style={{ left, width: Math.max(28, right - left - 3) }}
                           >
                             <div className="pt">{p.title}</div>
                             <div className="pw">

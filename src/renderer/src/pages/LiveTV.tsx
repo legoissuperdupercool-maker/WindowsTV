@@ -123,34 +123,35 @@ export function LiveTV(): JSX.Element {
                 return (
                   <button
                     key={c.id}
-                    className="focusable channel-card"
+                    className="focusable media-card"
                     data-channel-id={c.id}
                     onClick={() => void play(c.id, filtered.map((f) => f.id))}
                   >
-                    {c.logo ? (
-                      <img className="logo" src={c.logo} loading="lazy" />
-                    ) : (
-                      <div className="logo ph">{c.name.slice(0, 2).toUpperCase()}</div>
-                    )}
-                    <div className="meta">
-                      <div className="name">
-                        {c.number ? <span style={{ color: 'var(--text-faint)' }}>{c.number} </span> : null}
-                        {c.name}
-                      </div>
-                      <div className="epg-now">{nn?.now ? nn.now.title : 'No guide data'}</div>
+                    <div className="art">
+                      {c.logo ? (
+                        <img src={c.logo} loading="lazy" />
+                      ) : (
+                        <div className="logo-ph">{c.name.slice(0, 2).toUpperCase()}</div>
+                      )}
+                      {c.type === 'live' && <span className="badge-live">LIVE</span>}
+                      {c.number ? <span className="chno">{c.number}</span> : null}
+                      {fav && (
+                        <span className="fav-pin">
+                          <Icon name="star" size={16} />
+                        </span>
+                      )}
+                    </div>
+                    <div className="body">
+                      <div className="title">{c.name}</div>
+                      <div className="sub">{nn?.now ? nn.now.title : 'No guide data'}</div>
                       {nn?.now && <ProgressBar p={nn.now} />}
                     </div>
-                    {fav && (
-                      <span className="fav">
-                        <Icon name="star" size={16} />
-                      </span>
-                    )}
                   </button>
                 )
               })}
             </div>
           )}
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-faint)' }}>
+          <div className="hint-line">
             Press <b>F</b> to favorite the highlighted channel · Enter to watch
           </div>
         </div>

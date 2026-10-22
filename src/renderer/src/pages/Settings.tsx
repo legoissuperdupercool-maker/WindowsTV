@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { Icon } from '../components/Icon'
-import type { Source, SourceKind } from '@shared/types'
+import type { AppTile, Source, SourceKind } from '@shared/types'
+
+const TILE_COLORS = ['#3f6fa6', '#b0514e', '#4e9c6a', '#c3a650', '#6a62a0', '#3f8f9c', '#c07a45']
 
 function emptySource(kind: SourceKind): Source {
   return {
@@ -23,6 +25,7 @@ export function Settings(): JSX.Element {
   const [editing, setEditing] = useState<Source | null>(null)
   const [testMsg, setTestMsg] = useState<{ ok: boolean; message: string } | null>(null)
   const [testing, setTesting] = useState(false)
+  const [newTile, setNewTile] = useState<AppTile | null>(null)
 
   useEffect(() => {
     void window.api.appInfo().then((r) => setMpv({ path: r.data?.mpvPath, reason: r.data?.mpvReason }))
@@ -67,6 +70,20 @@ export function Settings(): JSX.Element {
     await window.api.settings.update(partial)
     await refreshSettings()
   }
+
+  const saveTile = async (): Promise<void> => {
+    if (!newTile || !newTile.label.trim() || !newTile.target.trim()) return
+    await window.api.settings.update({ appTiles: [...settings.appTiles, newTile] })
+    await refreshSettings()
+    setNewTile(null)
+  }
+
+  const removeTile = async (id: string): Promise<void> => {
+    await window.api.settings.update({ appTiles: settings.appTiles.filter((t) => t.id !== id) })
+    await refreshSettings()
+  }
+
+  const customTiles = settings.appTiles.filter((t) => !t.builtin)
 
   return (
     <div className="page">
@@ -221,6 +238,123 @@ export function Settings(): JSX.Element {
                   {testing ? 'Testing…' : 'Test connection'}
                 </button>
                 <button className="focusable ghost-btn" onClick={() => (setEditing(null), setTestMsg(null))}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* App tiles */}
+        <div className="card">
+          <h3>Apps on the home screen</h3>
+          <p className="hint">
+            Add app buttons to your home screen. <b>Web apps</b> (like YouTube) open
+            inside WindowsTV. <b>Installed apps</b> launch a Windows app you already have
+            (by its link, e.g. <code>netflix:</code> / <code>spotify:</code>, or a full path to its .exe).
+            Streaming services with DRM (Netflix, Disney+, Prime…) must be added as installed apps —
+            their websites can’t play video inside WindowsTV.
+          </p>
+
+          {customTiles.map((t) => (
+            <div className="source-row" key={t.id}>
+              <span className="badge">{t.kind === 'web' ? 'web app' : 'installed'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600 }}>{t.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.target}
+                </div>
+              </div>
+              <button className="focusable ghost-btn danger" onClick={() => void removeTile(t.id)}>
+                Remove
+              </button>
+            </div>
+          ))}
+
+          {!newTile ? (
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button
+                className="focusable ghost-btn primary"
+                onClick={() =>
+                  setNewTile({
+                    id: crypto.randomUUID(),
+                    label: '',
+                    kind: 'web',
+                    target: 'https://',
+                    color: TILE_COLORS[Math.floor(Math.random() * TILE_COLORS.length)],
+                    icon: 'web'
+                  })
+                }
+              >
+                <Icon name="web" size={16} /> Add web app
+              </button>
+              <button
+                className="focusable ghost-btn"
+                onClick={() =>
+                  setNewTile({
+                    id: crypto.randomUUID(),
+                    label: '',
+                    kind: 'app',
+                    target: '',
+                    color: TILE_COLORS[Math.floor(Math.random() * TILE_COLORS.length)],
+                    icon: 'tv'
+                  })
+                }
+              >
+                <Icon name="tv" size={16} /> Add installed app
+              </button>
+            </div>
+          ) : (
+            <div style={{ marginTop: 18, borderTop: '1px solid var(--line)', paddingTop: 18 }}>
+              <div className="field row">
+                <div>
+                  <label>Button label</label>
+                  <input
+                    value={newTile.label}
+                    onChange={(e) => setNewTile({ ...newTile, label: e.target.value })}
+                    placeholder={newTile.kind === 'web' ? 'YouTube' : 'Netflix'}
+                  />
+                </div>
+                <div style={{ maxWidth: 180 }}>
+                  <label>Type</label>
+                  <select
+                    value={newTile.kind}
+                    onChange={(e) =>
+                      setNewTile({ ...newTile, kind: e.target.value as AppTile['kind'] })
+                    }
+                  >
+                    <option value="web">Web app (in-app)</option>
+                    <option value="app">Installed app</option>
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <label>
+                  {newTile.kind === 'web'
+                    ? 'Website URL'
+                    : 'App link (e.g. netflix: ) or full path to the .exe'}
+                </label>
+                <input
+                  value={newTile.target}
+                  onChange={(e) => setNewTile({ ...newTile, target: e.target.value })}
+                  placeholder={newTile.kind === 'web' ? 'https://www.youtube.com' : 'spotify:'}
+                />
+              </div>
+              {newTile.kind === 'web' && (
+                <div className="field">
+                  <label>Custom User-Agent (optional — e.g. to request a TV interface)</label>
+                  <input
+                    value={newTile.userAgent ?? ''}
+                    onChange={(e) => setNewTile({ ...newTile, userAgent: e.target.value })}
+                    placeholder="Leave blank for the normal website"
+                  />
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button className="focusable ghost-btn primary" onClick={() => void saveTile()}>
+                  Add to home screen
+                </button>
+                <button className="focusable ghost-btn" onClick={() => setNewTile(null)}>
                   Cancel
                 </button>
               </div>

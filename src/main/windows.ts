@@ -1,7 +1,19 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, WebContentsView, shell } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
-import type { VideoRegion } from '../shared/ipc'
+import type { VideoRegion, WebAppState } from '../shared/ipc'
+
+/** Height (DIP) of the WindowsTV control strip shown above an in-app web app. */
+const WEBAPP_BAR = 56
+
+/** Sites whose web players use DRM we can't decode in a stock Electron build. */
+const DRM_HINTS: Array<{ re: RegExp; name: string }> = [
+  { re: /netflix\.com/i, name: 'Netflix' },
+  { re: /disneyplus\.com/i, name: 'Disney+' },
+  { re: /(primevideo|amazon)\.[a-z.]+\/.*video/i, name: 'Prime Video' },
+  { re: /max\.com|hbomax\.com/i, name: 'Max' },
+  { re: /hulu\.com/i, name: 'Hulu' }
+]
 
 /**
  * Layered-window video compositing.
@@ -26,6 +38,8 @@ export class WindowManager {
   uiWindow!: BrowserWindow
   videoWindow!: BrowserWindow
   private lastRegion: VideoRegion = { x: 0, y: 0, width: 0, height: 0, visible: false }
+  private webView: WebContentsView | null = null
+  private webHome = ''
 
   create(): void {
     // The video window is created first so we can hand mpv its native handle.
@@ -71,8 +85,12 @@ export class WindowManager {
       return { action: 'deny' }
     })
 
-    // Keep the video window glued behind the UI window on any geometry change.
-    const reapply = (): void => this.applyRegion()
+    // Keep the video window glued behind the UI window on any geometry change,
+    // and resize the in-app web view to match.
+    const reapply = (): void => {
+      this.applyRegion()
+      this.layoutWebView()
+    }
     this.uiWindow.on('move', reapply)
     this.uiWindow.on('resize', reapply)
     this.uiWindow.on('maximize', reapply)
@@ -151,7 +169,101 @@ export class WindowManager {
     }
   }
 
+  // ------------------------------------------------------------------ in-app web apps
+
+  /** Open a web app INSIDE WindowsTV, below the control strip. */
+  openWebApp(url: string, userAgent?: string): void {
+    this.webHome = url
+    // Hide IPTV video while a web app is in front.
+    this.lastRegion = { ...this.lastRegion, visible: false }
+    this.applyRegion()
+
+    if (!this.webView) {
+      this.webView = new WebContentsView({
+        webPreferences: { contextIsolation: true, nodeIntegration: false }
+      })
+      this.uiWindow.contentView.addChildView(this.webView)
+      const wc = this.webView.webContents
+      // Keep navigation inside the view instead of spawning OS windows.
+      wc.setWindowOpenHandler(({ url: u }) => {
+        wc.loadURL(u)
+        return { action: 'deny' }
+      })
+      const emit = (): void => this.emitWebState()
+      wc.on('did-navigate', emit)
+      wc.on('did-navigate-in-page', emit)
+      wc.on('page-title-updated', emit)
+      wc.on('did-start-loading', emit)
+      wc.on('did-stop-loading', emit)
+    }
+    if (userAgent) this.webView.webContents.setUserAgent(userAgent)
+    this.layoutWebView()
+    this.webView.webContents.loadURL(url)
+    this.emitWebState()
+  }
+
+  closeWebApp(): void {
+    if (this.webView) {
+      this.uiWindow.contentView.removeChildView(this.webView)
+      this.webView.webContents.close()
+      this.webView = null
+    }
+    this.emitWebState()
+  }
+
+  webAppBack(): void {
+    const wc = this.webView?.webContents
+    if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
+  }
+  webAppHome(): void {
+    if (this.webView && this.webHome) this.webView.webContents.loadURL(this.webHome)
+  }
+  webAppReload(): void {
+    this.webView?.webContents.reload()
+  }
+
+  private layoutWebView(): void {
+    if (!this.webView || this.uiWindow.isDestroyed()) return
+    const { width, height } = this.uiWindow.getContentBounds()
+    this.webView.setBounds({ x: 0, y: WEBAPP_BAR, width, height: Math.max(0, height - WEBAPP_BAR) })
+  }
+
+  private emitWebState(): void {
+    const wc = this.webView?.webContents
+    const url = wc?.getURL() ?? ''
+    const drm = DRM_HINTS.find((h) => h.re.test(url))
+    const state: WebAppState = {
+      open: Boolean(this.webView),
+      url,
+      title: wc?.getTitle() ?? '',
+      canGoBack: Boolean(wc?.navigationHistory.canGoBack()),
+      loading: Boolean(wc?.isLoading()),
+      drmWarning: drm
+        ? `${drm.name} uses DRM that won't play inside WindowsTV. Install the ${drm.name} app and add it as an “installed app” tile instead.`
+        : undefined
+    }
+    this.send('webapp:state', state)
+  }
+
   send(channel: string, payload: unknown): void {
     if (!this.uiWindow.isDestroyed()) this.uiWindow.webContents.send(channel, payload)
+  }
+}
+
+/** Launch an installed Windows app by protocol URI (e.g. `netflix:`) or .exe path. */
+export async function launchInstalledApp(target: string): Promise<{ ok: boolean; message: string }> {
+  const t = target.trim()
+  if (!t) return { ok: false, message: 'No app target set.' }
+  // A protocol/URI (scheme:...) with no Windows path separators → openExternal.
+  const looksLikeUri = /^[a-z][a-z0-9+.-]*:/i.test(t) && !/^[a-z]:\\/i.test(t)
+  try {
+    if (looksLikeUri) {
+      await shell.openExternal(t)
+      return { ok: true, message: 'Launched.' }
+    }
+    const err = await shell.openPath(t) // returns '' on success
+    return err ? { ok: false, message: err } : { ok: true, message: 'Launched.' }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) }
   }
 }

@@ -38,10 +38,31 @@ export const IPC = {
   windowControl: 'window:control', // minimize/maximize/close/fullscreen
   overlayClickThrough: 'overlay:clickThrough',
 
+  // In-app browser (web apps rendered inside WindowsTV)
+  webappOpen: 'webapp:open',
+  webappClose: 'webapp:close',
+  webappBack: 'webapp:back',
+  webappHome: 'webapp:home',
+  webappReload: 'webapp:reload',
+  webappState: 'webapp:state', // main -> renderer event
+
+  // Launch an installed Windows app (Store/desktop) by protocol or path
+  appLaunch: 'app:launch',
+
   // Misc
   openExternal: 'app:openExternal',
   appInfo: 'app:info'
 } as const
+
+export interface WebAppState {
+  open: boolean
+  url: string
+  title: string
+  canGoBack: boolean
+  loading: boolean
+  /** Set when a site is known to require DRM we can't play in-app. */
+  drmWarning?: string
+}
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
 
