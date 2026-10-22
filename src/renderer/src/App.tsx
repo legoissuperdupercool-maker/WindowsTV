@@ -74,7 +74,7 @@ export default function App(): JSX.Element {
       <div className="empty">
         <div>
           <div className="spinner" style={{ margin: '0 auto 16px' }} />
-          Starting WindowsTV…
+          Starting ello smartTV…
         </div>
       </div>
     )
@@ -86,13 +86,15 @@ export default function App(): JSX.Element {
 
   return (
     <>
+      {/* Pages are not rendered while the player / in-app browser is up: the
+          UI window must stay transparent so the mpv video behind it shows. */}
       {showChrome && <TopBar />}
-      {route === 'home' && <Home />}
-      {route === 'live' && <LiveTV />}
-      {route === 'guide' && <Guide />}
-      {route === 'movies' && <Movies />}
-      {route === 'series' && <Series />}
-      {route === 'settings' && <Settings />}
+      {showChrome && route === 'home' && <Home />}
+      {showChrome && route === 'live' && <LiveTV />}
+      {showChrome && route === 'guide' && <Guide />}
+      {showChrome && route === 'movies' && <Movies />}
+      {showChrome && route === 'series' && <Series />}
+      {showChrome && route === 'settings' && <Settings />}
       {playerVisible && !webApp.open && <PlayerOverlay />}
       {webApp.open && <WebAppView />}
       <LoadToast />

@@ -225,21 +225,16 @@ export function PlayerOverlay(): JSX.Element {
 
         <div className="transport">
           <button className="focusable tbtn" title="Previous channel" onClick={() => void playAdjacent(-1)}>
-            <Icon name="back" />
+            <Icon name="prev" size={26} />
           </button>
           <button
             className="focusable tbtn primary"
             onClick={() => window.api.player.command({ action: 'toggle' })}
           >
-            <Icon name={playing ? 'pause' : 'play'} />
+            <Icon name={playing ? 'pause' : 'play'} size={32} />
           </button>
-          <button
-            className="focusable tbtn"
-            title="Next channel"
-            style={{ transform: 'scaleX(-1)' }}
-            onClick={() => void playAdjacent(1)}
-          >
-            <Icon name="back" />
+          <button className="focusable tbtn" title="Next channel" onClick={() => void playAdjacent(1)}>
+            <Icon name="next" size={26} />
           </button>
           <button
             className="focusable tbtn"
@@ -265,7 +260,7 @@ export function PlayerOverlay(): JSX.Element {
 }
 
 function fmtTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 function fmtDur(sec: number): string {
   const s = Math.max(0, Math.floor(sec))

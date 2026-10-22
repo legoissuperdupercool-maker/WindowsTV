@@ -1,4 +1,4 @@
-# WindowsTV
+# ello smartTV
 
 A high-quality **smart-TV launcher + IPTV player for Windows**, built on
 [Electron](https://www.electronjs.org/) with [**mpv**](https://mpv.io/) as the
@@ -19,9 +19,9 @@ than a browser video element.
 
 ## Screenshots
 
-> UI previews rendered from the app's **actual stylesheet**. Real artwork
-> (channel logos, movie/series posters, EPG data) loads from your provider at
-> runtime.
+> Captured from the **real app UI** running with sample channel/EPG data. Real
+> channel logos and posters load from your provider at runtime, and in the
+> player the picture comes from mpv (shown here as a placeholder).
 
 | Home | Live TV |
 | :---: | :---: |
@@ -37,12 +37,12 @@ A GitHub Actions workflow (`.github/workflows/build.yml`) builds the real Window
 executables on a Windows runner, with **mpv bundled in**, every time this branch
 is pushed. Two files are produced:
 
-- **`WindowsTV-<version>-Setup.exe`** — a normal installer.
-- **`WindowsTV-<version>-Portable.exe`** — a single self-contained `.exe` you can
+- **`ello-smartTV-<version>-Setup.exe`** — a normal installer.
+- **`ello-smartTV-<version>-Portable.exe`** — a single self-contained `.exe` you can
   run directly, no install.
 
 **To get the EXE:** open the repo's **Actions** tab → the latest **“Build Windows
-EXE”** run → download the **`WindowsTV-exe`** artifact (a zip containing both
+EXE”** run → download the **`ello-smartTV-exe`** artifact (a zip containing both
 `.exe` files). To publish a permanent download instead, push a tag like `v0.1.0`
 and the EXEs are attached to a GitHub Release automatically.
 
@@ -56,7 +56,7 @@ installer* below.
 
 Two specific UHF pain points drove the design:
 
-| UHF problem | What WindowsTV does |
+| UHF problem | What ello smartTV does |
 | --- | --- |
 | **EPG is flaky / shifted / missing** | A dedicated XMLTV engine that honours per-programme timezone offsets, falls back to fuzzy channel-name matching when `tvg-id` doesn't line up, caches the guide to disk with a TTL (and keeps a stale copy if a refresh fails), and tolerates malformed/gzipped/huge guide files. |
 | **"Nothing loads" with no explanation** | Every load path reports a *reason*. The HTTP layer retries with backoff and maps status codes to plain English (401 → "check your login", 403 → "subscription/User-Agent blocked", …). The player has a **load watchdog**: if a stream doesn't start in time you get an explanation and a **Retry** button, never a silent black screen. |
@@ -69,7 +69,7 @@ Two specific UHF pain points drove the design:
 - 📺 **Modern TV home screen** — cinematic hero spotlight + horizontal content
   rows (Apple TV / Google TV style), with an app launcher.
 - 🧩 **Real apps on the home screen** — open web apps like **YouTube inside
-  WindowsTV** (an in-app browser), or launch **installed Windows apps**
+  ello smartTV** (an in-app browser), or launch **installed Windows apps**
   (Netflix, Spotify, Prime Video…) you add yourself. (Streaming sites that use
   DRM only play through their installed app, not their website — see below.)
 - 🎮 **Remote/D-pad navigation** — arrow keys move focus to the nearest tile,
@@ -95,7 +95,7 @@ Two specific UHF pain points drove the design:
 
 ## Getting mpv
 
-WindowsTV looks for mpv in three places, in order:
+ello smartTV looks for mpv in three places, in order:
 
 1. a path you set in **Settings → Playback engine**,
 2. a bundled copy at `resources/mpv/mpv.exe`,
@@ -103,7 +103,7 @@ WindowsTV looks for mpv in three places, in order:
 
 So the easiest option is to **install mpv** (e.g. `winget install
 mpv` or `choco install mpv`, or download from <https://mpv.io/installation/>)
-and WindowsTV will find it automatically.
+and ello smartTV will find it automatically.
 
 To **bundle** mpv into a packaged build, put a Windows mpv build (so that
 `mpv.exe` sits directly inside) in `resources/mpv/`. Running `npm install`

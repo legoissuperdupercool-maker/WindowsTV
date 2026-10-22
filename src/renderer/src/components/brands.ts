@@ -33,7 +33,7 @@ export const BRANDS: Brand[] = [
     key: 'disney',
     color: '#0A36C4',
     test: /disney/i,
-    svg: `<svg viewBox="0 0 170 40" height="30"><text x="0" y="31" font-family="Georgia,'Times New Roman',serif" font-size="33" font-style="italic" font-weight="700" fill="#fff">Disney</text><text x="128" y="26" font-family="Arial" font-size="24" font-weight="700" fill="#fff">+</text></svg>`
+    svg: `<svg viewBox="0 0 150 40" height="32"><text x="75" y="31" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-size="33" font-style="italic" font-weight="700" fill="#fff">Disney<tspan dx="3" dy="-5" font-family="Arial,Helvetica,sans-serif" font-style="normal" font-size="26">+</tspan></text></svg>`
   },
   {
     key: 'prime',

@@ -1,5 +1,5 @@
-appId: com.windowstv.app
-productName: WindowsTV
+appId: com.ello.smarttv
+productName: ello smartTV
 directories:
   buildResources: build
   output: release
@@ -24,12 +24,12 @@ win:
       to: mpv
       filter:
         - '**/*'
-  artifactName: ${productName}-${version}-Setup.${ext}
+  artifactName: ello-smartTV-${version}-Setup.${ext}
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
-  artifactName: ${productName}-${version}-Setup.${ext}
+  artifactName: ello-smartTV-${version}-Setup.${ext}
 portable:
-  artifactName: ${productName}-${version}-Portable.${ext}
+  artifactName: ello-smartTV-${version}-Portable.${ext}

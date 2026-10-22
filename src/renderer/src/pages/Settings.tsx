@@ -250,10 +250,10 @@ export function Settings(): JSX.Element {
           <h3>Apps on the home screen</h3>
           <p className="hint">
             Add app buttons to your home screen. <b>Web apps</b> (like YouTube) open
-            inside WindowsTV. <b>Installed apps</b> launch a Windows app you already have
+            inside ello smartTV. <b>Installed apps</b> launch a Windows app you already have
             (by its link, e.g. <code>netflix:</code> / <code>spotify:</code>, or a full path to its .exe).
             Streaming services with DRM (Netflix, Disney+, Prime…) must be added as installed apps —
-            their websites can’t play video inside WindowsTV.
+            their websites can’t play video inside ello smartTV.
           </p>
 
           {customTiles.map((t) => (

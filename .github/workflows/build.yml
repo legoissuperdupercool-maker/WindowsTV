@@ -54,7 +54,7 @@ jobs:
       - name: Upload EXEs as workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: WindowsTV-exe
+          name: ello-smartTV-exe
           path: |
             release/*.exe
             dist/*.exe

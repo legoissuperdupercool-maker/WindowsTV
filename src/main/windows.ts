@@ -66,7 +66,7 @@ export class WindowManager {
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
-      title: 'WindowsTV',
+      title: 'ello smartTV',
       webPreferences: {
         preload: join(__dirname, '../preload/index.mjs'),
         sandbox: false,
@@ -239,7 +239,7 @@ export class WindowManager {
       canGoBack: Boolean(wc?.navigationHistory.canGoBack()),
       loading: Boolean(wc?.isLoading()),
       drmWarning: drm
-        ? `${drm.name} uses DRM that won't play inside WindowsTV. Install the ${drm.name} app and add it as an “installed app” tile instead.`
+        ? `${drm.name} uses DRM that won't play inside ello smartTV. Install the ${drm.name} app and add it as an “installed app” tile instead.`
         : undefined
     }
     this.send('webapp:state', state)

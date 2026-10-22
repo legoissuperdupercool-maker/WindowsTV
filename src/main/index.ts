@@ -52,7 +52,7 @@ async function restartPlayer(): Promise<void> {
 let ctx: MainContext
 
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.windowstv.app')
+  electronApp.setAppUserModelId('com.ello.smarttv')
 
   app.on('browser-window-created', (_, win) => {
     optimizer.watchWindowShortcuts(win)

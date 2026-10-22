@@ -71,7 +71,7 @@ export function Guide(): JSX.Element {
               <div className="corner" />
               {timeCells.map((t) => (
                 <div key={t} className="guide-timecell" style={{ width: 30 * PX_PER_MIN, flex: '0 0 auto' }}>
-                  {new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                 </div>
               ))}
             </div>
@@ -112,7 +112,7 @@ export function Guide(): JSX.Element {
                           >
                             <div className="pt">{p.title}</div>
                             <div className="pw">
-                              {new Date(p.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(p.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                             </div>
                           </button>
                         )

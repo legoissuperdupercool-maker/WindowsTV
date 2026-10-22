@@ -54,7 +54,7 @@ export function Home(): JSX.Element {
   }
 
   const featuredNow = featured ? nn[featured.id]?.now : undefined
-  const grad = gradientFor(featured?.name ?? 'WindowsTV')
+  const grad = gradientFor(featured?.name ?? 'ello')
 
   return (
     <div className="page">
@@ -74,30 +74,31 @@ export function Home(): JSX.Element {
                   : 'Pick up where you left off, or browse your channels, guide and on-demand library.'}
               </p>
               <div className="hero-actions">
-                <button className="focusable btn primary" onClick={() => void play(featured.id)}>
-                  <Icon name="play" size={18} /> Watch
+                <button className="focusable btn on-color" onClick={() => void play(featured.id)}>
+                  <Icon name="play" size={22} /> Watch
                 </button>
-                <button className="focusable btn" onClick={() => navigate('live')}>
-                  <Icon name="live" size={16} /> Browse channels
+                <button className="focusable btn on-color" onClick={() => navigate('guide')}>
+                  <Icon name="guide" size={20} /> TV Guide
                 </button>
               </div>
             </>
           ) : (
             <>
               <span className="hero-kicker">Welcome</span>
-              <h1 className="hero-title">WindowsTV</h1>
+              <h1 className="hero-title">ello smartTV</h1>
               <p className="hero-meta">
                 {hasSources
                   ? 'Your channels are loading — pick an app below to get started.'
                   : 'Add your IPTV provider (Xtream login or an M3U playlist) to start watching in high quality.'}
               </p>
               <div className="hero-actions">
-                <button className="focusable btn accent" onClick={() => navigate('settings')}>
-                  <Icon name="settings" size={16} /> {hasSources ? 'Manage sources' : 'Add a source'}
+                <button className="focusable btn on-color" onClick={() => navigate('settings')}>
+                  <Icon name={hasSources ? 'settings' : 'add'} size={20} />{' '}
+                  {hasSources ? 'Manage sources' : 'Add a source'}
                 </button>
                 {hasSources && (
-                  <button className="focusable btn" onClick={() => navigate('live')}>
-                    <Icon name="live" size={16} /> Live TV
+                  <button className="focusable btn on-color" onClick={() => navigate('live')}>
+                    <Icon name="live" size={20} /> Live TV
                   </button>
                 )}
               </div>
@@ -106,10 +107,10 @@ export function Home(): JSX.Element {
         </div>
       </section>
 
-      {/* ---- apps ---- */}
+      {/* ---- apps: two rows of banners ---- */}
       <div className="rail">
-        <div className="rail-title">Apps</div>
-        <div className="rail-track">
+        <div className="rail-title">Your apps</div>
+        <div className="app-grid">
           {tiles.map((tile) => (
             <AppCard key={tile.id} tile={tile} onClick={() => onTile(tile)} />
           ))}
@@ -134,7 +135,6 @@ export function Home(): JSX.Element {
 }
 
 function AppCard({ tile, onClick }: { tile: AppTile; onClick: () => void }): JSX.Element {
-  const sub = tile.kind === 'web' ? 'Open in app' : tile.kind === 'app' ? 'Launch app' : sectionSub(tile.target)
   const brand = tile.kind === 'section' ? null : detectBrand(tile.target, tile.label)
   if (brand) {
     // Brand tiles: bright brand colour + the real logo, centred.
@@ -155,13 +155,8 @@ function AppCard({ tile, onClick }: { tile: AppTile; onClick: () => void }): JSX
       style={{ ['--c1' as string]: tile.color ?? '#2979ff' }}
       onClick={onClick}
     >
-      <span className="ac-icon">
-        <Icon name={tile.icon ?? 'tv'} size={26} />
-      </span>
-      <div>
-        <div className="ac-label">{tile.label}</div>
-        <div className="ac-sub">{sub}</div>
-      </div>
+      <Icon name={tile.icon ?? 'tv'} size={40} />
+      <span className="ac-label">{tile.label}</span>
     </button>
   )
 }
@@ -218,16 +213,9 @@ function MediaRail({
 }
 
 // --------------------------------------------------------------------- helpers
-function sectionSub(target: string): string {
-  return (
-    { live: 'Watch channels', guide: 'What’s on now', movies: 'On demand', series: 'Box sets', settings: 'Sources & player' }[
-      target
-    ] ?? ''
-  )
-}
 
 function fmt(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 function progress(p: Programme): number {
   return Math.max(0, Math.min(100, ((Date.now() - p.start) / (p.stop - p.start)) * 100))
@@ -254,11 +242,9 @@ function deriveNowNext(progs: Programme[], at: number): EpgNowNext {
   return { now, next }
 }
 
-/** A bright single-hue banner colour (derived from the featured title), fading to
- *  dark at the bottom-left so the text stays readable. */
+/** A bright, solid banner colour picked from the featured title. */
 function gradientFor(seed: string): string {
-  const h = [215, 0, 140, 265, 28, 190][hash(seed) % 6]
-  return `linear-gradient(115deg, hsl(${h} 85% 34%) 0%, hsl(${h} 90% 48%) 60%, hsl(${h} 95% 56%) 100%)`
+  return ['#1f6feb', '#d93025', '#188038', '#9334e6', '#e8710a', '#007b83'][hash(seed) % 6]
 }
 function hash(s: string): number {
   let h = 0

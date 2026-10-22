@@ -1,7 +1,7 @@
 {
   "name": "windowstv",
   "version": "0.1.0",
-  "description": "A high-quality smart-TV launcher and IPTV player for Windows, powered by mpv.",
+  "description": "ello smartTV — a smart-TV launcher and high-quality IPTV player for Windows, powered by mpv.",
   "main": "./out/main/index.js",
   "author": "legoissuperdupercool-maker",
   "license": "MIT",
@@ -27,6 +27,8 @@
     "fast-xml-parser": "4.5.0"
   },
   "devDependencies": {
+    "@fontsource-variable/google-sans-flex": "5.3.2",
+    "@material-symbols/svg-400": "0.48.1",
     "@types/node": "20.17.6",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",

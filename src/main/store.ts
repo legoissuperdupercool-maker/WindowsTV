@@ -5,16 +5,16 @@ import type { AppSettings, AppTile } from '../shared/types'
 // Netflix, …) get their own brand colour + logo automatically in the UI.
 // Installed-app targets are best-effort protocol links; edit them in Settings.
 const defaultTiles: AppTile[] = [
-  { id: 'live', label: 'Live TV', kind: 'section', target: 'live', color: '#2979FF', icon: 'live', builtin: true },
-  { id: 'guide', label: 'TV Guide', kind: 'section', target: 'guide', color: '#7C4DFF', icon: 'guide', builtin: true },
-  { id: 'movies', label: 'Movies', kind: 'section', target: 'movies', color: '#FF3B30', icon: 'movie', builtin: true },
-  { id: 'series', label: 'Series', kind: 'section', target: 'series', color: '#FF9F0A', icon: 'series', builtin: true },
+  { id: 'live', label: 'Live TV', kind: 'section', target: 'live', color: '#1f6feb', icon: 'live', builtin: true },
+  { id: 'guide', label: 'TV Guide', kind: 'section', target: 'guide', color: '#9334e6', icon: 'guide', builtin: true },
+  { id: 'movies', label: 'Movies', kind: 'section', target: 'movies', color: '#d93025', icon: 'movie', builtin: true },
+  { id: 'series', label: 'Series', kind: 'section', target: 'series', color: '#e8710a', icon: 'series', builtin: true },
   { id: 'youtube', label: 'YouTube', kind: 'web', target: 'https://www.youtube.com', icon: 'web' },
   { id: 'netflix', label: 'Netflix', kind: 'app', target: 'netflix:', icon: 'tv' },
   { id: 'disney', label: 'Disney+', kind: 'app', target: 'disneyplus:', icon: 'tv' },
   { id: 'prime', label: 'Prime Video', kind: 'app', target: 'primevideo:', icon: 'tv' },
   { id: 'spotify', label: 'Spotify', kind: 'app', target: 'spotify:', icon: 'tv' },
-  { id: 'settings', label: 'Settings', kind: 'section', target: 'settings', color: '#34C759', icon: 'settings', builtin: true }
+  { id: 'settings', label: 'Settings', kind: 'section', target: 'settings', color: '#3c4043', icon: 'settings', builtin: true }
 ]
 
 const defaults: AppSettings = {

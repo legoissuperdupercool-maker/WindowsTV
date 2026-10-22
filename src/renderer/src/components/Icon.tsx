@@ -1,56 +1,75 @@
-// Small inline-SVG icon set (stroke-based, inherits currentColor) so the UI stays
-// crisp at TV sizes without an icon-font dependency.
+// Icons are Google's Material Symbols (Rounded, filled) — the same icon family
+// Android TV / Google TV use. Each SVG is imported as raw markup so only the
+// icons listed here end up in the bundle.
+import live from '@material-symbols/svg-400/rounded/live_tv-fill.svg?raw'
+import guide from '@material-symbols/svg-400/rounded/view_timeline-fill.svg?raw'
+import movie from '@material-symbols/svg-400/rounded/movie-fill.svg?raw'
+import series from '@material-symbols/svg-400/rounded/video_library-fill.svg?raw'
+import web from '@material-symbols/svg-400/rounded/public-fill.svg?raw'
+import settings from '@material-symbols/svg-400/rounded/settings-fill.svg?raw'
+import play from '@material-symbols/svg-400/rounded/play_arrow-fill.svg?raw'
+import pause from '@material-symbols/svg-400/rounded/pause-fill.svg?raw'
+import stop from '@material-symbols/svg-400/rounded/stop-fill.svg?raw'
+import back from '@material-symbols/svg-400/rounded/arrow_back-fill.svg?raw'
+import prev from '@material-symbols/svg-400/rounded/skip_previous-fill.svg?raw'
+import next from '@material-symbols/svg-400/rounded/skip_next-fill.svg?raw'
+import star from '@material-symbols/svg-400/rounded/star-fill.svg?raw'
+import search from '@material-symbols/svg-400/rounded/search-fill.svg?raw'
+import refresh from '@material-symbols/svg-400/rounded/refresh-fill.svg?raw'
+import minimize from '@material-symbols/svg-400/rounded/remove-fill.svg?raw'
+import maximize from '@material-symbols/svg-400/rounded/crop_square-fill.svg?raw'
+import close from '@material-symbols/svg-400/rounded/close-fill.svg?raw'
+import volume from '@material-symbols/svg-400/rounded/volume_up-fill.svg?raw'
+import mute from '@material-symbols/svg-400/rounded/volume_off-fill.svg?raw'
+import info from '@material-symbols/svg-400/rounded/info-fill.svg?raw'
+import audio from '@material-symbols/svg-400/rounded/music_note-fill.svg?raw'
+import subtitle from '@material-symbols/svg-400/rounded/subtitles-fill.svg?raw'
+import tv from '@material-symbols/svg-400/rounded/tv-fill.svg?raw'
+import home from '@material-symbols/svg-400/rounded/home-fill.svg?raw'
+import apps from '@material-symbols/svg-400/rounded/apps-fill.svg?raw'
+import add from '@material-symbols/svg-400/rounded/add-fill.svg?raw'
+import open from '@material-symbols/svg-400/rounded/open_in_new-fill.svg?raw'
+import chevron from '@material-symbols/svg-400/rounded/chevron_right-fill.svg?raw'
 
-const paths: Record<string, string> = {
-  live: 'M4 7h16v11H4zM8 4l4 3 4-3',
-  guide: 'M4 5h16v14H4zM4 9h16M9 5v14',
-  movie: 'M4 5h16v14H4zM4 9h16M8 5v4M16 5v4M8 15h8',
-  series: 'M3 7h13v10H3zM16 9l5-2v10l-5-2',
-  web: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
-  settings:
-    'M12 9a3 3 0 100 6 3 3 0 000-6zM19 12a7 7 0 00-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 00-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 00-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 000 2l-2 1.5 2 3.4 2.3-1a7 7 0 001.7 1l.3 2.5h4l.3-2.5a7 7 0 001.7-1l2.3 1 2-3.4-2-1.5c.07-.3.1-.66.1-1z',
-  play: 'M7 5l12 7-12 7z',
-  pause: 'M8 5h3v14H8zM13 5h3v14h-3z',
-  stop: 'M6 6h12v12H6z',
-  back: 'M15 5l-7 7 7 7',
-  star: 'M12 3l2.9 6 6.6.5-5 4.3 1.6 6.4L12 17l-6.1 3.2L7.5 13.8l-5-4.3 6.6-.5z',
-  search: 'M11 4a7 7 0 105 12 7 7 0 00-5-12zM21 21l-5-5',
-  refresh: 'M4 4v5h5M20 20v-5h-5M20 9a8 8 0 00-14-3L4 9M4 15a8 8 0 0014 3l2-3',
-  minimize: 'M6 12h12',
-  maximize: 'M5 5h14v14H5z',
-  close: 'M6 6l12 12M18 6L6 18',
-  volume: 'M4 9v6h4l5 4V5L8 9zM16 8a5 5 0 010 8M19 5a9 9 0 010 14',
-  mute: 'M4 9v6h4l5 4V5L8 9zM17 9l4 6M21 9l-4 6',
-  info: 'M12 8h.01M11 12h1v5h1M12 3a9 9 0 100 18 9 9 0 000-18z',
-  audio: 'M9 18V5l12-2v13M9 13l12-2M6 18a3 3 0 100 .01',
-  subtitle: 'M4 5h16v14H4zM7 15h5M15 15h2M7 11h2M12 11h5',
-  tv: 'M4 6h16v11H4zM9 20h6M8 3l4 3 4-3'
+const ICONS: Record<string, string> = {
+  live,
+  guide,
+  movie,
+  series,
+  web,
+  settings,
+  play,
+  pause,
+  stop,
+  back,
+  prev,
+  next,
+  star,
+  search,
+  refresh,
+  minimize,
+  maximize,
+  close,
+  volume,
+  mute,
+  info,
+  audio,
+  subtitle,
+  tv,
+  home,
+  apps,
+  add,
+  open,
+  chevron
 }
 
-export function Icon({
-  name,
-  size = 20,
-  stroke = 2
-}: {
-  name: keyof typeof paths | string
-  size?: number
-  stroke?: number
-}): JSX.Element {
-  const filled = name === 'play' || name === 'pause' || name === 'stop' || name === 'star'
-  const d = paths[name] ?? ''
+export function Icon({ name, size = 22 }: { name: string; size?: number; stroke?: number }): JSX.Element {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill={filled ? 'currentColor' : 'none'}
-      stroke={filled ? 'none' : 'currentColor'}
-      strokeWidth={stroke}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <span
+      className="msi"
       aria-hidden
-    >
-      <path d={d} />
-    </svg>
+      style={{ width: size, height: size }}
+      dangerouslySetInnerHTML={{ __html: ICONS[name] ?? ICONS.tv }}
+    />
   )
 }
