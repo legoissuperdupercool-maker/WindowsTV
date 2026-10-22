@@ -85,10 +85,25 @@ function once(url: string, opts: FetchOptions, redirectsLeft: number): Promise<F
         }
       }
     )
-    req.on('timeout', () => {
-      req.destroy(new Error(`Request timed out after ${opts.timeoutMs ?? 15000} ms`))
+    // Track whether the TCP connection was ever established, so a timeout can
+    // say *where* it got stuck. Errors name host:port only — never credentials.
+    let connected = false
+    req.on('socket', (sock) => {
+      if (!sock.connecting) connected = true
+      else sock.once('connect', () => (connected = true))
     })
-    req.on('error', (err) => reject(err))
+    const where = `${u.hostname}${u.port ? ':' + u.port : ''}`
+    const secs = Math.round((opts.timeoutMs ?? 15000) / 1000)
+    req.on('timeout', () => {
+      req.destroy(
+        new Error(
+          connected
+            ? `Connected to ${where}, but it sent nothing back within ${secs} s (server overloaded or stalled).`
+            : `Couldn't connect to ${where} — no reply within ${secs} s. The server may be down, or it's ignoring your connection (IPTV providers often block VPN servers).`
+        )
+      )
+    })
+    req.on('error', (err: NodeJS.ErrnoException) => reject(new Error(describeNetError(err, where))))
     req.end()
   })
 }
@@ -148,6 +163,28 @@ export async function probeStream(
     return { ok: r.status >= 200 && r.status < 400, status: r.status }
   } catch (e) {
     return { ok: false, reason: (e as Error).message }
+  }
+}
+
+function describeNetError(err: NodeJS.ErrnoException, where: string): string {
+  switch (err.code) {
+    case 'ENOTFOUND':
+    case 'EAI_AGAIN':
+      return `Couldn't find the server "${where.split(':')[0]}" (DNS lookup failed). Check the address, or your VPN/DNS settings.`
+    case 'ECONNREFUSED':
+      return `${where} refused the connection — wrong port, or the server is down.`
+    case 'ECONNRESET':
+      return `The connection to ${where} was cut off (by the server, a firewall, or the VPN).`
+    case 'EHOSTUNREACH':
+    case 'ENETUNREACH':
+      return `${where} is unreachable from your network.`
+    case 'CERT_HAS_EXPIRED':
+    case 'DEPTH_ZERO_SELF_SIGNED_CERT':
+    case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
+    case 'ERR_TLS_CERT_ALTNAME_INVALID':
+      return `${where} has an invalid HTTPS certificate (${err.code}). Try the provider's http:// address instead.`
+    default:
+      return err.message
   }
 }
 
