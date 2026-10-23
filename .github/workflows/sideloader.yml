@@ -1,0 +1,63 @@
+name: Build ello Sideloader
+
+# Builds the separate ello Sideloader app (sideloader/): the Python helper that
+# talks to Apple devices (PyInstaller) plus the Electron app, into a Windows installer.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'claude/**'
+    paths:
+      - 'sideloader/**'
+      - '.github/workflows/sideloader.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: sideloader
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sideloader/package-lock.json
+
+      - name: Build the Apple device helper
+        run: |
+          python -m pip install pymobiledevice3==11.43.1 pyinstaller==6.16.0
+          pyinstaller --onedir --console --name ello-apple-helper --distpath resources/helper `
+            --collect-all pymobiledevice3 --collect-all pmd_pytcp --collect-all pytun_pmd3 `
+            helper/ello_apple_helper.py
+          ./resources/helper/ello-apple-helper/ello-apple-helper.exe --selftest
+
+      - run: npm ci
+      - name: Set version
+        run: npm version "0.1.${{ github.run_number }}" --no-git-tag-version
+      - name: Build installer
+        run: npm run build && npx electron-builder --win --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sideloader-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: ello Sideloader — build ${{ github.run_number }}
+          prerelease: true
+          body: |
+            ello Sideloader for Windows: pair your Apple TV, iPhone and iPad.
+            Installing ello smartTV on them (Apple ID signing) comes in a later build.
+
+            Unsigned build: Windows SmartScreen may warn — choose *More info → Run anyway*.
+          files: sideloader/release/*.exe
+          fail_on_unmatched_files: true

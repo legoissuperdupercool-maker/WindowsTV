@@ -9,6 +9,12 @@ on:
     branches:
       - main
       - 'claude/**'
+    # The Sideloader and the Apple check tool have their own workflows.
+    paths-ignore:
+      - 'sideloader/**'
+      - 'apple/**'
+      - '.github/workflows/sideloader.yml'
+      - '.github/workflows/apple-check.yml'
     tags:
       - 'v*'
   workflow_dispatch: # lets you run it manually from the Actions tab

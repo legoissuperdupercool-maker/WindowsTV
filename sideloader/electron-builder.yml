@@ -1,0 +1,25 @@
+appId: com.ello.sideloader
+productName: ello Sideloader
+directories:
+  buildResources: build
+  output: release
+files:
+  - '!src/*'
+  - '!helper/*'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,electron.vite.config.ts}'
+win:
+  target:
+    - nsis
+  # The Python helper (built by PyInstaller into resources/helper) talks to the
+  # Apple devices; it's spawned as a child process at runtime.
+  extraResources:
+    - from: resources/helper
+      to: helper
+      filter:
+        - '**/*'
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: ello Sideloader
+  artifactName: ello-Sideloader-${version}-Setup.${ext}
