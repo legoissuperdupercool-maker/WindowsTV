@@ -3,7 +3,8 @@ import { useStore } from '../store'
 import { useFullscreenVideoRegion } from '../hooks/useVideoRegion'
 import { Icon } from './Icon'
 import { Initials } from './Initials'
-import type { EpgNowNext, Programme } from '@shared/types'
+import { AudioMenu, SubtitleMenu, VolumeMenu } from './PlayerMenus'
+import type { EpgNowNext, MediaTrack, Programme } from '@shared/types'
 
 export function PlayerOverlay(): JSX.Element {
   const {
@@ -27,6 +28,9 @@ export function PlayerOverlay(): JSX.Element {
   const [notice, setNotice] = useState<string | null>(null)
   const [volumeHud, setVolumeHud] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
+  const [menu, setMenu] = useState<'audio' | 'sub' | 'volume' | null>(null)
+  const menuRef = useRef(menu)
+  menuRef.current = menu
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useFullscreenVideoRegion(true)
@@ -53,12 +57,16 @@ export function PlayerOverlay(): JSX.Element {
     setPlayerVisible(false)
   }, [stopPlayback, setPlayerVisible])
 
+  const closeMenu = useCallback(() => setMenu(null), [])
+  // A new title starts with its menus closed.
+  useEffect(() => setMenu(null), [playback.channelId, playback.title])
+
   const reveal = useCallback(() => {
     setShowControls(true)
     if (hideTimer.current) clearTimeout(hideTimer.current)
     // Only auto-hide while actually playing; keep visible if paused/busy/errored.
     hideTimer.current = setTimeout(() => {
-      if (useStore.getState().playback.status === 'playing') setShowControls(false)
+      if (useStore.getState().playback.status === 'playing' && !menuRef.current) setShowControls(false)
     }, 3800)
   }, [])
 
@@ -154,7 +162,7 @@ export function PlayerOverlay(): JSX.Element {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT') return
+      if (tag === 'INPUT' || menuRef.current) return
       if (isLive && /^[0-9]$/.test(e.key)) {
         setDigits((d) => (d + e.key).slice(0, 4))
         return
@@ -172,6 +180,15 @@ export function PlayerOverlay(): JSX.Element {
         case 'm':
           volAction()
           window.api.player.command({ action: 'toggleMute' })
+          return
+        case 'a':
+          reveal()
+          setMenu('audio')
+          return
+        case 's':
+        case 'c':
+          reveal()
+          setMenu('sub')
           return
       }
       // First interaction just reveals controls.
@@ -381,21 +398,42 @@ export function PlayerOverlay(): JSX.Element {
               <Icon name="next" size={26} />
             </button>
           )}
-          <button
-            className="focusable tbtn"
-            title={playback.muted ? 'Unmute' : 'Mute'}
-            onClick={() => (volAction(), window.api.player.command({ action: 'toggleMute' }))}
-          >
-            <Icon name={playback.muted ? 'mute' : 'volume'} />
-          </button>
+          <div className="pop-anchor">
+            <button
+              className={`focusable tbtn ${menu === 'volume' ? 'active' : ''}`}
+              title="Volume (M mutes)"
+              onClick={() => setMenu(menu === 'volume' ? null : 'volume')}
+            >
+              <Icon name={playback.muted || playback.volume === 0 ? 'mute' : 'volume'} />
+            </button>
+            {menu === 'volume' && (
+              <VolumeMenu volume={playback.volume} muted={playback.muted} onClose={closeMenu} />
+            )}
+          </div>
           <div style={{ flex: 1 }} />
           {isLive && <span className="key-hint">Type a channel number to jump</span>}
-          <button className="focusable tbtn" title="Audio track" onClick={() => window.api.player.command({ action: 'cycleAudio' })}>
-            <Icon name="audio" />
-          </button>
-          <button className="focusable tbtn" title="Subtitles" onClick={() => window.api.player.command({ action: 'cycleSub' })}>
-            <Icon name="subtitle" />
-          </button>
+          <div className="pop-anchor">
+            <button
+              className={`focusable tbtn labeled ${menu === 'audio' ? 'active' : ''}`}
+              title="Audio language (A)"
+              onClick={() => setMenu(menu === 'audio' ? null : 'audio')}
+            >
+              <Icon name="audio" />
+              <span>{currentLabel(playback.tracks?.audio, 'Audio')}</span>
+            </button>
+            {menu === 'audio' && <AudioMenu tracks={playback.tracks?.audio ?? []} onClose={closeMenu} />}
+          </div>
+          <div className="pop-anchor">
+            <button
+              className={`focusable tbtn labeled ${menu === 'sub' ? 'active' : ''}`}
+              title="Subtitles (S)"
+              onClick={() => setMenu(menu === 'sub' ? null : 'sub')}
+            >
+              <Icon name="subtitle" />
+              <span>{currentLabel(playback.tracks?.sub, 'Off')}</span>
+            </button>
+            {menu === 'sub' && <SubtitleMenu tracks={playback.tracks?.sub ?? []} onClose={closeMenu} />}
+          </div>
           <button className="focusable tbtn" title="Stop" onClick={close}>
             <Icon name="stop" />
           </button>
@@ -403,6 +441,13 @@ export function PlayerOverlay(): JSX.Element {
       </div>
     </div>
   )
+}
+
+/** Short label for the current track ("EN", "NL"), shown on the button. */
+function currentLabel(tracks: MediaTrack[] | undefined, fallback: string): string {
+  const t = tracks?.find((x) => x.selected)
+  if (!t) return fallback
+  return (t.lang && t.lang !== 'und' ? t.lang.slice(0, 2) : String(tracks!.indexOf(t) + 1)).toUpperCase()
 }
 
 function GuideCell({ label, p, progress }: { label: string; p: Programme; progress?: boolean }): JSX.Element {

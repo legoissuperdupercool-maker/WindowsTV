@@ -8,6 +8,12 @@ files:
   - '!src/*'
   - '!scripts/*'
   - '!installer/**'
+  # Separate projects in this repo (not part of the Windows app).
+  - '!sideloader/**'
+  - '!apple-app/**'
+  - '!apple/**'
+  - '!docs/**'
+  - '!*.tsbuildinfo'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintrc.cjs,.prettierrc,.prettierignore,.editorconfig}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'

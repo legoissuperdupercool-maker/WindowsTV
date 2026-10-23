@@ -1,7 +1,9 @@
 import { spawn, ChildProcess } from 'node:child_process'
 import net from 'node:net'
 import { EventEmitter } from 'node:events'
-import type { PlaybackState } from '../../shared/types'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { MediaTrack, PlaybackState } from '../../shared/types'
 
 interface LoadOptions {
   title?: string
@@ -76,7 +78,10 @@ export class MpvPlayer extends EventEmitter {
     super()
     this.cfg = cfg
     // Unique per-process pipe name (Windows named pipe namespace).
-    this.pipePath = `\\\\.\\pipe\\windowstv-mpv-${process.pid}-${Date.now()}`
+    this.pipePath =
+      process.platform === 'win32'
+        ? `\\\\.\\pipe\\windowstv-mpv-${process.pid}-${Date.now()}`
+        : join(tmpdir(), `windowstv-mpv-${process.pid}-${Date.now()}.sock`) // development on Linux/macOS
   }
 
   getState(): PlaybackState {
@@ -144,7 +149,7 @@ export class MpvPlayer extends EventEmitter {
       '--video-sync=audio',
       '--interpolation=no',
       '--dither-depth=auto',
-      c.deinterlace ? '--deinterlace=auto' : '--deinterlace=no',
+      c.deinterlace && process.platform === 'win32' ? '--deinterlace=auto' : '--deinterlace=no', // 'auto' needs mpv 0.38+
       // --- Resilience / caching (IPTV jitter) ---
       '--cache=yes',
       `--cache-secs=${Math.max(5, c.cacheSeconds || 30)}`,
@@ -276,7 +281,8 @@ export class MpvPlayer extends EventEmitter {
       'estimated-vf-fps',
       'video-bitrate',
       'eof-reached',
-      'cache-speed'
+      'cache-speed',
+      'track-list'
     ]
     let id = 1
     for (const name of props) {
@@ -331,6 +337,26 @@ export class MpvPlayer extends EventEmitter {
           this.setState({ stage: undefined, status: this.activeStatus() })
         }
         break
+      case 'track-list': {
+        const list = Array.isArray(data) ? (data as Array<Record<string, unknown>>) : []
+        const toTrack = (t: Record<string, unknown>): MediaTrack => ({
+          id: Number(t.id),
+          title: typeof t.title === 'string' ? t.title : undefined,
+          lang: typeof t.lang === 'string' ? t.lang : undefined,
+          codec: typeof t.codec === 'string' ? t.codec : undefined,
+          channels: typeof t['demux-channel-count'] === 'number' ? (t['demux-channel-count'] as number) : undefined,
+          selected: Boolean(t.selected),
+          external: Boolean(t.external),
+          forced: Boolean(t.forced)
+        })
+        this.setState({
+          tracks: {
+            audio: list.filter((t) => t.type === 'audio').map(toTrack),
+            sub: list.filter((t) => t.type === 'sub').map(toTrack)
+          }
+        })
+        break
+      }
       case 'cache-speed':
         stats.downloadBytesPerSec = typeof data === 'number' ? data : undefined
         this.setState({ stats })
@@ -551,8 +577,21 @@ export class MpvPlayer extends EventEmitter {
   setAudioTrack(id: number): void {
     this.send(['set_property', 'aid', id])
   }
+  /** 0 = subtitles off. */
   setSubTrack(id: number): void {
-    this.send(['set_property', 'sid', id])
+    this.send(['set_property', 'sid', id > 0 ? id : 'no'])
+  }
+  /** Subtitle size, 1 = normal. */
+  setSubScale(scale: number): void {
+    this.send(['set_property', 'sub-scale', Math.max(0.5, Math.min(2.5, scale))])
+  }
+  /** Subtitle timing in seconds (positive = later). */
+  setSubDelay(seconds: number): void {
+    this.send(['set_property', 'sub-delay', seconds])
+  }
+  /** Audio timing in seconds (positive = later). */
+  setAudioDelay(seconds: number): void {
+    this.send(['set_property', 'audio-delay', seconds])
   }
 
   /** Update the --wid at runtime is not possible; store for next start. */
@@ -607,6 +646,7 @@ export type { MpvConfig, LoadOptions }
  * on every setup.
  */
 function videoOutputArgs(mode?: string): string[] {
+  if (process.platform !== 'win32') return ['--vo=gpu-next,gpu,x11'] // development on Linux/macOS
   switch (mode) {
     case 'gpu':
       return ['--vo=gpu', '--gpu-api=d3d11', '--d3d11-flip=no']

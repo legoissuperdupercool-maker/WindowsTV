@@ -21,7 +21,7 @@ const RELEASES_API =
 
 const log = (...a) => console.log('[fetch-mpv]', ...a)
 
-if (process.platform !== 'win32') {
+if (process.platform !== 'win32' && !process.env.ELLO_CROSS_BUILD) {
   log('Not on Windows — skipping mpv download. Build on Windows to bundle mpv.')
   process.exit(0)
 }

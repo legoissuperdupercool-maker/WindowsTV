@@ -15,7 +15,7 @@ const DIR = resolve(__dirname, '..', 'resources', 'wireproxy')
 const API = 'https://api.github.com/repos/pufferffish/wireproxy/releases/latest'
 const log = (...a) => console.log('[fetch-wireproxy]', ...a)
 
-if (process.platform !== 'win32') {
+if (process.platform !== 'win32' && !process.env.ELLO_CROSS_BUILD) {
   log('Not on Windows — skipping.')
   process.exit(0)
 }

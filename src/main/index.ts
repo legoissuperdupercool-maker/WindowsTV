@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
@@ -125,6 +126,28 @@ app.whenReady().then(async () => {
   if (testUrl) {
     windows.uiWindow.webContents.once('did-finish-load', () => {
       setTimeout(() => void player.load(testUrl, { title: 'Video test' }), 4000)
+      // Development: screenshots of the player menus (audio, subtitles, volume).
+      const shots = process.env['ELLO_UI_SHOTS']
+      if (shots) {
+        setTimeout(async () => {
+          const wc = windows.uiWindow.webContents
+          const snap = async (name: string, selector?: string): Promise<void> => {
+            await wc.executeJavaScript(
+              `document.querySelector('.player-root')?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));` +
+                (selector ? `document.querySelector(${JSON.stringify(selector)})?.click();` : '') +
+                `new Promise((r) => setTimeout(r, 700))`
+            )
+            writeFileSync(join(shots, `${name}.png`), (await wc.capturePage()).toPNG())
+          }
+          await snap('controls')
+          await snap('audio', '.transport [title^="Audio"]')
+          await snap('audio2', '.player-pop .pop-item:not(.on)')
+          await snap('subs', '.transport [title^="Subtitles"]')
+          await snap('subs2', '.player-pop .pop-item:nth-of-type(3)')
+          await snap('volume', '.transport [title^="Volume"]')
+          app.exit(0)
+        }, 11000)
+      }
       const gpuLog = process.env['ELLO_GPU_LOG']
       if (gpuLog) writeFileSync(gpuLog, JSON.stringify(app.getGPUFeatureStatus(), null, 1))
       // Screen position of the play/pause button, so the test can click it.

@@ -418,6 +418,15 @@ export function registerIpc(ctx: MainContext): void {
       case 'setSubTrack':
         if (typeof cmd.value === 'number') player.setSubTrack(cmd.value)
         break
+      case 'subScale':
+        if (typeof cmd.value === 'number') player.setSubScale(cmd.value)
+        break
+      case 'subDelay':
+        if (typeof cmd.value === 'number') player.setSubDelay(cmd.value)
+        break
+      case 'audioDelay':
+        if (typeof cmd.value === 'number') player.setAudioDelay(cmd.value)
+        break
     }
     return ok(true)
   })

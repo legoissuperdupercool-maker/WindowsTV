@@ -200,6 +200,8 @@ export interface PlaybackState {
   ended?: boolean
   /** Human-readable error for the UI (addresses "nothing loads" with a reason). */
   error?: string
+  /** Audio and subtitle tracks of the current stream (from mpv's track-list). */
+  tracks?: { audio: MediaTrack[]; sub: MediaTrack[] }
   /** Live stream stats for a diagnostics overlay. */
   stats?: {
     videoCodec?: string
@@ -212,6 +214,18 @@ export interface PlaybackState {
     /** Current network download speed (bytes/s). */
     downloadBytesPerSec?: number
   }
+}
+
+export interface MediaTrack {
+  id: number
+  title?: string
+  /** ISO language code as the stream labels it ("eng", "nl", …). */
+  lang?: string
+  codec?: string
+  channels?: number
+  selected: boolean
+  external?: boolean
+  forced?: boolean
 }
 
 export interface AppSettings {

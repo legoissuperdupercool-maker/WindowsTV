@@ -112,7 +112,10 @@ export interface PlayerCommand {
     | 'cycleAudio'
     | 'cycleSub'
     | 'setAudioTrack'
-    | 'setSubTrack'
+    | 'setSubTrack' // value = track id, 0 = off
+    | 'subScale' // value = 1 normal
+    | 'subDelay' // value = seconds
+    | 'audioDelay' // value = seconds
   value?: number
 }
 
