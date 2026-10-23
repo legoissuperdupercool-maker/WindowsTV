@@ -74,6 +74,7 @@ foreach ($v in $variants) {
     [Mouse]::SetCursorPos([int]$xy[0], [int]$xy[1]); Start-Sleep -Milliseconds 500
     [Mouse]::mouse_event(0x0002, 0, 0, 0, 0); [Mouse]::mouse_event(0x0004, 0, 0, 0, 0)
     Start-Sleep -Seconds 2
+    Measure-Screen "controls-$mode"
     $clicked = Select-String -Path "shots/mpv-$mode.log" -Pattern 'Run command: cycle' -Quiet
     Write-Host "RESULT click-$mode : play/pause button at $($xy -join ',') -> $(if ($clicked) { 'mpv toggled pause' } else { 'NO pause command reached mpv' })"
   } else { Write-Host "RESULT click-$mode : play/pause button not found" }

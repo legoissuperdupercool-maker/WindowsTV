@@ -118,7 +118,10 @@ app.whenReady().then(async () => {
           )
           const c = windows.uiWindow.getContentBounds()
           writeFileSync(rectsFile, r ? `${Math.round(c.x + r.x)} ${Math.round(c.y + r.y)}` : 'none')
-          writeFileSync(`${rectsFile}.debug`, JSON.stringify({ content: c, button: r, maximized: windows.uiWindow.isMaximized(), video: windows.videoWindow.getBounds() }))
+          const layout = await windows.uiWindow.webContents.executeJavaScript(
+            `(() => { const q = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)] }; return { inner: [innerWidth, innerHeight], dpr: devicePixelRatio, html: q('html'), body: q('body'), root: q('#root'), player: q('.player-root'), transport: q('.transport'), scrollY: document.scrollingElement.scrollTop, bodyScroll: document.body.scrollHeight } })()`
+          )
+          writeFileSync(`${rectsFile}.debug`, JSON.stringify({ content: c, button: r, maximized: windows.uiWindow.isMaximized(), layout }))
         }, 12000)
       }
     })
