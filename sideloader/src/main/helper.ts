@@ -19,7 +19,11 @@ export class Helper {
   constructor(private onEvent: (e: HelperEvent) => void) {}
 
   private command(): { file: string; args: string[] } | null {
-    // Packaged: PyInstaller build in resources/helper. Dev: run the script with Python.
+    // Packaged: Python (embeddable) + the helper scripts in resources/helper.
+    const py = join(process.resourcesPath, 'helper', 'python', 'python.exe')
+    const main = join(process.resourcesPath, 'helper', 'app', 'ello_apple_helper.py')
+    if (app.isPackaged && existsSync(py) && existsSync(main)) return { file: py, args: ['-X', 'utf8', main] }
+    // Older builds: PyInstaller.
     const exe = join(process.resourcesPath, 'helper', 'ello-apple-helper', 'ello-apple-helper.exe')
     if (app.isPackaged && existsSync(exe)) return { file: exe, args: [] }
     const script = join(app.getAppPath(), 'helper', 'ello_apple_helper.py')
@@ -93,6 +97,10 @@ export class Helper {
 
   sendPin(pin: string): void {
     if (this.proc) this.write({ pin })
+  }
+
+  sendCode(code: string): void {
+    if (this.proc) this.write({ code })
   }
 
   stop(): void {

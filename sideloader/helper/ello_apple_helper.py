@@ -7,9 +7,11 @@ ello Sideloader starts it and exchanges one JSON object per line:
   helper → app   {"id": 1, "ok": true, "data": ...} / {"id": 1, "ok": false, "error": "..."}
                  {"event": "pin_required", "name": "Living Room"}
 
-Privacy: it only talks to your own Apple devices on your network / USB. Nothing
-is sent to the internet. Pairing keys stay in %USERPROFILE%\\.pymobiledevice3;
-the device list (names, models, OS versions) in %APPDATA%\\ello-sideloader.
+Privacy: it talks to your own Apple devices on your network / USB, and, only
+when you sign in and install, to Apple (gsa.apple.com for the sign-in,
+developerservices2.apple.com for the free signing certificate). Nothing goes
+anywhere else. Pairing keys stay in %USERPROFILE%\\.pymobiledevice3; the device
+list and the (DPAPI-encrypted) Apple sign-in in %APPDATA%\\ello-sideloader.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from typing import Any, Callable
 
 _out_lock = threading.Lock()
 _pins: "queue.Queue[str]" = queue.Queue()
+_codes: "queue.Queue[str]" = queue.Queue()
 _pairing_name = ["Apple TV"]
 
 
@@ -286,6 +289,200 @@ async def cmd_reveal_dev_mode(msg: dict) -> bool:
     return True
 
 
+# ----------------------------------------------------------------------------- Apple ID & installing
+
+
+def _ask_code(mode: str) -> str:
+    """Two-factor: ask the app for the code Apple sent, and wait for it."""
+    while not _codes.empty():
+        _codes.get_nowait()
+    emit({"event": "code_required", "mode": mode})
+    try:
+        return _codes.get(timeout=300)
+    except queue.Empty:
+        raise TimeoutError("No code was entered in time. Sign in again.") from None
+
+
+async def cmd_account(_: dict) -> dict:
+    import apple_account
+
+    return apple_account.describe()
+
+
+async def cmd_sign_in(msg: dict) -> dict:
+    import apple_account
+
+    apple_id = (msg.get("appleId") or "").strip()
+    password = msg.get("password") or ""
+    if "@" not in apple_id or not password:
+        raise RuntimeError("Enter the Apple ID's email and password.")
+    progress("Contacting Apple…")
+    session = await asyncio.to_thread(apple_account.sign_in, apple_id, password, _ask_code)
+    apple_account.save_secret("session", session.to_dict())
+    apple_account.save_secret("password", {"appleId": apple_id, "password": password} if msg.get("remember") else None)
+    return apple_account.describe()
+
+
+async def cmd_sign_out(_: dict) -> dict:
+    import apple_account
+
+    apple_account.save_secret("session", None)
+    apple_account.save_secret("password", None)
+    return apple_account.describe()
+
+
+def _session():
+    """The saved session, signing in again with the saved password if it expired."""
+    import apple_account
+
+    saved = apple_account.load_secret("session")
+    if saved:
+        s = apple_account.Session.from_dict(saved)
+        if s.valid:
+            return s
+    pw = apple_account.load_secret("password")
+    if not pw:
+        raise RuntimeError("Sign in with your Apple ID first.")
+    s = apple_account.sign_in(pw["appleId"], pw["password"], _ask_code)
+    apple_account.save_secret("session", s.to_dict())
+    return s
+
+
+def progress(text: str, percent: float | None = None) -> None:
+    emit({"event": "progress", "text": text, "percent": percent})
+
+
+def _bundled_ipa() -> Path:
+    here = Path(__file__).resolve().parent
+    for p in (here / "ello-smartTV.ipa", here.parent / "ello-smartTV.ipa", here.parent / "apps" / "ello-smartTV.ipa"):
+        if p.exists():
+            return p
+    raise RuntimeError("Choose an .ipa file to install.")
+
+
+async def cmd_app_info(msg: dict) -> dict:
+    from app_signer import app_info
+
+    path = Path(msg["path"]) if msg.get("path") else _bundled_ipa()
+    return {**app_info(path), "path": str(path), "size": path.stat().st_size}
+
+
+class _Device:
+    """A connection to a device that can install apps: USB (lockdown) or Wi-Fi (tunnel)."""
+
+    def __init__(self, dev_id: str) -> None:
+        self.dev_id = dev_id
+        self.stack = AsyncExitStack()
+        self.provider = None
+        self.udid: str | None = None
+
+    async def __aenter__(self) -> "_Device":
+        from pymobiledevice3.lockdown import create_using_usbmux
+
+        usb = await _usb_devices() or []
+        serial = next((d.serial for d in usb if d.serial == self.dev_id), None)
+        if serial:
+            ld = await create_using_usbmux(serial=serial, autopair=False)
+            self.stack.push_async_callback(ld.close)
+            self.provider = ld
+            self.udid = ld.short_info.get("UniqueDeviceID") or serial
+            return self
+        from pymobiledevice3.remote import tunnel_service
+        from pymobiledevice3.remote.remote_service_discovery import RemoteServiceDiscoveryService
+        from pymobiledevice3.remote.userspace_tunnel import UserspaceDialPlane
+
+        online = await _paired_wifi(timeout=6)
+        provider = online.pop(self.dev_id, None)
+        await _close_all(online.values())
+        if provider is None:
+            raise RuntimeError("The device isn't reachable. Plug it in with a cable (iPhone/iPad), or make sure it's awake on the same Wi-Fi (Apple TV).")
+        tunnel_service.USE_USERSPACE_TUNNEL = True
+        self.stack.push_async_callback(provider.close)
+        tunnel = await self.stack.enter_async_context(provider.start_tcp_tunnel())
+        tunnel.client.tun.set_peer(tunnel.address)
+        dial = await self.stack.enter_async_context(UserspaceDialPlane(tunnel.client.tun, tunnel.address))
+        rsd = RemoteServiceDiscoveryService((tunnel.address, tunnel.port), open_connection=dial.dial)
+        self.stack.push_async_callback(rsd.close)
+        await rsd.connect()
+        self.provider = rsd
+        self.udid = rsd.peer_info.get("Properties", {}).get("UniqueDeviceID")
+        if not self.udid:
+            raise RuntimeError("The device didn't tell its ID. Try again.")
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        await self.stack.aclose()
+
+
+async def cmd_install(msg: dict) -> dict:
+    """Sign the app for this Apple ID + device and install it (also used for the weekly renewal)."""
+    import apple_account
+    import apple_dev
+    from app_signer import app_info, sign_ipa
+    from pymobiledevice3.services.installation_proxy import InstallationProxyService
+
+    known = load_known()
+    dev = known.get(msg["id"])
+    if not dev:
+        raise RuntimeError("Add this device first.")
+    ipa = Path(msg["path"]) if msg.get("path") else _bundled_ipa()
+    info = app_info(ipa)
+    tv = dev.get("kind") == "tv"
+    if tv and "AppleTVOS" not in info["platforms"]:
+        raise RuntimeError(f"{info['name']} is an iPhone/iPad app; it can't run on Apple TV. The Apple TV version of ello comes later.")
+    if not tv and info["platforms"] and "iPhoneOS" not in info["platforms"]:
+        raise RuntimeError(f"{info['name']} is made for Apple TV, not iPhone/iPad.")
+
+    progress("Connecting to " + (dev.get("name") or "the device") + "…")
+    async with _Device(msg["id"]) as conn:
+        if conn.udid:
+            dev["udid"] = conn.udid
+        progress("Signing in to Apple…")
+        session = await asyncio.to_thread(_session)
+        machine = await asyncio.to_thread(apple_account.Machine)
+        progress("Getting a signing certificate from Apple…")
+        signing = await asyncio.to_thread(
+            apple_dev.prepare, session, machine, conn.udid, dev.get("name") or "Device", tv,
+            info["bundleId"] or "com.ello.app", info["name"])
+        signed = apple_dev.cached_dir() / f"{signing.bundle_id}.ipa"
+        await asyncio.to_thread(sign_ipa, ipa, signed, signing.bundle_id, signing.profile, signing.entitlements,
+                                signing.cert_pem, signing.key_pem, progress)
+        progress("Sending the app to " + (dev.get("name") or "the device") + "…", 0)
+
+        def on_progress(pct, *_):
+            progress("Installing…", float(pct))
+
+        try:
+            async with InstallationProxyService(lockdown=conn.provider) as ip:
+                await ip.install_from_local(signed, handler=on_progress)
+        except Exception as e:
+            text = str(e)
+            if "ApplicationVerificationFailed" in text or "0xe8008015" in text.lower():
+                raise RuntimeError("The device rejected the signature. Turn on Developer Mode (Settings → Privacy & Security), restart, and try again.") from e
+            if "DeviceNotRegistered" in text or "0xe800801c" in text.lower():
+                raise RuntimeError("Apple hasn't registered this device to your Apple ID yet. Try again in a minute.") from e
+            raise
+        finally:
+            signed.unlink(missing_ok=True)
+
+    prof = apple_dev.profile_plist(signing.profile)
+    expires = prof.get("ExpirationDate")
+    entry = {
+        "name": info["name"],
+        "bundleId": signing.bundle_id,
+        "version": info["version"],
+        "source": str(ipa),
+        "installedAt": __import__("time").time(),
+        "expires": expires.timestamp() if hasattr(expires, "timestamp") else None,
+    }
+    apps = [a for a in dev.get("apps", []) if a.get("bundleId") != signing.bundle_id]
+    dev["apps"] = [entry, *apps]
+    known[msg["id"]] = dev
+    save_known(known)
+    progress("Done", 100)
+    return {**dev, "online": True}
+
+
 async def cmd_forget(msg: dict) -> bool:
     from pymobiledevice3.common import get_home_folder
 
@@ -309,6 +506,11 @@ COMMANDS: dict[str, Callable[[dict], Any]] = {
     "trustUsb": cmd_trust_usb,
     "forget": cmd_forget,
     "revealDevMode": cmd_reveal_dev_mode,
+    "account": cmd_account,
+    "signIn": cmd_sign_in,
+    "signOut": cmd_sign_out,
+    "appInfo": cmd_app_info,
+    "install": cmd_install,
 }
 
 
@@ -335,7 +537,15 @@ def main() -> None:
     if "--selftest" in sys.argv:
         import pymobiledevice3.bonjour  # noqa: F401
         import pymobiledevice3.lockdown  # noqa: F401
-        import pymobiledevice3.remote.userspace_tunnel  # noqa: F401
+        if not os.environ.get("ELLO_SELFTEST_WINE"):  # wine lacks the Windows network API the tunnel uses
+            import pymobiledevice3.remote.userspace_tunnel  # noqa: F401
+        import pymobiledevice3.services.installation_proxy  # noqa: F401
+        import apple_account
+        import apple_dev  # noqa: F401
+        import app_signer
+
+        app_signer.rcodesign()
+        apple_account.Machine()  # loads Apple's libraries (no network)
         print("selftest ok")
         return
 
@@ -364,6 +574,8 @@ def main() -> None:
             continue
         if "pin" in msg:
             _pins.put(str(msg["pin"]))
+        elif "code" in msg:
+            _codes.put(str(msg["code"]))
         elif msg.get("cmd") == "quit":
             break
         else:

@@ -2,14 +2,10 @@ name: Build ello Sideloader
 
 # Builds the separate ello Sideloader app (sideloader/): the Python helper that
 # talks to Apple devices (PyInstaller) plus the Electron app, into a Windows installer.
+# Manual only: builds also run locally with sideloader/scripts/build-win.sh
+# (Linux + wine), which needs no Actions minutes.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'claude/**'
-    paths:
-      - 'sideloader/**'
-      - '.github/workflows/sideloader.yml'
 
 permissions:
   contents: write

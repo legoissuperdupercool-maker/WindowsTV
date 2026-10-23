@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Icon } from './Icon'
 import { AddAppleTv, AddUsbDevice } from './AddDevice'
-import type { AppleDevice, DevicesResult } from '@shared/types'
+import { CodePrompt, InstallSection } from './Install'
+import type { AccountState, AppleDevice, DevicesResult } from '@shared/types'
 
 type Tab = 'devices' | 'account' | 'privacy'
 
 export default function App(): JSX.Element {
   const [tab, setTab] = useState<Tab>('devices')
   const [version, setVersion] = useState('')
+  const [account, setAccount] = useState<AccountState | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
   useEffect(() => {
     void window.api.version().then(setVersion)
+    void window.api.account().then((r) => r.ok && setAccount(r.data))
+    return window.api.onEvent((e) => {
+      if (e.event === 'renewed') {
+        setToast(e.ok ? `${e.app} on ${e.device} was renewed for another week.` : `Couldn’t renew ${e.app} on ${e.device}: ${e.error}`)
+        setTimeout(() => setToast(null), 12000)
+      }
+    })
   }, [])
 
   return (
@@ -29,11 +39,13 @@ export default function App(): JSX.Element {
         ))}
       </nav>
       <main className="page" key={tab}>
-        {tab === 'devices' && <DevicesPage />}
-        {tab === 'account' && <AccountPage />}
+        {tab === 'devices' && <DevicesPage signedIn={!!account?.signedIn} goSignIn={() => setTab('account')} />}
+        {tab === 'account' && <AccountPage account={account} onChange={setAccount} />}
         {tab === 'privacy' && <PrivacyPage />}
       </main>
       <footer className="foot">ello Sideloader {version && `· ${version}`}</footer>
+      {toast && <div className="toast">{toast}</div>}
+      <CodePrompt />
     </div>
   )
 }
@@ -62,7 +74,7 @@ function TitleBar(): JSX.Element {
 
 // ----------------------------------------------------------------------------- devices
 
-function DevicesPage(): JSX.Element {
+function DevicesPage({ signedIn, goSignIn }: { signedIn: boolean; goSignIn: () => void }): JSX.Element {
   const [data, setData] = useState<DevicesResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState<'tv' | 'usb' | null>(null)
@@ -126,6 +138,8 @@ function DevicesPage(): JSX.Element {
           <DeviceCard
             key={d.id}
             device={d}
+            signedIn={signedIn}
+            goSignIn={goSignIn}
             onUpdate={update}
             onForget={() => setData((cur) => cur && { ...cur, devices: cur.devices.filter((x) => x.id !== d.id) })}
           />
@@ -172,10 +186,14 @@ const KIND_COLOR = { tv: 'c-blue', iphone: 'c-green', ipad: 'c-yellow', other: '
 
 function DeviceCard({
   device,
+  signedIn,
+  goSignIn,
   onUpdate,
   onForget
 }: {
   device: AppleDevice
+  signedIn: boolean
+  goSignIn: () => void
   onUpdate: (d: AppleDevice) => void
   onForget: () => void
 }): JSX.Element {
@@ -258,15 +276,7 @@ function DeviceCard({
         </div>
       )}
 
-      <div className="install-row">
-        <div>
-          <div className="install-title">ello smartTV</div>
-          <div className="install-sub">Installing comes with the next update (Apple ID signing).</div>
-        </div>
-        <button className="btn primary" disabled title="Coming in the next update">
-          <Icon name="download" size={18} /> Install
-        </button>
-      </div>
+      <InstallSection device={device} onUpdate={onUpdate} signedIn={signedIn} goSignIn={goSignIn} />
 
       {message && <div className={`msg ${message.ok ? 'good' : 'bad'}`}>{message.text}</div>}
 
@@ -312,39 +322,99 @@ export function prettyModel(model?: string): string | undefined {
 
 // ----------------------------------------------------------------------------- Apple ID
 
-function AccountPage(): JSX.Element {
+function AccountPage({
+  account,
+  onChange
+}: {
+  account: AccountState | null
+  onChange: (a: AccountState) => void
+}): JSX.Element {
+  const [appleId, setAppleId] = useState('')
+  const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const signIn = async (): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    const r = await window.api.signIn(appleId, password, remember)
+    setBusy(false)
+    setPassword('')
+    if (r.ok) onChange(r.data)
+    else setError(r.error)
+  }
+  const signOut = async (): Promise<void> => {
+    const r = await window.api.signOut()
+    if (r.ok) onChange(r.data)
+  }
+
   return (
     <>
       <div className="page-head">
         <div>
           <h1>Apple ID</h1>
-          <p className="lead">Used only to sign ello smartTV so your devices will run it. Free accounts work.</p>
+          <p className="lead">Used only to sign the apps you install, so your devices will run them. Free accounts work.</p>
         </div>
       </div>
       <div className="card wide">
-        <div className="soon">
-          <span className="device-icon c-blue">
-            <Icon name="person" size={30} />
-          </span>
-          <div>
-            <div className="device-name">Sign-in arrives with the next update</div>
-            <p className="lead small">
-              The next step builds Apple ID sign-in and app signing. Until then you can pair your devices on the
-              Devices tab — that part is ready to test.
-            </p>
+        {account?.signedIn ? (
+          <div className="soon">
+            <span className="device-icon c-green">
+              <Icon name="check" size={30} />
+            </span>
+            <div style={{ flex: 1 }}>
+              <div className="device-name">Signed in as {account.appleId}</div>
+              <p className="lead small">
+                {account.remember
+                  ? 'Apps are renewed automatically every week while this PC is on and the device is reachable.'
+                  : 'You’ll be asked to sign in again when apps need renewing (every 7 days).'}
+              </p>
+            </div>
+            <button className="btn ghost" onClick={() => void signOut()}>
+              Sign out
+            </button>
           </div>
-        </div>
+        ) : (
+          <form
+            className="signin"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void signIn()
+            }}
+          >
+            <label>
+              <span>Apple ID (email)</span>
+              <input type="email" autoComplete="off" spellCheck={false} value={appleId} onChange={(e) => setAppleId(e.target.value)} placeholder="name@icloud.com" />
+            </label>
+            <label>
+              <span>Password</span>
+              <input type="password" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </label>
+            <label className="check-row">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              <span>
+                Keep me signed in for the weekly renewal
+                <small>The password is stored on this PC, encrypted by Windows for your user account only.</small>
+              </span>
+            </label>
+            {error && <div className="msg bad">{error}</div>}
+            <button className="btn primary" disabled={busy || !appleId.includes('@') || !password}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+        )}
         <ul className="list">
           <li>
             <Icon name="person" size={18} /> Use a separate free Apple ID just for this. Your devices stay signed in with
             your normal one.
           </li>
           <li>
-            <Icon name="lock" size={18} /> Your password goes only from this PC to Apple and is never saved.
+            <Icon name="lock" size={18} /> Your password goes only from this PC to Apple (gsa.apple.com).
           </li>
           <li>
-            <Icon name="shield" size={18} /> The login check Apple requires (“anisette”) is made on this PC, not by
-            someone else’s server.
+            <Icon name="shield" size={18} /> The login check Apple requires (“anisette”) is made on this PC with Apple’s own
+            code, not by someone else’s server.
           </li>
         </ul>
       </div>
@@ -356,8 +426,8 @@ function AccountPage(): JSX.Element {
 
 function PrivacyPage(): JSX.Element {
   const rows: Array<[string, string, string]> = [
-    ['tv', 'Your Apple TV, iPhone and iPad', 'Pairing, checking and (soon) installing — over your own Wi-Fi or cable.'],
-    ['person', 'Apple', 'Only for Apple ID sign-in and signing, when that arrives. Nothing else.'],
+    ['tv', 'Your Apple TV, iPhone and iPad', 'Pairing, checking and installing apps, over your own Wi-Fi or cable.'],
+    ['person', 'Apple', 'Only to sign in (gsa.apple.com) and to get the free signing certificate (developerservices2.apple.com).'],
     ['lock', 'Anyone else', 'Nothing. No analytics, no tracking, no third-party servers.']
   ]
   return (
