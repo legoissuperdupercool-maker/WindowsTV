@@ -134,10 +134,26 @@ class Machine:
             self.ani.save_provisioning(str(self._prov))
         except Exception:
             pass
-        h["X-Mme-Client-Info"] = CLIENT_INFO
-        h.setdefault("X-Apple-Locale", locale.getlocale()[0] or "en_US")
-        h.setdefault("X-Apple-I-Locale", h["X-Apple-Locale"])
+        # The library writes these from the PC's own settings, which on Windows outside
+        # UTC gives values Apple rejects (HTTP 503): "2026-10-23T22:00:00+02:00Z",
+        # "W. Europe Daylight Time", "Dutch_Netherlands". Send them the way a Mac does.
+        h["X-Apple-I-Client-Time"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        h["X-Apple-I-TimeZone"] = "UTC"
+        h["X-Apple-Locale"] = "en_US"
+        h["X-Apple-I-Locale"] = "en_US"
         return h
+
+    @property
+    def client_info(self) -> str:
+        # Must match the device the anisette data was made for.
+        return _client_info(self)
+
+
+def _client_info(m: "Machine") -> str:
+    try:
+        return m.ani._ani_provider.device.server_friendly_description
+    except Exception:
+        return CLIENT_INFO
 
 
 # ----------------------------------------------------------------------------- http
@@ -156,6 +172,19 @@ def _ssl_context() -> ssl.SSLContext:
 
 
 _http = urllib3.PoolManager(ssl_context=_ssl_context(), timeout=urllib3.Timeout(connect=15, read=60), retries=False)
+
+
+def _log_failure(step: str, r: urllib3.BaseHTTPResponse) -> None:
+    """Keep the last odd answer from Apple (status, headers, start of the body) for troubleshooting.
+    Requests (with the password proof and tokens) are never written."""
+    try:
+        keep = {k: v for k, v in r.headers.items() if k.lower() not in ("set-cookie",)}
+        text = r.data[:1500].decode("utf-8", "replace")
+        (data_dir() / "last-apple-error.txt").write_text(
+            f"{datetime.now(timezone.utc).isoformat()} {step}\nHTTP {r.status}\n{json.dumps(keep, indent=1)}\n\n{text}\n",
+            encoding="utf-8")
+    except Exception:
+        pass
 
 
 def http(method: str, url: str, headers: dict[str, str], body: bytes | None = None) -> urllib3.BaseHTTPResponse:
@@ -244,23 +273,23 @@ class SignIn:
             "pbe": False,
             "prkgen": True,
             "svct": "iCloud",
-            "loc": h.get("X-Apple-Locale", "en_US"),
+            "loc": "en_US",
             **{k: v for k, v in h.items() if k.startswith("X-Apple-I") or k in ("X-Mme-Device-Id",)},
         }
 
     def _gsa(self, request: dict) -> dict:
-        h = self.m.headers()
         body = plistlib.dumps({"Header": {"Version": "1.0.1"}, "Request": request})
         r = http("POST", GSA, {
             "Content-Type": "text/x-xml-plist",
             "Accept": "*/*",
             "User-Agent": "akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0",
-            "X-MMe-Client-Info": CLIENT_INFO,
+            "X-MMe-Client-Info": self.m.client_info,
         }, body)
         try:
             return plistlib.loads(r.data)["Response"]
         except Exception as e:
-            raise AppleError(f"Apple sent an unexpected answer (HTTP {r.status}).") from e
+            _log_failure("gsa " + str(request.get("o")), r)
+            raise AppleError(f"Apple's sign-in server answered HTTP {r.status} at step “{request.get('o')}”.") from e
 
     def login(self) -> None:
         """SRP sign-in. Raises NeedsCode when Apple wants a two-factor code."""

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from apple_account import AppleError, Machine, Session, data_dir, http, load_secret, new_request_id, save_secret
+from apple_account import AppleError, Machine, Session, _log_failure, data_dir, http, load_secret, new_request_id, save_secret
 
 BASE = "https://developerservices2.apple.com/services/QH65B2/"
 CLIENT_ID = "XABBG36SBA"
@@ -58,7 +58,8 @@ class DevServices:
         except Exception as e:
             if r.status in (401, 403):
                 raise AppleError("Your Apple sign-in expired. Sign in again.") from e
-            raise AppleError(f"Apple sent an unexpected answer (HTTP {r.status}).") from e
+            _log_failure("dev " + path, r)
+            raise AppleError(f"Apple's developer server answered HTTP {r.status} at “{path}”.") from e
         code = res.get("resultCode", 0)
         if code != 0:
             text = res.get("userString") or res.get("resultString") or "Apple refused the request."
