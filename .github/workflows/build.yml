@@ -60,6 +60,14 @@ jobs:
           # Unsigned build — no code-signing certificate configured.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      - name: Build custom setup window
+        shell: pwsh
+        run: ./scripts/build-custom-installer.ps1
+
+      - name: Smoke-test custom setup
+        shell: pwsh
+        run: ./scripts/ci-installer-test.ps1
+
       # Every build is published as a GitHub pre-release so the EXEs can be
       # downloaded from the Releases page. Release assets don't count against the
       # account's Actions artifact storage quota (which can fill up).
@@ -74,8 +82,9 @@ jobs:
           body: |
             Automatic Windows build from `${{ github.ref_name }}` @ ${{ github.sha }}.
 
-            - **ello-smartTV-*-Setup.exe** — installer
+            - **ello-smartTV-*-Setup.exe** — installer (recommended)
             - **ello-smartTV-*-Portable.exe** — run directly, no install
+            - ello-smartTV-*-Setup-Classic.exe — the plain Windows-wizard installer
 
             Unsigned build: on first launch Windows SmartScreen may warn — choose
             *More info → Run anyway*.
@@ -94,6 +103,7 @@ jobs:
             ello smartTV 0.1.${{ github.run_number }} for Windows.
 
             - **ello-smartTV-*-Setup.exe** — installer (updates itself automatically)
+            - ello-smartTV-*-Setup-Classic.exe — plain Windows-wizard installer (used by auto-update)
             - **ello-smartTV-*-Portable.exe** — run directly, no install (no auto-update)
 
             Unsigned build: Windows SmartScreen may warn on first launch — choose

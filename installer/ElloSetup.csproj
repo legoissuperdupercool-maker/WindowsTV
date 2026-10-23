@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The custom "ello smartTV" setup window. It wraps the electron-builder NSIS
+       installer (appended to the exe by scripts/build-custom-installer.ps1) and
+       runs it silently while showing its own UI. Targets .NET Framework 4.8,
+       which ships with Windows 10/11, so no runtime download is needed. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ElloSetup</AssemblyName>
+    <RootNamespace>ElloSetup</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>ello smartTV Setup</Product>
+    <AssemblyTitle>ello smartTV Setup</AssemblyTitle>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Resource Include="..\src\renderer\public\icon.png" Link="icon.png" />
+  </ItemGroup>
+</Project>

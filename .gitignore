@@ -19,3 +19,8 @@ resources/mpv/*
 # Local env / secrets
 .env
 .env.local
+
+# Custom setup window build output
+installer/bin
+installer/obj
+installer/out

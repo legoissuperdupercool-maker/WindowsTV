@@ -7,6 +7,7 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!scripts/*'
+  - '!installer/**'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintrc.cjs,.prettierrc,.prettierignore,.editorconfig}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
@@ -24,13 +25,16 @@ win:
       to: mpv
       filter:
         - '**/*'
-  artifactName: ello-smartTV-${version}-Setup.${ext}
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
-  artifactName: ello-smartTV-${version}-Setup.${ext}
+  shortcutName: ello smartTV
+  # The standard NSIS wizard. Users download the custom setup window
+  # (installer/, ello-smartTV-<v>-Setup.exe), which runs this one silently; the
+  # auto-updater also downloads this one (see latest.yml).
+  artifactName: ello-smartTV-${version}-Setup-Classic.${ext}
 portable:
   artifactName: ello-smartTV-${version}-Portable.${ext}
 # Auto-update feed: a separate PUBLIC repo that only holds release installers
