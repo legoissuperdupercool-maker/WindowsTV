@@ -139,6 +139,13 @@ export interface EpgNowNext {
 /** mpv observable playback state surfaced to the UI. */
 export interface PlaybackState {
   status: 'idle' | 'loading' | 'playing' | 'paused' | 'buffering' | 'error'
+  /**
+   * While `loading`: `connecting` = waiting for the provider to answer;
+   * `opening` = the stream is open and the first picture/sound is buffering.
+   */
+  stage?: 'connecting' | 'opening'
+  /** When the current load started (ms epoch), for an elapsed-time readout. */
+  loadStartedAt?: number
   channelId?: string
   title?: string
   position: number
@@ -161,6 +168,8 @@ export interface PlaybackState {
     fps?: number
     bitrateKbps?: number
     demuxerCacheSeconds?: number
+    /** Current network download speed (bytes/s). */
+    downloadBytesPerSec?: number
   }
 }
 

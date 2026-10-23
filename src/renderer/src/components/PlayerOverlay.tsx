@@ -33,7 +33,6 @@ export function PlayerOverlay(): JSX.Element {
 
   const channel = channels.find((c) => c.id === playback.channelId)
   const isLive = nowPlayingKind === 'live'
-  const playing = playback.status === 'playing'
   const busy = playback.status === 'loading' || playback.status === 'buffering'
   const errored = playback.status === 'error'
   const nextEp = episodeCtx ? episodeCtx.episodes[episodeCtx.index + 1] : undefined
@@ -285,11 +284,7 @@ export function PlayerOverlay(): JSX.Element {
               </div>
             </>
           ) : (
-            <div className="msg">
-              {playback.status === 'buffering'
-                ? `Buffering…${playback.cacheBufferingPercent != null ? ` ${playback.cacheBufferingPercent}%` : ''}`
-                : `Loading ${title}…`}
-            </div>
+            <LoadingInfo onRetry={retry} onCancel={close} />
           )}
         </div>
       )}
@@ -344,7 +339,7 @@ export function PlayerOverlay(): JSX.Element {
             </button>
           )}
           <button className="focusable tbtn primary" data-autofocus onClick={() => window.api.player.command({ action: 'toggle' })}>
-            <Icon name={playing ? 'pause' : 'play'} size={32} />
+            <Icon name={playback.paused ? 'play' : 'pause'} size={32} />
           </button>
           {isLive ? (
             <button className="focusable tbtn" title="Next channel" onClick={() => void playAdjacent(1)}>
@@ -453,4 +448,81 @@ function SeekBar({ position, duration, onActivity }: { position: number; duratio
       <span>-{fmtDur(duration - shown * duration)}</span>
     </div>
   )
+}
+
+/** What the player is doing while the picture isn't there yet, so a black screen is never a mystery. */
+function LoadingInfo({ onRetry, onCancel }: { onRetry: () => void; onCancel: () => void }): JSX.Element {
+  const playback = useStore((s) => s.playback)
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  const buffering = playback.status === 'buffering'
+  const stage = buffering ? 'buffering' : (playback.stage ?? 'connecting')
+  const elapsed = playback.loadStartedAt && !buffering ? Math.max(0, Math.round((now - playback.loadStartedAt) / 1000)) : 0
+  const pct = playback.cacheBufferingPercent
+  const speed = fmtSpeed(playback.stats?.downloadBytesPerSec)
+  const slow = elapsed >= 10
+
+  const steps: Array<{ key: string; label: string }> = [
+    { key: 'connecting', label: 'Connecting' },
+    { key: 'opening', label: 'Starting' }
+  ]
+  const headline =
+    stage === 'connecting' ? 'Connecting to your provider…' : stage === 'opening' ? 'Starting playback…' : 'Buffering…'
+  const detail = [
+    stage !== 'connecting' && pct != null && pct < 100 ? `${pct}% buffered` : null,
+    stage !== 'connecting' ? speed : null,
+    elapsed > 0 ? `${elapsed} s` : null
+  ].filter(Boolean)
+
+  return (
+    <div className="loading-info">
+      {!buffering && (
+        <div className="load-steps">
+          {steps.map((s, i) => {
+            const idx = steps.findIndex((x) => x.key === stage)
+            return (
+              <span key={s.key} className={i < idx ? 'done' : i === idx ? 'active' : ''}>
+                {i < idx ? '✓' : i + 1}
+                <em>{s.label}</em>
+              </span>
+            )
+          })}
+        </div>
+      )}
+      <div className="msg strong">{headline}</div>
+      {stage !== 'connecting' && pct != null && pct < 100 && (
+        <div className="load-bar">
+          <span style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      {detail.length > 0 && <div className="msg small">{detail.join('  ·  ')}</div>}
+      {slow && (
+        <div className="msg small hint">
+          {stage === 'connecting'
+            ? 'Your provider is slow to answer. It may be busy or the stream may be offline.'
+            : 'Large streams (like 4K) can take a while to start on a slower connection.'}
+        </div>
+      )}
+      <div className="load-actions">
+        {slow && (
+          <button className="focusable btn" onClick={onRetry}>
+            <Icon name="refresh" size={18} /> Retry
+          </button>
+        )}
+        <button className="focusable btn" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function fmtSpeed(bytesPerSec?: number): string | null {
+  if (!bytesPerSec || bytesPerSec <= 0) return null
+  const mbit = (bytesPerSec * 8) / 1e6
+  return mbit >= 1 ? `${mbit.toFixed(mbit >= 10 ? 0 : 1)} Mbps` : `${Math.round(bytesPerSec / 1000 * 8)} kbps`
 }

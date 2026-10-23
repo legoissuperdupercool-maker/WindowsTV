@@ -874,6 +874,67 @@ img {
   color: var(--text-dim);
   line-height: 1.55;
 }
+.player-status .msg.strong {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+}
+.player-status .msg.small {
+  font-size: 13px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.player-status .msg.hint {
+  color: var(--text-faint);
+  max-width: 400px;
+  margin: 12px auto 0;
+}
+.load-steps {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.load-steps span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.load-steps em {
+  font-style: normal;
+}
+.load-steps span.active {
+  color: var(--text);
+}
+.load-steps span.done {
+  color: var(--good, #81c995);
+}
+.load-bar {
+  width: 260px;
+  height: 4px;
+  border-radius: 4px;
+  margin: 14px auto 0;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+.load-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent, #4c8dff);
+  transition: width 0.4s ease;
+}
+.load-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 18px;
+}
+.load-actions .btn {
+  padding: 8px 18px;
+  font-size: 14px;
+}
 .player-status.error .title {
   color: var(--bad);
   font-weight: 600;

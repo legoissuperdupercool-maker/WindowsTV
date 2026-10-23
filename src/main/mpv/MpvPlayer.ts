@@ -50,6 +50,10 @@ export class MpvPlayer extends EventEmitter {
   private buffer = ''
   private startWatchdog: NodeJS.Timeout | null = null
   private started = false
+  /** Stream open, first frames not playing yet. */
+  private opening = false
+  /** mpv paused itself to refill its cache. */
+  private waitingForCache = false
 
   private state: PlaybackState = {
     status: 'idle',
@@ -248,7 +252,8 @@ export class MpvPlayer extends EventEmitter {
       'audio-codec',
       'estimated-vf-fps',
       'video-bitrate',
-      'eof-reached'
+      'eof-reached',
+      'cache-speed'
     ]
     let id = 1
     for (const name of props) {
@@ -261,15 +266,21 @@ export class MpvPlayer extends EventEmitter {
     if (event === 'property-change') {
       this.onProperty(msg.name as string, msg.data)
     } else if (event === 'file-loaded') {
+      // The stream is open, but the first frames may still be many seconds
+      // away (4K, slow providers): keep showing "loading" until mpv's core is
+      // actually running, so the screen is never silently black.
       this.clearWatchdog()
       this.started = true
-      this.setState({ status: this.state.paused ? 'paused' : 'playing', error: undefined })
+      this.opening = true
+      this.setState({ status: this.state.paused ? 'paused' : 'loading', stage: 'opening', error: undefined })
+      this.armOpeningWatchdog()
     } else if (event === 'start-file') {
       this.setState({ status: 'loading' })
     } else if (event === 'end-file') {
       const reason = String(msg.reason ?? '')
       if (reason === 'error') {
         this.clearWatchdog()
+        this.opening = false
         const err = this.humanError(String(msg.file_error ?? ''))
         this.setState({ status: 'error', error: err })
       } else if (reason === 'eof' && this.state.status !== 'idle') {
@@ -282,21 +293,24 @@ export class MpvPlayer extends EventEmitter {
     const stats = { ...this.state.stats }
     switch (name) {
       case 'pause':
-        this.setState({
-          paused: Boolean(data),
-          status: this.started
-            ? data
-              ? 'paused'
-              : this.state.status === 'buffering'
-                ? 'buffering'
-                : 'playing'
-            : this.state.status
-        })
+        this.setState({ paused: Boolean(data) })
+        if (this.started) this.setState({ status: this.activeStatus() })
         break
       case 'paused-for-cache':
-        if (this.started) {
-          this.setState({ status: data ? 'buffering' : this.state.paused ? 'paused' : 'playing' })
+        this.waitingForCache = Boolean(data)
+        if (this.started) this.setState({ status: this.activeStatus() })
+        break
+      case 'core-idle':
+        // false = audio/video are really being played.
+        if (data === false && this.opening) {
+          this.opening = false
+          this.clearWatchdog()
+          this.setState({ stage: undefined, status: this.activeStatus() })
         }
+        break
+      case 'cache-speed':
+        stats.downloadBytesPerSec = typeof data === 'number' ? data : undefined
+        this.setState({ stats })
         break
       case 'cache-buffering-state':
         this.setState({ cacheBufferingPercent: typeof data === 'number' ? data : undefined })
@@ -344,6 +358,31 @@ export class MpvPlayer extends EventEmitter {
     }
   }
 
+  /** Status once a stream is open, from the pause / opening / cache flags. */
+  private activeStatus(): PlaybackState['status'] {
+    if (this.state.paused) return 'paused'
+    if (this.opening) return 'loading'
+    if (this.waitingForCache) return 'buffering'
+    return 'playing'
+  }
+
+  /** The stream opened but nothing plays: give up after a while with a reason. */
+  private armOpeningWatchdog(): void {
+    this.startWatchdog = setTimeout(() => {
+      if (this.opening && !this.state.paused && this.state.status !== 'error') {
+        this.opening = false
+        this.setState({
+          status: 'error',
+          stage: undefined,
+          error:
+            'The stream opened but no picture or sound arrived within a minute. The provider may be ' +
+            'overloaded or your connection too slow for this stream. Try again, or pick a lower quality version.'
+        })
+        this.send(['stop'])
+      }
+    }, 60_000)
+  }
+
   private humanError(fileError: string): string {
     const e = fileError.toLowerCase()
     if (!e) return 'The stream failed to start. The channel may be offline or blocked.'
@@ -361,8 +400,12 @@ export class MpvPlayer extends EventEmitter {
   async load(url: string, opts: LoadOptions = {}): Promise<void> {
     if (!this.sock) await this.start()
     this.started = false
+    this.opening = false
+    this.waitingForCache = false
     this.setState({
       status: 'loading',
+      stage: 'connecting',
+      loadStartedAt: Date.now(),
       ended: false,
       channelId: opts.channelId,
       title: opts.title,
@@ -436,6 +479,7 @@ export class MpvPlayer extends EventEmitter {
   stop(): void {
     this.clearWatchdog()
     this.started = false
+    this.opening = false
     this.send(['stop'])
     this.setState({ status: 'idle', channelId: undefined, title: undefined })
   }
