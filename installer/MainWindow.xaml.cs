@@ -91,7 +91,11 @@ namespace ElloSetup
             catch (Exception ex)
             {
                 Fail(ex.Message);
-                if (auto) Application.Current.Shutdown(1);
+                if (auto)
+                {
+                    File.WriteAllText(Path.Combine(Path.GetTempPath(), "ello-setup-error.txt"), ex.ToString());
+                    Application.Current.Shutdown(1);
+                }
             }
             finally
             {

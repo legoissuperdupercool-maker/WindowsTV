@@ -32,5 +32,8 @@ Snap 'setup-progress'
 if (-not $p.WaitForExit(240000)) { Stop-Process -Id $p.Id -Force; throw 'Setup did not finish within 4 minutes.' }
 $exe = Get-ChildItem $dir -Filter *.exe -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch '^Uninstall' } | Select-Object -First 1
 Write-Host "Setup exit code: $($p.ExitCode); installed app: $($exe.FullName)"
+$errFile = Join-Path $env:TEMP 'ello-setup-error.txt'
+if (Test-Path $errFile) { Write-Host "Setup error: $(Get-Content $errFile -Raw)" }
+Write-Host "Install folder contents:"; Get-ChildItem $dir -ErrorAction SilentlyContinue | Select-Object -First 20 | ForEach-Object { Write-Host "  $($_.Name)" }
 if ($p.ExitCode -ne 0 -or -not $exe) { throw 'Custom setup did not install the app.' }
 Write-Host 'RESULT custom setup installed the app OK'
