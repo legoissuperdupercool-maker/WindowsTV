@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore, type RouteName } from '../store'
 import { Icon } from '../components/Icon'
+import { ScrollRow } from '../components/ScrollRow'
 import { Initials } from '../components/Initials'
 import { detectBrand } from '../components/brands'
 import { FadeImg } from '../components/FadeImg'
@@ -172,7 +173,7 @@ export function Home(): JSX.Element {
       {/* ---- row 1: apps ---- */}
       <div className="rail">
         <div className="rail-title">Your apps</div>
-        <div className="rail-track">
+        <ScrollRow className="rail-track">
           {apps.map((tile) => (
             <AppCard key={tile.id} tile={tile} onClick={() => onTile(tile)} />
           ))}
@@ -180,14 +181,14 @@ export function Home(): JSX.Element {
             <Icon name="add" size={30} />
             <span>Add app</span>
           </button>
-        </div>
+        </ScrollRow>
       </div>
 
       {/* ---- continue watching ---- */}
       {continueItems.length > 0 && (
         <div className="rail">
           <div className="rail-title">Continue watching</div>
-          <div className="rail-track">
+          <ScrollRow className="rail-track">
             {continueItems.map((it) => (
               <button key={it.key} className="focusable media-card" onClick={() => void resumeItem(it)}>
                 <div className="art cover">
@@ -203,7 +204,7 @@ export function Home(): JSX.Element {
                 </div>
               </button>
             ))}
-          </div>
+          </ScrollRow>
         </div>
       )}
 
@@ -327,7 +328,7 @@ function MediaRail({
       <div className="rail-title">
         {title} {count ? <span className="count">{count} channels</span> : null}
       </div>
-      <div className="rail-track">
+      <ScrollRow className="rail-track">
         {items.map((c) => {
           const now = nn[c.id]?.now
           return (
@@ -353,7 +354,7 @@ function MediaRail({
             </button>
           )
         })}
-      </div>
+      </ScrollRow>
     </div>
   )
 }

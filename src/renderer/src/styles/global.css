@@ -435,6 +435,48 @@ img {
   font-size: 14px;
   color: var(--text-faint);
 }
+/* Horizontal rows: ‹ › buttons at the ends (see ScrollRow.tsx). */
+.scroll-row {
+  position: relative;
+}
+.scroll-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 5;
+  width: 48px;
+  height: 48px;
+  margin-top: -24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(18, 20, 24, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  opacity: 0.75;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+.scroll-row:hover .scroll-arrow {
+  opacity: 1;
+}
+.scroll-arrow:hover {
+  background: rgba(40, 44, 52, 0.95);
+  transform: scale(1.08);
+}
+.scroll-arrow.left {
+  left: 10px;
+}
+.scroll-arrow.left .msi {
+  transform: scaleX(-1);
+}
+.scroll-arrow.right {
+  right: 10px;
+}
 .rail-track {
   display: flex;
   gap: 16px;
@@ -1429,6 +1471,7 @@ img {
   display: flex;
   gap: 16px;
   overflow-x: auto;
+  scroll-behavior: smooth;
   padding: 6px 4px 10px;
 }
 .episode-card {

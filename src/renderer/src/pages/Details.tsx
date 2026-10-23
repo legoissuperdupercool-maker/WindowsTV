@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStore, type SeriesRef } from '../store'
 import { Icon } from '../components/Icon'
 import { FadeImg } from '../components/FadeImg'
+import { ScrollRow } from '../components/ScrollRow'
 import type { MediaDetails, SeriesEpisode, WatchItem } from '@shared/types'
 
 /**
@@ -163,7 +164,7 @@ export function Details(): JSX.Element | null {
                 ))}
               </div>
             )}
-            <div className="episode-row">
+            <ScrollRow key={season ?? 0} className="episode-row">
               {all.map((ep, index) =>
                 ep.season !== season ? null : (
                   <button key={ep.id} className="focusable episode-card" onClick={() => playEp(index)}>
@@ -189,7 +190,7 @@ export function Details(): JSX.Element | null {
                   </button>
                 )
               )}
-            </div>
+            </ScrollRow>
           </div>
         )}
       </div>
