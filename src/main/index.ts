@@ -111,7 +111,7 @@ app.whenReady().then(async () => {
       // Screen position of the play/pause button, so the test can click it.
       const rectsFile = process.env['ELLO_UI_RECTS']
       if (rectsFile) {
-        windows.uiWindow.maximize()
+        setTimeout(() => windows.uiWindow.maximize(), 9000)
         setTimeout(async () => {
           const r = await windows.uiWindow.webContents.executeJavaScript(
             `(() => { const b = document.querySelector('.transport .tbtn.primary')?.getBoundingClientRect(); return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2 } : null })()`
