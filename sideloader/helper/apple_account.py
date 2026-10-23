@@ -233,6 +233,9 @@ def _error_text(status: dict) -> str:
     msg = status.get("em") or "Apple refused the sign-in."
     if code in (-20101, -22406, -20970):
         return "Wrong Apple ID or password."
+    if code == -20755:
+        return ("Apple says this Apple ID isn't active (locked or not set up yet). Unlock it at iforgot.apple.com, "
+                "sign in once at account.apple.com, then wait a few hours before trying here again.")
     if code == -80045:
         return "Apple isn't allowing this sign-in right now. Wait an hour, then try again."
     if code == -22322:
