@@ -27,3 +27,7 @@ installer/out
 
 # Apple device check report
 apple/check/ello-apple-check.txt
+
+# wireproxy for the built-in VPN is downloaded at build time.
+resources/wireproxy/*
+!resources/wireproxy/.gitkeep

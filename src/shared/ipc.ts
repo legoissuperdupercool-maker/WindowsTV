@@ -72,6 +72,14 @@ export const IPC = {
   myListToggle: 'mylist:toggle',
   progressHistory: 'progress:history',
 
+  // Built-in VPN
+  vpnGet: 'vpn:get',
+  vpnImport: 'vpn:import',
+  vpnSetEnabled: 'vpn:setEnabled',
+  vpnRemove: 'vpn:remove',
+  vpnCheck: 'vpn:check',
+  vpnState: 'vpn:state', // main -> renderer event
+
   // Misc
   openExternal: 'app:openExternal',
   appInfo: 'app:info'

@@ -3,6 +3,10 @@ import { IPC, type PlayerCommand, type UpdateState, type VideoRegion } from '../
 import type { LoadProgress, PlayOptions, Result, Source, StreamType } from '../shared/types'
 import type { WatchProgress } from './progress'
 import { backgroundImage, type Profiles } from './profiles'
+import type { Vpn } from './vpn'
+import { dialog } from 'electron'
+import { readFileSync, statSync } from 'node:fs'
+import { basename } from 'node:path'
 import { getSettings, updateSettings } from './store'
 import type { Catalog } from './services/catalog'
 import type { MpvPlayer } from './mpv/MpvPlayer'
@@ -20,6 +24,7 @@ export interface MainContext {
   updater: { check: () => void; install: () => void; getState: () => UpdateState }
   progress: WatchProgress
   profiles: Profiles
+  vpn: Vpn
 }
 
 function ok<T>(data: T): Result<T> {
@@ -471,6 +476,39 @@ export function registerIpc(ctx: MainContext): void {
       return fail(e)
     }
   }
+  // ---------------------------------------------------------------- built-in VPN
+  ipcMain.handle(IPC.vpnGet, () => ok(ctx.vpn.getState()))
+  ipcMain.handle(IPC.vpnImport, async () => {
+    try {
+      const res = await dialog.showOpenDialog(windows.uiWindow, {
+        title: 'Choose a WireGuard configuration file',
+        properties: ['openFile'],
+        filters: [{ name: 'WireGuard configuration', extensions: ['conf'] }]
+      })
+      if (res.canceled || !res.filePaths[0]) return ok(null)
+      const file = res.filePaths[0]
+      if (statSync(file).size > 64 * 1024) throw new Error('That file is too big to be a WireGuard configuration.')
+      return ok(ctx.vpn.importConfig(readFileSync(file, 'utf8'), basename(file)))
+    } catch (e) {
+      return fail(e)
+    }
+  })
+  ipcMain.handle(IPC.vpnSetEnabled, async (_e, enabled: boolean) => {
+    try {
+      return ok(await ctx.vpn.setEnabled(Boolean(enabled)))
+    } catch (e) {
+      return fail(e)
+    }
+  })
+  ipcMain.handle(IPC.vpnRemove, () => ok(ctx.vpn.removeConfig()))
+  ipcMain.handle(IPC.vpnCheck, async () => {
+    try {
+      return ok(await ctx.vpn.check())
+    } catch (e) {
+      return fail(e)
+    }
+  })
+
   ipcMain.handle(IPC.profilesGet, () => ok(ctx.profiles.get()))
   ipcMain.handle(IPC.profileSelect, (_e, id: string) => guard(() => ctx.profiles.select(id)))
   ipcMain.handle(IPC.profileSave, (_e, p) => guard(() => ctx.profiles.save(p)))

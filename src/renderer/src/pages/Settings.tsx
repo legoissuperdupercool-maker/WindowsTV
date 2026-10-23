@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { Icon } from '../components/Icon'
+import { VpnCard } from '../components/VpnCard'
 import type { AppTile, Source, SourceKind } from '@shared/types'
 import type { UpdateState } from '@shared/ipc'
 
@@ -139,6 +140,8 @@ export function Settings(): JSX.Element {
             />
           </div>
         </div>
+
+        <VpnCard />
 
         {/* Sources */}
         <div className="card">

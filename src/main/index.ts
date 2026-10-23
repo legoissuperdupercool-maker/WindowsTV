@@ -12,6 +12,8 @@ import { initUpdater } from './updater'
 import { WatchProgress } from './progress'
 import { Profiles } from './profiles'
 import { findDisplayGpu } from './mpv/displayGpu'
+import { Vpn } from './vpn'
+import { setAgentProvider } from './net/http'
 
 const progress = new WatchProgress()
 
@@ -32,6 +34,8 @@ let catalog: Catalog
 let mpvInfo: { path?: string; reason?: string }
 /** GPU driving the screen on two-GPU laptops (see displayGpu.ts). */
 let displayGpu: Promise<string | undefined>
+/** Built-in VPN (only ello's traffic). */
+let vpn: Vpn | undefined
 
 function buildPlayer(wid: number): MpvPlayer {
   const settings = getSettings()
@@ -44,7 +48,8 @@ function buildPlayer(wid: number): MpvPlayer {
     hwdec: settings.hwdec,
     videoOutput: settings.videoOutput,
     deinterlace: settings.deinterlace,
-    networkTimeoutMs: settings.networkTimeoutMs
+    networkTimeoutMs: settings.networkTimeoutMs,
+    httpProxy: vpn?.mpvProxy()
   })
   p.on('state', (state) => {
     windows.send(IPC.playerState, state)
@@ -58,6 +63,7 @@ function buildPlayer(wid: number): MpvPlayer {
 }
 
 async function restartPlayer(): Promise<void> {
+  if (!player) return
   try {
     await player.quit()
   } catch {
@@ -81,6 +87,9 @@ app.whenReady().then(async () => {
   windows = new WindowManager()
   windows.create()
 
+  vpn = new Vpn((s) => windows.send(IPC.vpnState, s), () => restartPlayer())
+  setAgentProvider(() => vpn?.requestAgent() ?? null)
+
   catalog = new Catalog()
   displayGpu = findDisplayGpu()
   player = buildPlayer(windows.getVideoWindowId())
@@ -95,10 +104,13 @@ app.whenReady().then(async () => {
     restartPlayer,
     updater: initUpdater((state) => windows.send(IPC.updateState, state)),
     progress,
-    profiles: new Profiles(progress)
+    profiles: new Profiles(progress),
+    vpn
   } as unknown as MainContext
 
   registerIpc(ctx)
+  // Reconnect the VPN if it was on last time (traffic is blocked until it is).
+  void vpn.restore()
 
   // Start mpv eagerly so the first channel zaps instantly. If mpv is missing the
   // error surfaces through player state, not a crash.
@@ -158,6 +170,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', async () => {
   progress.flush()
+  vpn?.stop()
   try {
     await player?.quit()
   } catch {

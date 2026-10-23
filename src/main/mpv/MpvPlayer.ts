@@ -21,6 +21,8 @@ interface MpvConfig {
   cacheSeconds: number
   hwdec: string
   videoOutput?: string
+  /** HTTP proxy for streams (the built-in VPN's tunnel). */
+  httpProxy?: string
   /** D3D11 adapter (GPU) for mpv to render on; unset = Windows' default. */
   d3d11Adapter?: string
   deinterlace: boolean
@@ -162,6 +164,7 @@ export class MpvPlayer extends EventEmitter {
       '--keep-open=no',
       '--idle=yes',
       `--user-agent=${c.userAgent}`,
+      ...(c.httpProxy ? [`--http-proxy=${c.httpProxy}`] : []),
       '--msg-level=all=warn'
     ]
     if (typeof c.wid === 'number' && c.wid > 0) {

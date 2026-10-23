@@ -264,6 +264,14 @@ export interface Result<T> {
 }
 
 /** Progress events emitted while loading a source (so the UI is never silent). */
+/** Built-in VPN (WireGuard, only for ello's traffic). */
+export interface VpnState {
+  enabled: boolean
+  status: 'off' | 'connecting' | 'connected' | 'error'
+  error?: string
+  config?: { name: string; endpoint: string; provider?: string }
+}
+
 export interface LoadProgress {
   sourceId: string
   phase: 'connecting' | 'categories' | 'channels' | 'epg' | 'done' | 'error'

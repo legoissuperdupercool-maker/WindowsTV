@@ -47,6 +47,9 @@ jobs:
       - name: Fetch & bundle mpv
         run: node scripts/fetch-mpv.mjs
 
+      - name: Fetch & bundle wireproxy (built-in VPN)
+        run: node scripts/fetch-wireproxy.mjs
+
       - name: Verify mpv was bundled
         shell: pwsh
         run: |

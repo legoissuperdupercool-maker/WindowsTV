@@ -13,6 +13,7 @@ import type {
   PlayOptions,
   WatchItem,
   ListItem,
+  VpnState,
   Profile,
   SeriesDetails,
   Source,
@@ -89,6 +90,14 @@ const api = {
     pickBackground: (id: string) => invoke<ProfilesState | null>(IPC.profilePickBackground, id),
     backgroundImage: (background: string) => invoke<string | null>(IPC.profileBackgroundImage, background)
   },
+  vpn: {
+    get: () => invoke<VpnState>(IPC.vpnGet),
+    importConfig: () => invoke<VpnState | null>(IPC.vpnImport),
+    setEnabled: (enabled: boolean) => invoke<VpnState>(IPC.vpnSetEnabled, enabled),
+    remove: () => invoke<VpnState>(IPC.vpnRemove),
+    check: () => invoke<{ ip: string; country?: string; city?: string; mullvad?: boolean }>(IPC.vpnCheck)
+  },
+  onVpnState: (cb: (s: VpnState) => void) => subscribe<VpnState>(IPC.vpnState, cb),
   myList: {
     toggle: (item: ListItem) => invoke<ListItem[]>(IPC.myListToggle, item)
   },

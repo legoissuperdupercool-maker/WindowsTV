@@ -2213,3 +2213,40 @@ html:not(.playing) body {
 .switch-row.is-focused {
   box-shadow: 0 0 0 3px #fff;
 }
+
+/* ---- built-in VPN card ---- */
+.vpn-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface-2);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 6px 0 12px;
+}
+.vpn-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: 0 0 auto;
+}
+.vpn-dot.connected {
+  background: var(--good);
+  box-shadow: 0 0 0 4px rgba(52, 199, 89, 0.2);
+}
+.vpn-dot.connecting {
+  background: var(--warn);
+}
+.vpn-dot.error {
+  background: var(--bad);
+}
+.row-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.vpn-steps {
+  padding-left: 20px;
+  line-height: 1.6;
+}

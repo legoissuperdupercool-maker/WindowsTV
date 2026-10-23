@@ -3,6 +3,15 @@ import https from 'node:https'
 import { gunzipSync } from 'node:zlib'
 import { URL } from 'node:url'
 
+/**
+ * Where requests go: the VPN's tunnel agent, null for a direct connection.
+ * Set by the VPN; it throws while the VPN is on but down (kill switch).
+ */
+let agentProvider: (() => http.Agent | null) | null = null
+export function setAgentProvider(fn: (() => http.Agent | null) | null): void {
+  agentProvider = fn
+}
+
 export interface FetchOptions {
   userAgent?: string
   timeoutMs?: number
@@ -11,6 +20,8 @@ export interface FetchOptions {
   method?: 'GET' | 'HEAD'
   /** Abort after this many bytes (for cheap stream probing). */
   maxBytes?: number
+  /** Use this agent instead of the VPN's (or null for direct). */
+  agentOverride?: http.Agent | null
 }
 
 export interface FetchResult {
@@ -35,9 +46,16 @@ function once(url: string, opts: FetchOptions, redirectsLeft: number): Promise<F
       return reject(new Error(`Invalid URL: ${url}`))
     }
     const lib = u.protocol === 'https:' ? https : http
+    let agent: http.Agent | null = null
+    try {
+      agent = opts.agentOverride !== undefined ? opts.agentOverride : agentProvider?.() ?? null
+    } catch (e) {
+      return reject(e) // VPN on but not connected: never fall back to the direct connection
+    }
     const req = lib.request(
       u,
       {
+        ...(agent ? { agent } : {}),
         method: opts.method ?? 'GET',
         headers: {
           'User-Agent': opts.userAgent || DEFAULT_UA,

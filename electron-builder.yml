@@ -25,6 +25,11 @@ win:
       to: mpv
       filter:
         - '**/*'
+    # WireGuard-as-a-proxy for the built-in VPN (see scripts/fetch-wireproxy.mjs).
+    - from: resources/wireproxy
+      to: wireproxy
+      filter:
+        - '**/*'
 nsis:
   oneClick: false
   perMachine: false
