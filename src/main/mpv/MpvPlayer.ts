@@ -50,6 +50,8 @@ export class MpvPlayer extends EventEmitter {
   private buffer = ''
   private startWatchdog: NodeJS.Timeout | null = null
   private started = false
+  /** mpv stderr lines since the current load started. */
+  private recentLog: string[] = []
   /** Stream open, first frames not playing yet. */
   private opening = false
   /** mpv paused itself to refill its cache. */
@@ -99,7 +101,13 @@ export class MpvPlayer extends EventEmitter {
       this.emit('exit', code)
     })
     // Surface mpv stderr for diagnostics (not shown to users unless they open the log).
-    this.proc.stderr?.on('data', (d) => this.emit('log', d.toString()))
+    this.proc.stderr?.on('data', (d) => {
+      const text = d.toString()
+      // Keep recent warnings/errors so a failed load can say *why*.
+      for (const line of text.split(/\r?\n/)) if (line.trim()) this.recentLog.push(line.trim())
+      if (this.recentLog.length > 40) this.recentLog.splice(0, this.recentLog.length - 40)
+      this.emit('log', text)
+    })
 
     await this.connectPipe()
     await this.setupObservers()
@@ -281,7 +289,7 @@ export class MpvPlayer extends EventEmitter {
       if (reason === 'error') {
         this.clearWatchdog()
         this.opening = false
-        const err = this.humanError(String(msg.file_error ?? ''))
+        const err = this.humanError(String(msg.file_error ?? ''), this.recentLog.join('\n'))
         this.setState({ status: 'error', error: err })
       } else if (reason === 'eof' && this.state.status !== 'idle') {
         this.setState({ status: 'idle', ended: true })
@@ -383,16 +391,36 @@ export class MpvPlayer extends EventEmitter {
     }, 60_000)
   }
 
-  private humanError(fileError: string): string {
-    const e = fileError.toLowerCase()
-    if (!e) return 'The stream failed to start. The channel may be offline or blocked.'
-    if (e.includes('403')) return 'Access denied (HTTP 403) — your subscription or User-Agent may be rejected.'
-    if (e.includes('401')) return 'Unauthorized (HTTP 401) — check your username/password.'
-    if (e.includes('404')) return 'Channel not found (HTTP 404) — it may have moved or been removed.'
-    if (e.includes('timed out') || e.includes('timeout')) return 'Connection timed out — the server did not respond in time.'
-    if (e.includes('connection refused')) return 'Connection refused — the server is unreachable.'
-    if (e.includes('ssl') || e.includes('tls')) return 'Secure connection failed (TLS/SSL error).'
-    return `Playback failed: ${fileError}`
+  /**
+   * Turn mpv's terse end-file error ("loading failed") plus its recent log
+   * lines into a reason a person can act on. Log lines can contain the stream
+   * URL (with the login in it), so they're only ever shown with URLs removed.
+   */
+  private humanError(fileError: string, log = ''): string {
+    const e = `${fileError}\n${log}`.toLowerCase()
+    if (/\b401\b|unauthorized/.test(e)) return 'Your provider rejected the login (HTTP 401). Check the username and password in Settings.'
+    if (/\b403\b|forbidden/.test(e))
+      return 'Your provider refused this stream (HTTP 403). Your subscription may not include it, you may have too many streams open, or the provider blocks this User-Agent.'
+    if (/\b404\b|not found/.test(e)) return 'This title is no longer on your provider’s server (HTTP 404). It may have been removed or moved.'
+    if (/\b(429|458|509)\b|too many|max(imum)? connections/.test(e))
+      return 'Your provider says you have too many streams open. Close other devices or apps using this account and try again.'
+    if (/\b5\d\d\b|bad gateway|service unavailable|internal server error/.test(e))
+      return 'Your provider’s server had an error (HTTP 5xx). It’s usually temporary, so try again in a minute.'
+    if (/timed out|timeout/.test(e)) return 'Your provider didn’t respond in time. The server may be busy or down.'
+    if (/connection refused|could not connect|failed to resolve|name resolution|no route/.test(e))
+      return 'Couldn’t reach your provider’s server. Check your internet connection or VPN.'
+    if (/ssl|tls|certificate/.test(e)) return 'The secure connection to your provider failed (TLS/SSL error).'
+    if (/invalid data|unrecognized file format|no (video|audio) or audio streams|end of file/.test(e))
+      return 'The provider sent something that isn’t a playable video. This title may be broken on their side.'
+    const detail = log
+      .split('\n')
+      .reverse()
+      .find((l) => /error|fail|cannot|could not/i.test(l))
+      ?.replace(/[a-z]+:\/\/\S+/gi, '<stream>')
+      .slice(0, 160)
+    if (detail) return `The stream failed to start. mpv said: ${detail}`
+    if (fileError) return `The stream failed to start (${fileError}). It may be offline or blocked by your provider.`
+    return 'The stream failed to start. It may be offline or blocked by your provider.'
   }
 
   // ------------------------------------------------------------------ Public API
@@ -402,6 +430,7 @@ export class MpvPlayer extends EventEmitter {
     this.started = false
     this.opening = false
     this.waitingForCache = false
+    this.recentLog = []
     this.setState({
       status: 'loading',
       stage: 'connecting',

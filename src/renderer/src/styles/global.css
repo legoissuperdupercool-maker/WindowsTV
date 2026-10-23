@@ -772,6 +772,11 @@ img {
   justify-content: flex-end;
   z-index: 100;
 }
+.player-root.no-video {
+  /* Nothing is playing (error / stopped): a solid backdrop instead of a
+     see-through window. */
+  background: #0b0c0e;
+}
 .player-root.hidden {
   pointer-events: none;
 }

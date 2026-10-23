@@ -78,6 +78,17 @@ foreach ($v in $variants) {
     $clicked = Select-String -Path "shots/mpv-$mode.log" -Pattern 'Run command: cycle' -Quiet
     Write-Host "RESULT click-$mode : play/pause button at $($xy -join ',') -> $(if ($clicked) { 'mpv toggled pause' } else { 'NO pause command reached mpv' })"
   } else { Write-Host "RESULT click-$mode : play/pause button not found" }
+  # Another app comes in front (like a maximized browser), then the user
+  # switches back to ello: the video must come back too, not stay behind it.
+  $other = Start-Process -FilePath notepad.exe -WindowStyle Maximized -PassThru
+  Start-Sleep -Seconds 3
+  $ui = Get-Process | Where-Object { $_.MainWindowTitle -eq 'ello smartTV' } | Select-Object -First 1
+  if ($ui) {
+    $null = (New-Object -ComObject WScript.Shell).AppActivate($ui.Id)
+    Start-Sleep -Seconds 3
+    Measure-Screen "refocus-$mode"
+  } else { Write-Host "RESULT refocus-$mode : ello window not found" }
+  Stop-Process -Id $other.Id -Force -ErrorAction SilentlyContinue
   Get-Process | Where-Object { $_.Name -match 'ello|mpv' } | Stop-Process -Force -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 3
   if (Test-Path "shots/gpu-$mode.json") {

@@ -199,7 +199,7 @@ export function PlayerOverlay(): JSX.Element {
 
   return (
     <div
-      className={`player-root ${showControls || busy || errored ? 'show-controls' : ''}`}
+      className={`player-root ${showControls || busy || errored ? 'show-controls' : ''} ${errored ? 'no-video' : ''}`}
       onMouseMove={reveal}
       onClick={(e) => {
         // Click on the empty video area toggles play/pause (not on a control).

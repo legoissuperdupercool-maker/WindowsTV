@@ -110,9 +110,11 @@ export class WindowManager {
       if (!this.videoWindow.isDestroyed()) this.videoWindow.hide()
     })
     this.uiWindow.on('focus', () => {
-      // Bring the video surface back up directly beneath us without taking focus.
+      // Clicking the UI window raises only it; other apps (e.g. a maximized
+      // browser) would stay between it and the video. Restack both.
       if (!this.videoWindow.isDestroyed() && this.lastRegion.visible) {
         this.videoWindow.showInactive()
+        this.raiseVideoBehindUi()
       }
     })
     this.uiWindow.on('closed', () => {
@@ -156,7 +158,19 @@ export class WindowManager {
     // showInactive() both shows the surface and raises it just beneath the
     // focused UI window, without stealing focus.
     this.videoWindow.showInactive()
+    this.raiseVideoBehindUi()
     this.uiWindow.focus()
+  }
+
+  /**
+   * The two windows are unrelated top-level windows, so Windows keeps no fixed
+   * order between them: put the video window on top of everything, then the UI
+   * window above it, so nothing else can sit in between.
+   */
+  private raiseVideoBehindUi(): void {
+    if (this.videoWindow.isDestroyed() || this.uiWindow.isDestroyed()) return
+    this.videoWindow.moveTop()
+    this.uiWindow.moveTop()
   }
 
   control(action: string): void {
