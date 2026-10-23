@@ -170,7 +170,10 @@ export async function getVod(
         meta: {
           rating: str(r.rating),
           added: str(r.added),
-          plot: str(r.plot)
+          plot: str(r.plot),
+          // Some panels include these in the list; used for recommendations.
+          genre: str(r.genre),
+          year: str(r.year) ?? str(r.releasedate)?.match(/\d{4}/)?.[0]
         }
       }
       return channel
@@ -203,7 +206,16 @@ export async function getSeries(
         logo: str(r.cover),
         group: str(r.category_id) ? `${source.id}:series:${str(r.category_id)}` : undefined,
         url: '', // resolved per-episode
-        meta: { plot: str(r.plot), rating: str(r.rating) }
+        // The series list carries genre / cast / director: used for recommendations.
+        meta: {
+          plot: str(r.plot),
+          rating: str(r.rating) ?? (num(r.rating_5based) ? String(num(r.rating_5based)! * 2) : undefined),
+          genre: str(r.genre),
+          cast: str(r.cast),
+          director: str(r.director),
+          year: (str(r.releaseDate) ?? str(r.release_date) ?? str(r.year))?.match(/\d{4}/)?.[0],
+          added: str(r.last_modified)
+        }
       }
       return channel
     })

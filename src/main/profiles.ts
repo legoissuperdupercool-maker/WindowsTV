@@ -82,7 +82,9 @@ export class Profiles {
         name,
         color: input.color ?? existing.color,
         emoji: input.emoji === undefined ? existing.emoji : input.emoji || undefined,
-        background: input.background ?? existing.background
+        background: input.background ?? existing.background,
+        kids: input.kids ?? existing.kids,
+        hideAdult: input.hideAdult ?? existing.hideAdult
       })
     } else {
       if (profiles.length >= MAX_PROFILES) throw new Error(`You can have up to ${MAX_PROFILES} profiles.`)
@@ -92,6 +94,8 @@ export class Profiles {
         color: input.color ?? PROFILE_COLORS[profiles.length % PROFILE_COLORS.length],
         emoji: input.emoji || undefined,
         background: input.background ?? 'default',
+        kids: input.kids ?? false,
+        hideAdult: input.hideAdult ?? input.kids ?? false,
         favorites: [],
         recents: [],
         myList: [],

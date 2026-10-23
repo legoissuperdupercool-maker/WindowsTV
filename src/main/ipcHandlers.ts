@@ -271,7 +271,7 @@ export function registerIpc(ctx: MainContext): void {
   ipcMain.handle(IPC.playerLoad, async (_e, args: { channelId: string; opts?: PlayOptions }) => {
     const settings = getSettings()
     const channel = catalog.getChannel(args.channelId)
-    if (!channel) return fail('Channel not found')
+    if (!channel) return fail('This title isn’t in your provider’s list any more (or the list hasn’t loaded yet). Try again in a moment, or use Reload in Settings.')
     const source = settings.sources.find((s) => s.id === channel.sourceId)
     const ua = source?.userAgent || settings.userAgent
     // Movies are tracked for "Continue watching"; live TV isn't.

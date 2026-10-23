@@ -74,6 +74,10 @@ export interface Profile {
   color: string
   /** Optional emoji shown instead of the initial. */
   emoji?: string
+  /** Kids profile: only kid-friendly categories, never adult content. */
+  kids?: boolean
+  /** Hide adult categories and titles (always on for kids profiles). */
+  hideAdult?: boolean
   /** Background preset id, or `image:<file>` for a picture the person chose. */
   background: string
   /** Live channels starred by this person (stored here while another profile is active). */

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { filterForProfile } from './contentFilter'
 import type { UpdateState, WebAppState } from '@shared/ipc'
 import type {
   PlayOptions,
@@ -105,6 +106,26 @@ export function activeProfile(s: { profiles: Profile[]; activeProfileId: string 
 const listCache = new Map<string, { channels: Channel[]; categories: Category[] }>()
 function clearListCache(sourceId?: string): void {
   for (const k of [...listCache.keys()]) if (!sourceId || k.startsWith(sourceId + ':')) listCache.delete(k)
+}
+
+/** Show why playback couldn't start, instead of an empty player. */
+function failPlayback(error: string | undefined, channelId?: string, title?: string): void {
+  const s = useStore.getState()
+  if (!s.playerVisible) return
+  useStore.setState({
+    playback: {
+      ...s.playback,
+      status: 'error',
+      error: error ?? 'This title couldn’t be started.',
+      channelId: channelId ?? s.playback.channelId,
+      title: title ?? s.playback.title
+    }
+  })
+}
+
+/** Categories of a list already fetched with fetchList (empty if not loaded yet). */
+export function cachedCategories(sourceId: string | undefined, type: StreamType): Category[] {
+  return (sourceId && listCache.get(`${sourceId}:${type}`)?.categories) || []
 }
 
 /** Enough about a series to play its episodes and label them. */
@@ -237,7 +258,8 @@ export const useStore = create<State>((set, get) => ({
     }
     const cached = listCache.get(key)
     if (cached) {
-      set({ channels: cached.channels, categories: cached.categories })
+      const shown = filterForProfile(key, cached, activeProfile(get()))
+      set({ channels: shown.channels, categories: shown.categories })
     } else {
       const res = await window.api.catalog.get(id, type)
       if (res.data) {
@@ -245,7 +267,8 @@ export const useStore = create<State>((set, get) => ({
         if (list.channels.length) listCache.set(key, list)
         // Ignore a slow response if the user has already moved to another tab/source.
         if (get().activeType === type && get().currentSourceId === id) {
-          set({ channels: list.channels, categories: list.categories })
+          const shown = filterForProfile(key, list, activeProfile(get()))
+          set({ channels: shown.channels, categories: shown.categories })
         }
       }
     }
@@ -272,18 +295,21 @@ export const useStore = create<State>((set, get) => ({
       await window.api.recents.add(channelId)
       await get().refreshSettings()
     }
-    await window.api.player.load(channelId, opts)
+    const res = await window.api.player.load(channelId, opts)
+    if (!res.ok) failPlayback(res.error, channelId)
   },
 
   async playEpisode(series, episodes, index, opts) {
     const ep = episodes[index]
     if (!ep) return
     set({ playerVisible: true, nowPlayingKind: 'series', playQueue: [], episodeCtx: { series, episodes, index } })
-    await window.api.player.loadUrl(ep.url, `${series.name} · S${ep.season} E${ep.episode} ${ep.title}`, series.sourceId, {
+    const title = `${series.name} · S${ep.season} E${ep.episode} ${ep.title}`
+    const res = await window.api.player.loadUrl(ep.url, title, series.sourceId, {
       ...opts,
       poster: ep.thumb ?? series.poster,
       episode: { seriesId: series.id, seriesName: series.name, episodeId: ep.id, season: ep.season, episode: ep.episode, title: ep.title }
     })
+    if (!res.ok) failPlayback(res.error, undefined, title)
   },
 
   async playCatchup(channel, p) {
@@ -306,9 +332,20 @@ export const useStore = create<State>((set, get) => ({
       return
     }
     if (item.kind === 'episode' && item.series && item.url) {
-      // Load the full episode list so "next episode" works after this one.
+      // Show the player straight away: the episode list below can take a while.
+      set({
+        playerVisible: true,
+        nowPlayingKind: 'series',
+        playback: { ...idlePlayback, status: 'loading', stage: 'connecting', title: `${item.title} · ${item.subtitle ?? ''}`, loadStartedAt: Date.now() }
+      })
+      // Load the full episode list so "next episode" works after this one, but
+      // don't keep you waiting on a slow provider: after 5 s just play the episode.
       const series: SeriesRef = { id: item.series.id, name: item.series.name, sourceId: item.sourceId, poster: item.poster }
-      const res = await window.api.series.info(item.sourceId, item.series.id)
+      const res = await Promise.race([
+        window.api.series.info(item.sourceId, item.series.id),
+        new Promise<{ data?: undefined }>((r) => setTimeout(() => r({}), 5000))
+      ])
+      if (!get().playerVisible) return // cancelled while waiting
       const episodes = res.data?.episodes ?? []
       const index = episodes.findIndex((e) => e.id === item.series!.episodeId)
       if (index >= 0) await get().playEpisode(series, episodes, index)
@@ -366,12 +403,12 @@ export const useStore = create<State>((set, get) => ({
     if (!id) return []
     const key = `${id}:${type}`
     const cached = listCache.get(key)
-    if (cached) return cached.channels
+    if (cached) return filterForProfile(key, cached, activeProfile(get())).channels
     const res = await window.api.catalog.get(id, type)
     if (!res.data) return []
     const list = { channels: res.data.channels, categories: res.data.categories }
     if (list.channels.length) listCache.set(key, list)
-    return list.channels
+    return filterForProfile(key, list, activeProfile(get())).channels
   },
 
   async loadProfiles() {
@@ -386,6 +423,7 @@ export const useStore = create<State>((set, get) => ({
       if (res.data) set({ profiles: res.data.profiles, activeProfileId: res.data.activeId })
       await get().refreshSettings()
       void get().refreshContinue()
+      void get().loadCatalog(get().activeType, false)
     }
     set({ profilePicker: false, route: 'home', detail: null })
   },
@@ -394,6 +432,7 @@ export const useStore = create<State>((set, get) => ({
     const res = await window.api.profiles.save(p)
     if (!res.data) return res.error ?? 'Couldn’t save the profile.'
     set({ profiles: res.data.profiles, activeProfileId: res.data.activeId })
+    if (p.id === get().activeProfileId) void get().loadCatalog(get().activeType, false)
     return null
   },
 

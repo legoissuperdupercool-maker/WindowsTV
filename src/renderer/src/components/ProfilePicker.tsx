@@ -31,6 +31,7 @@ export function ProfilePicker(): JSX.Element {
               )}
             </span>
             <span className="profile-name">{p.name}</span>
+            {p.kids && <span className="kids-badge">Kids</span>}
           </button>
         ))}
         {profiles.length < 8 && (
@@ -56,6 +57,8 @@ function ProfileEditor({ profile, onClose }: { profile: Profile | null; onClose:
   const [color, setColor] = useState(profile?.color ?? PROFILE_COLORS[profiles.length % PROFILE_COLORS.length])
   const [emoji, setEmoji] = useState(profile?.emoji ?? '')
   const [background, setBackground] = useState(profile?.background ?? 'default')
+  const [kids, setKids] = useState(profile?.kids ?? false)
+  const [hideAdult, setHideAdult] = useState(profile?.hideAdult ?? false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The picture background is saved straight away by the main process.
@@ -73,7 +76,7 @@ function ProfileEditor({ profile, onClose }: { profile: Profile | null; onClose:
   const save = async (): Promise<void> => {
     if (!name.trim()) return setError('Give the profile a name.')
     const bg = background === 'image' ? live?.background ?? 'default' : background
-    const err = await saveProfile({ id: profile?.id, name, color, emoji, background: bg })
+    const err = await saveProfile({ id: profile?.id, name, color, emoji, background: bg, kids, hideAdult: kids || hideAdult })
     if (err) setError(err)
     else onClose()
   }
@@ -99,6 +102,27 @@ function ProfileEditor({ profile, onClose }: { profile: Profile | null; onClose:
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void save()}
           />
+        </div>
+
+        <div className="profile-switches">
+          <button className={`focusable switch-row ${kids ? 'on' : ''}`} onClick={() => setKids((k) => !k)}>
+            <span className="switch-knob" />
+            <span>
+              <b>Kids profile</b>
+              <small>Only kids &amp; family categories. Adult content is always hidden.</small>
+            </span>
+          </button>
+          <button
+            className={`focusable switch-row ${kids || hideAdult ? 'on' : ''}`}
+            onClick={() => !kids && setHideAdult((h) => !h)}
+            disabled={kids}
+          >
+            <span className="switch-knob" />
+            <span>
+              <b>Hide adult content</b>
+              <small>Leaves out adult categories and titles everywhere.</small>
+            </span>
+          </button>
         </div>
 
         <div className="field-label">Colour</div>

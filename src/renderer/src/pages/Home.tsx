@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { activeProfile, useStore, type RouteName } from '../store'
-import { recommend } from '../recommend'
+import { activeProfile, cachedCategories, useStore, type RouteName } from '../store'
+import { recommend, type SeedInfo } from '../recommend'
 import { Icon } from '../components/Icon'
 import { ScrollRow } from '../components/ScrollRow'
 import { Initials } from '../components/Initials'
 import { detectBrand } from '../components/brands'
 import { FadeImg } from '../components/FadeImg'
 import { getFocused } from '../hooks/useSpatialNavigation'
-import type { AppTile, Channel, EpgNowNext, ListItem, MediaDetails, Programme, WatchItem } from '@shared/types'
+import type { AppTile, Category, Channel, EpgNowNext, ListItem, MediaDetails, Programme, WatchItem } from '@shared/types'
 
 export function Home(): JSX.Element {
   const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog, openDetail, fetchList, continueItems, resumeItem } =
@@ -25,16 +25,50 @@ export function Home(): JSX.Element {
   const profileId = useStore((s) => s.activeProfileId)
   const fullList = useStore((s) => activeProfile(s)?.myList)
   const myListItems = useMemo(() => (fullList ?? []).filter((i) => i.sourceId === currentSourceId), [fullList, currentSourceId])
-  const [vod, setVod] = useState<Channel[]>([])
+  const [vodLists, setVodLists] = useState<{ channels: Channel[]; categories: Category[] }>({ channels: [], categories: [] })
+  const vod = vodLists.channels
   useEffect(() => {
     if (!currentSourceId) return
-    void Promise.all([fetchList('movie'), fetchList('series')]).then(([m, s]) => setVod([...m, ...s]))
+    void Promise.all([fetchList('movie'), fetchList('series')]).then(([m, s]) =>
+      setVodLists({
+        channels: [...m, ...s],
+        categories: [...cachedCategories(currentSourceId, 'movie'), ...cachedCategories(currentSourceId, 'series')]
+      })
+    )
   }, [currentSourceId, fetchList])
   const [history, setHistory] = useState<WatchItem[]>([])
   useEffect(() => {
     void window.api.progress.history(currentSourceId).then((r) => setHistory(r.data ?? []))
   }, [currentSourceId, continueItems, profileId])
-  const recs = useMemo(() => recommend(vod, myListItems, history), [vod, myListItems, history])
+  // Movie lists rarely include genre/cast; read them for the few titles this
+  // profile saved or watched (the provider's movie info, cached per session).
+  const [seedInfo, setSeedInfo] = useState<Record<string, SeedInfo>>({})
+  useEffect(() => {
+    if (!currentSourceId || !vod.length) return
+    const byId = new Map(vod.map((c) => [c.id, c]))
+    const keys = [
+      ...myListItems.filter((i) => i.kind === 'movie').map((i) => i.key),
+      ...history.filter((h) => h.kind === 'movie' && h.channelId).map((h) => h.channelId!)
+    ]
+    const todo = [...new Set(keys)].filter((k) => !seedInfo[k] && !byId.get(k)?.meta?.genre).slice(0, 8)
+    if (!todo.length) return
+    let cancelled = false
+    void (async () => {
+      const found: Record<string, SeedInfo> = {}
+      for (const key of todo) {
+        const r = await window.api.vod.info(currentSourceId, key.split(':').pop() ?? '')
+        found[key] = r.data ? { genre: r.data.genre, cast: r.data.cast, director: r.data.director } : {}
+      }
+      if (!cancelled) setSeedInfo((cur) => ({ ...cur, ...found }))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentSourceId, vod, myListItems, history])
+  const recs = useMemo(
+    () => recommend(vod, vodLists.categories, myListItems, history, seedInfo),
+    [vod, vodLists.categories, myListItems, history, seedInfo]
+  )
   const myList = useMemo(() => {
     const byId = new Map(vod.map((c) => [c.id, c]))
     return myListItems.map((i) => byId.get(i.key) ?? listItemChannel(i))
