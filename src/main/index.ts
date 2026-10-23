@@ -93,6 +93,14 @@ app.whenReady().then(async () => {
     })
   }
 
+  // CI video test: play a URL straight after start-up (see .github/workflows/video-test.yml).
+  const testUrl = process.env['ELLO_TEST_PLAY']
+  if (testUrl) {
+    windows.uiWindow.webContents.once('did-finish-load', () => {
+      setTimeout(() => void player.load(testUrl, { title: 'Video test' }), 4000)
+    })
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       windows.create()

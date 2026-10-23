@@ -51,7 +51,7 @@ export class WindowManager {
 
   create(): void {
     // The video window is created first so we can hand mpv its native handle.
-    this.videoWindow = new BaseWindow({
+    const videoOpts = {
       show: false,
       width: 1280,
       height: 720,
@@ -60,7 +60,10 @@ export class WindowManager {
       focusable: false,
       skipTaskbar: true,
       backgroundColor: '#000000'
-    })
+    }
+    // ELLO_VIDEO_WINDOW=browser switches to a BrowserWindow surface (CI video test).
+    this.videoWindow =
+      process.env['ELLO_VIDEO_WINDOW'] === 'browser' ? new BrowserWindow(videoOpts) : new BaseWindow(videoOpts)
 
     this.uiWindow = new BrowserWindow({
       width: 1280,

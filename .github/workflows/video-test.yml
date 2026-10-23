@@ -1,0 +1,33 @@
+name: Video test (Windows)
+
+# Launches the app on a Windows runner, auto-plays a generated test pattern and
+# checks the picture actually appears on screen (catches "sound but black screen").
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'claude/**'
+    paths:
+      - 'src/main/**'
+      - 'src/renderer/src/styles/**'
+      - 'scripts/ci-video-test.ps1'
+      - '.github/workflows/video-test.yml'
+
+jobs:
+  video:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: node scripts/fetch-mpv.mjs
+      - name: Build unpacked app
+        run: npm run build && npx electron-builder --win --dir --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Play test pattern and screenshot
+        shell: pwsh
+        run: ./scripts/ci-video-test.ps1

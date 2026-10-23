@@ -143,6 +143,8 @@ export class MpvPlayer extends EventEmitter {
     if (typeof c.wid === 'number' && c.wid > 0) {
       args.push(`--wid=${c.wid}`)
     }
+    // Diagnostics: full mpv log to a file (used by the CI video test).
+    if (process.env['ELLO_MPV_LOG']) args.push(`--log-file=${process.env['ELLO_MPV_LOG']}`)
     return args
   }
 
