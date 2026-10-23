@@ -407,6 +407,17 @@ export function Settings(): JSX.Element {
               </select>
             </div>
             <div>
+              <label>Video renderer</label>
+              <select
+                defaultValue={settings.videoOutput || 'gpu-next'}
+                onChange={(e) => void patchPlayer({ videoOutput: e.target.value })}
+              >
+                <option value="gpu-next">High quality — recommended</option>
+                <option value="gpu">Compatible (Direct3D 11)</option>
+                <option value="gpu-gl">Compatible (OpenGL)</option>
+              </select>
+            </div>
+            <div>
               <label>Network cache (seconds)</label>
               <input
                 type="number"

@@ -26,6 +26,7 @@ const defaults: AppSettings = {
   userAgent: 'VLC/3.0.20 LibVLC/3.0.20',
   cacheSeconds: 30,
   hwdec: 'auto-safe',
+  videoOutput: 'gpu-next',
   deinterlace: true,
   networkTimeoutMs: 15000,
   epgTtlHours: 12,

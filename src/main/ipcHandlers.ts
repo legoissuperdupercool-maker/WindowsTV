@@ -40,7 +40,7 @@ export function registerIpc(ctx: MainContext): void {
       const before = getSettings()
       const after = updateSettings(partial)
       // Restart mpv only if a startup-time option actually changed.
-      const playerKeys = ['mpvPath', 'userAgent', 'cacheSeconds', 'hwdec', 'deinterlace', 'networkTimeoutMs']
+      const playerKeys = ['mpvPath', 'userAgent', 'cacheSeconds', 'hwdec', 'videoOutput', 'deinterlace', 'networkTimeoutMs']
       if (playerKeys.some((k) => (before as never)[k] !== (after as never)[k])) {
         await ctx.restartPlayer()
       }

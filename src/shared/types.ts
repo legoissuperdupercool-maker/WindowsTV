@@ -176,6 +176,8 @@ export interface AppSettings {
   cacheSeconds: number
   /** Hardware decoding mode passed to mpv (`auto-safe` is a good default). */
   hwdec: string
+  /** Video renderer: `gpu-next` (best), `gpu` (compatible) or `gpu-gl` (OpenGL). */
+  videoOutput: string
   /** Deinterlace broadcast feeds. */
   deinterlace: boolean
   /** Connection timeout (ms) for playlist/EPG/stream probing. */

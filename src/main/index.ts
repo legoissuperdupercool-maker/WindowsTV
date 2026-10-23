@@ -31,6 +31,7 @@ function buildPlayer(wid: number): MpvPlayer {
     userAgent: settings.userAgent,
     cacheSeconds: settings.cacheSeconds,
     hwdec: settings.hwdec,
+    videoOutput: settings.videoOutput,
     deinterlace: settings.deinterlace,
     networkTimeoutMs: settings.networkTimeoutMs
   })

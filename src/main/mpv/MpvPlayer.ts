@@ -20,6 +20,7 @@ interface MpvConfig {
   userAgent: string
   cacheSeconds: number
   hwdec: string
+  videoOutput?: string
   deinterlace: boolean
   networkTimeoutMs: number
 }
@@ -111,8 +112,7 @@ export class MpvPlayer extends EventEmitter {
       '--osd-level=0',
       `--input-ipc-server=${this.pipePath}`,
       // --- Video quality ---
-      '--vo=gpu-next,gpu',
-      '--gpu-api=d3d11',
+      ...videoOutputArgs(c.videoOutput),
       `--hwdec=${c.hwdec || 'auto-safe'}`,
       '--profile=high-quality',
       '--video-sync=audio',
@@ -508,3 +508,15 @@ export class MpvPlayer extends EventEmitter {
 }
 
 export type { MpvConfig, LoadOptions }
+
+/** mpv renderer flags for the "Video renderer" setting. */
+function videoOutputArgs(mode?: string): string[] {
+  switch (mode) {
+    case 'gpu':
+      return ['--vo=gpu', '--gpu-api=d3d11']
+    case 'gpu-gl':
+      return ['--vo=gpu', '--gpu-api=opengl']
+    default:
+      return ['--vo=gpu-next,gpu', '--gpu-api=d3d11']
+  }
+}
