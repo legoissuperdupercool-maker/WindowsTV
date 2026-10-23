@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from 'electron'
+import { writeFileSync } from 'node:fs'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { WindowManager } from './windows'
 import { MpvPlayer } from './mpv/MpvPlayer'
@@ -99,6 +100,8 @@ app.whenReady().then(async () => {
   if (testUrl) {
     windows.uiWindow.webContents.once('did-finish-load', () => {
       setTimeout(() => void player.load(testUrl, { title: 'Video test' }), 4000)
+      const gpuLog = process.env['ELLO_GPU_LOG']
+      if (gpuLog) writeFileSync(gpuLog, JSON.stringify(app.getGPUFeatureStatus(), null, 1))
     })
   }
 

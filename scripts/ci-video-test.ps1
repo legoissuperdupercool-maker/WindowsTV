@@ -41,18 +41,28 @@ Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
 # 2) The app, with each video-surface variant.
-foreach ($mode in @('base', 'browser')) {
+# 'gpu' forces Chromium's hardware compositing (as on a PC with a real graphics
+# card); without it the runner's software adapter makes Chromium fall back.
+$gpuFlags = @('--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-gpu-rasterization')
+foreach ($mode in @('base', 'base-gpu')) {
   $env:ELLO_TEST_PLAY = $testUrl
-  $env:ELLO_VIDEO_WINDOW = $mode
+  $env:ELLO_VIDEO_WINDOW = ($mode -replace '-gpu$', '')
   $env:ELLO_MPV_LOG = (Join-Path (Get-Location) "shots/mpv-$mode.log")
-  $p = Start-Process -FilePath $exe.FullName -PassThru
+  $env:ELLO_GPU_LOG = (Join-Path (Get-Location) "shots/gpu-$mode.json")
+  if ($mode -match 'gpu') {
+    $p = Start-Process -FilePath $exe.FullName -ArgumentList $gpuFlags -PassThru
+  } else {
+    $p = Start-Process -FilePath $exe.FullName -PassThru
+  }
   Start-Sleep -Seconds 25
   Measure-Screen "app-$mode"
   Get-Process | Where-Object { $_.Name -match 'ello|mpv' } | Stop-Process -Force -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 3
+  Write-Host "---- Chromium GPU status ($mode):"
+  if (Test-Path "shots/gpu-$mode.json") { Get-Content "shots/gpu-$mode.json" -Raw | Write-Host }
   Write-Host "---- mpv log ($mode), warnings/errors and vo lines:"
   if (Test-Path "shots/mpv-$mode.log") {
-    Select-String -Path "shots/mpv-$mode.log" -Pattern '\[e\]|\[w\]|vo/|VO:|wid|d3d11|Error' | Select-Object -First 40 | ForEach-Object { $_.Line }
+    Select-String -Path "shots/mpv-$mode.log" -Pattern '\[e\]|\[w\]|VO:' | Select-Object -First 15 | ForEach-Object { $_.Line }
   } else { Write-Host '(no mpv log written)' }
 }
 Write-Host "---- control mpv log:"
