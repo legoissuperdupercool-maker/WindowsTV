@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { extname, join, basename } from 'node:path'
 import { userInfo } from 'node:os'
-import type { ListItem, Profile } from '../shared/types'
+import type { ChannelSort, ListItem, Profile } from '../shared/types'
 import { getSettings, updateSettings } from './store'
 import type { WatchProgress } from './progress'
 
@@ -84,7 +84,11 @@ export class Profiles {
         emoji: input.emoji === undefined ? existing.emoji : input.emoji || undefined,
         background: input.background ?? existing.background,
         kids: input.kids ?? existing.kids,
-        hideAdult: input.hideAdult ?? existing.hideAdult
+        hideAdult: input.hideAdult ?? existing.hideAdult,
+        countries: stringList(input.countries) ?? existing.countries,
+        hiddenCategories: stringList(input.hiddenCategories) ?? existing.hiddenCategories,
+        hiddenChannels: stringList(input.hiddenChannels) ?? existing.hiddenChannels,
+        channelSort: SORTS.includes(input.channelSort as ChannelSort) ? input.channelSort : existing.channelSort
       })
     } else {
       if (profiles.length >= MAX_PROFILES) throw new Error(`You can have up to ${MAX_PROFILES} profiles.`)
@@ -181,4 +185,12 @@ function defaultName(): string {
   } catch {
     return 'Me'
   }
+}
+
+const SORTS: ChannelSort[] = ['provider', 'name', 'number']
+
+/** Lists of ids from the renderer: strings only, and not unbounded. */
+function stringList(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  return v.filter((x): x is string => typeof x === 'string' && x.length < 300).slice(0, 5000)
 }

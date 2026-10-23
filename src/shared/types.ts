@@ -85,7 +85,14 @@ export interface Profile {
   recents: string[]
   myList: ListItem[]
   createdAt: number
+  /** Live TV: only channels from these countries (codes from `country.ts`; empty = all). */
+  countries?: string[]
+  hiddenCategories?: string[]
+  hiddenChannels?: string[]
+  channelSort?: ChannelSort
 }
+
+export type ChannelSort = 'provider' | 'name' | 'number'
 
 export interface SeriesEpisode {
   id: string

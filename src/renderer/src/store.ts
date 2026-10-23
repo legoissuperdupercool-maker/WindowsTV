@@ -91,6 +91,10 @@ interface State {
   setProfilePicker: (open: boolean) => void
   /** Add/remove a movie or series from the active profile's My List. */
   toggleMyList: (c: Channel) => Promise<void>
+  /** The provider's whole list (before profile filters), if loaded. */
+  rawList: (type: StreamType) => { channels: Channel[]; categories: Category[] } | undefined
+  /** Countries / hidden categories & channels / sort order for Live TV. */
+  setChannelPrefs: (prefs: Pick<Profile, 'countries' | 'hiddenCategories' | 'hiddenChannels' | 'channelSort'>) => Promise<void>
 }
 
 /** The active profile (or undefined before profiles load). */
@@ -472,6 +476,20 @@ export const useStore = create<State>((set, get) => ({
       const myList = res.data
       set({ profiles: get().profiles.map((p) => (p.id === get().activeProfileId ? { ...p, myList } : p)) })
     }
+  },
+
+  rawList(type) {
+    const id = get().currentSourceId
+    return id ? listCache.get(`${id}:${type}`) : undefined
+  },
+
+  async setChannelPrefs(prefs) {
+    const me = activeProfile(get())
+    if (!me) return
+    // Show the change at once; the main process stores it.
+    set({ profiles: get().profiles.map((p) => (p.id === me.id ? { ...p, ...prefs } : p)) })
+    void get().loadCatalog(get().activeType, false)
+    await window.api.profiles.save({ id: me.id, name: me.name, ...prefs })
   },
 
   closeWebApp() {

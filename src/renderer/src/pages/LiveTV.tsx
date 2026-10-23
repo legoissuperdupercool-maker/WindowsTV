@@ -1,12 +1,13 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useStore } from '../store'
+import { activeProfile, useStore } from '../store'
+import { ChannelFilterSheet, CountryChips, SORT_LABELS } from '../components/ChannelFilter'
 import { CatalogStatus } from '../components/CatalogStatus'
 import { Initials } from '../components/Initials'
 import { FadeImg } from '../components/FadeImg'
 import { getFocused } from '../hooks/useSpatialNavigation'
 import { useProgressive } from '../hooks/useProgressive'
 import { Icon } from '../components/Icon'
-import type { EpgNowNext, Programme } from '@shared/types'
+import type { Channel, ChannelSort, EpgNowNext, Programme } from '@shared/types'
 
 const ALL = '__all__'
 const FAV = '__fav__'
@@ -18,6 +19,23 @@ export function LiveTV(): JSX.Element {
   const [query, setQuery] = useState('')
   const [nowNext, setNowNext] = useState<Record<string, EpgNowNext>>({})
   const favorites = useMemo(() => settings?.favorites ?? [], [settings?.favorites])
+  const profile = useStore(activeProfile)
+  const setChannelPrefs = useStore((s) => s.setChannelPrefs)
+  const [showFilters, setShowFilters] = useState(false)
+  const [menu, setMenu] = useState<{ x: number; y: number; channel?: Channel; categoryId?: string } | null>(null)
+  const sort = profile?.channelSort ?? 'provider'
+  const hiddenCount = (profile?.hiddenCategories?.length ?? 0) + (profile?.hiddenChannels?.length ?? 0)
+
+  const hideChannel = (id: string): void =>
+    void setChannelPrefs({ hiddenChannels: [...(profile?.hiddenChannels ?? []), id] })
+  const hideCategory = (id: string): void => {
+    if (cat === id) setCat(ALL)
+    void setChannelPrefs({ hiddenCategories: [...(profile?.hiddenCategories ?? []), id] })
+  }
+  const nextSort = (): void => {
+    const order: ChannelSort[] = ['provider', 'name', 'number']
+    void setChannelPrefs({ channelSort: order[(order.indexOf(sort) + 1) % order.length] })
+  }
 
   // Live channels only on this page.
   useEffect(() => {
@@ -75,14 +93,25 @@ export function LiveTV(): JSX.Element {
   // Keyboard affordances: F = favourite, I = (reserved) info on the focused card.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key.toLowerCase() === 'f') {
-        const id = getFocused()?.getAttribute('data-channel-id')
-        if (id) void toggleFavorite(id)
-      }
+      if ((e.target as HTMLElement)?.tagName === 'INPUT') return
+      const id = getFocused()?.getAttribute('data-channel-id')
+      if (e.key.toLowerCase() === 'f' && id) void toggleFavorite(id)
+      if (e.key.toLowerCase() === 'h' && id) hideChannel(id)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggleFavorite])
+  }, [toggleFavorite, profile]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!menu) return
+    const close = (): void => setMenu(null)
+    window.addEventListener('mousedown', close)
+    window.addEventListener('blur', close)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('blur', close)
+    }
+  }, [menu])
 
   if (!currentSourceId) return <NoSource />
 
@@ -105,6 +134,11 @@ export function LiveTV(): JSX.Element {
               key={c.id}
               className={`focusable cat-item ${cat === c.id ? 'active' : ''}`}
               onClick={() => setCat(c.id)}
+              onContextMenu={(e) => {
+                if (c.id === ALL || c.id === FAV) return
+                e.preventDefault()
+                setMenu({ x: e.clientX, y: e.clientY, categoryId: c.id })
+              }}
             >
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {c.name}
@@ -121,7 +155,17 @@ export function LiveTV(): JSX.Element {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            <button className="focusable ghost-btn" onClick={nextSort} title="Change the order">
+              ↕ {SORT_LABELS[sort]}
+            </button>
+            <button
+              className={`focusable ghost-btn ${profile?.countries?.length ? 'primary' : ''}`}
+              onClick={() => setShowFilters(true)}
+            >
+              Filter{hiddenCount ? ` · ${hiddenCount} hidden` : ''}
+            </button>
           </div>
+          <CountryChips />
 
           {filtered.length === 0 ? (
             channels.length === 0 ? (
@@ -143,6 +187,10 @@ export function LiveTV(): JSX.Element {
                     className="focusable media-card"
                     data-channel-id={c.id}
                     onClick={() => void play(c.id, filtered.map((f) => f.id))}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      setMenu({ x: e.clientX, y: e.clientY, channel: c })
+                    }}
                   >
                     <div className="art">
                       {c.logo ? (
@@ -170,10 +218,35 @@ export function LiveTV(): JSX.Element {
             </div>
           )}
           <div className="hint-line">
-            Press <b>F</b> to favorite the highlighted channel · Enter to watch
+            Press <b>F</b> to favorite the highlighted channel · <b>H</b> to hide it · right-click for more · Enter to watch
           </div>
         </div>
       </div>
+      {showFilters && <ChannelFilterSheet onClose={() => setShowFilters(false)} />}
+      {menu && (
+        <div className="context-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
+          {menu.channel && (
+            <>
+              <button onClick={() => (void toggleFavorite(menu.channel!.id), setMenu(null))}>
+                <Icon name="star" size={16} /> {favorites.includes(menu.channel.id) ? 'Remove from favourites' : 'Add to favourites'}
+              </button>
+              <button onClick={() => (hideChannel(menu.channel!.id), setMenu(null))}>
+                <Icon name="close" size={16} /> Hide channel
+              </button>
+              {menu.channel.group && (
+                <button onClick={() => (hideCategory(menu.channel!.group!), setMenu(null))}>
+                  <Icon name="close" size={16} /> Hide its category
+                </button>
+              )}
+            </>
+          )}
+          {menu.categoryId && (
+            <button onClick={() => (hideCategory(menu.categoryId!), setMenu(null))}>
+              <Icon name="close" size={16} /> Hide this category
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

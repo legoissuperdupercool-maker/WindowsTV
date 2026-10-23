@@ -38,23 +38,24 @@ enum ContentFilter {
         let hiddenCats = Set(profile.hiddenCategories)
         let hiddenChannels = Set(profile.hiddenChannels)
         if !countries.isEmpty || !hiddenCats.isEmpty || !hiddenChannels.isEmpty {
-            let catById = Dictionary(cats.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            let keepCat: (Category) -> Bool = { c in
-                guard c.kind == .live else { return true }
-                if hiddenCats.contains(c.id) { return false }
-                if countries.isEmpty { return true }
-                return Country.of(category: c.name).map { countries.contains($0) } ?? countries.contains(Country.other)
-            }
-            cats.removeAll { !keepCat($0) }
+            var catCountry: [String: String] = [:]
+            for c in cats where c.kind == .live { catCountry[c.id] = Country.of(category: c.name) }
             list.removeAll { c in
                 guard c.kind == .live else { return false }
                 if hiddenChannels.contains(c.id) { return true }
-                if let g = c.group, let cat = catById[g] {
-                    if !keepCat(cat) { return true }
-                    if countries.isEmpty || Country.of(category: cat.name) != nil { return false }
-                }
-                guard !countries.isEmpty else { return false }
-                return !countries.contains(Country.of(channel: c.name) ?? Country.other)
+                if let g = c.group, hiddenCats.contains(g) { return true }
+                if countries.isEmpty { return false }
+                // The category's country wins; in mixed categories the channel's own prefix ("NL: RTL 4") decides.
+                let code = c.group.flatMap { catCountry[$0] } ?? Country.of(channel: c.name) ?? Country.other
+                return !countries.contains(code)
+            }
+            let used = Set(list.compactMap { $0.kind == .live ? $0.group : nil })
+            cats.removeAll { c in
+                guard c.kind == .live else { return false }
+                if hiddenCats.contains(c.id) { return true }
+                if countries.isEmpty { return false }
+                if let code = catCountry[c.id] { return !countries.contains(code) }
+                return !used.contains(c.id)
             }
         }
         return (list, cats)
