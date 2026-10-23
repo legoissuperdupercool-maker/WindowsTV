@@ -6,3 +6,4 @@ resources/helper
 helper/rcodesign*
 helper/anisette-libs.bin
 helper/*.ipa
+__pycache__
