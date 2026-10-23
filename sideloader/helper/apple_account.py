@@ -33,7 +33,9 @@ import certifi
 import urllib3
 
 GSA = "https://gsa.apple.com/grandslam/GsService2"
-CLIENT_INFO = "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> <com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)>"
+# Apple's sign-in server now answers 503 to clients that say they are Xcode
+# ("com.apple.dt.Xcode/…"); iCloud for Windows is accepted (checked Oct 2026).
+CLIENT_INFO = "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit.Win/1.0 (com.apple.iCloud/7.21)>"
 XCODE_APP = "com.apple.gs.xcode.auth"
 
 
@@ -141,18 +143,11 @@ class Machine:
         h["X-Apple-I-TimeZone"] = "UTC"
         h["X-Apple-Locale"] = "en_US"
         h["X-Apple-I-Locale"] = "en_US"
+        h["X-MMe-Client-Info"] = CLIENT_INFO
         return h
 
     @property
     def client_info(self) -> str:
-        # Must match the device the anisette data was made for.
-        return _client_info(self)
-
-
-def _client_info(m: "Machine") -> str:
-    try:
-        return m.ani._ani_provider.device.server_friendly_description
-    except Exception:
         return CLIENT_INFO
 
 
@@ -236,8 +231,12 @@ def _decrypt_gcm(key: bytes, data: bytes) -> bytes:
 def _error_text(status: dict) -> str:
     code = status.get("ec")
     msg = status.get("em") or "Apple refused the sign-in."
-    if code in (-20101, -22406):
+    if code in (-20101, -22406, -20970):
         return "Wrong Apple ID or password."
+    if code == -80045:
+        return "Apple isn't allowing this sign-in right now. Wait an hour, then try again."
+    if code == -22322:
+        return "This Apple ID can't be used here. Use a normal free Apple ID."
     if code == -20209:
         return "This Apple ID is locked. Unlock it at iforgot.apple.com, then try again."
     if code == -20751:
