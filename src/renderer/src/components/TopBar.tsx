@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useStore, type RouteName } from '../store'
+import { activeProfile, useStore, type RouteName } from '../store'
 import { Icon } from './Icon'
+import { Avatar } from './Avatar'
 
 const TABS: Array<{ route: RouteName; label: string }> = [
   { route: 'home', label: 'Home' },
@@ -31,7 +32,8 @@ function Clock(): JSX.Element {
 }
 
 export function TopBar(): JSX.Element {
-  const { settings, currentSourceId, setSource, navigate, route, update } = useStore()
+  const { settings, currentSourceId, setSource, navigate, route, update, setProfilePicker } = useStore()
+  const me = useStore(activeProfile)
   const sources = settings?.sources ?? []
 
   return (
@@ -81,6 +83,12 @@ export function TopBar(): JSX.Element {
       <button className="focusable icon-btn" title="Settings" onClick={() => navigate('settings')}>
         <Icon name="settings" size={24} />
       </button>
+
+      {me && (
+        <button className="focusable icon-btn avatar-btn" title={`${me.name} · switch profile`} onClick={() => setProfilePicker(true)}>
+          <Avatar profile={me} size={34} />
+        </button>
+      )}
 
       <Clock />
 

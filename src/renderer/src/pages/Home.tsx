@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useStore, type RouteName } from '../store'
+import { activeProfile, useStore, type RouteName } from '../store'
+import { recommend } from '../recommend'
 import { Icon } from '../components/Icon'
 import { ScrollRow } from '../components/ScrollRow'
 import { Initials } from '../components/Initials'
 import { detectBrand } from '../components/brands'
 import { FadeImg } from '../components/FadeImg'
 import { getFocused } from '../hooks/useSpatialNavigation'
-import type { AppTile, Channel, EpgNowNext, MediaDetails, Programme } from '@shared/types'
+import type { AppTile, Channel, EpgNowNext, ListItem, MediaDetails, Programme, WatchItem } from '@shared/types'
 
 export function Home(): JSX.Element {
   const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog, openDetail, fetchList, continueItems, resumeItem } =
@@ -18,6 +19,26 @@ export function Home(): JSX.Element {
     void loadCatalog('live', false)
   }, [loadCatalog, currentSourceId])
   const hasSources = (settings?.sources.length ?? 0) > 0
+
+  // My List + recommendations, all worked out on this PC from this profile's
+  // list and watch history.
+  const profileId = useStore((s) => s.activeProfileId)
+  const fullList = useStore((s) => activeProfile(s)?.myList)
+  const myListItems = useMemo(() => (fullList ?? []).filter((i) => i.sourceId === currentSourceId), [fullList, currentSourceId])
+  const [vod, setVod] = useState<Channel[]>([])
+  useEffect(() => {
+    if (!currentSourceId) return
+    void Promise.all([fetchList('movie'), fetchList('series')]).then(([m, s]) => setVod([...m, ...s]))
+  }, [currentSourceId, fetchList])
+  const [history, setHistory] = useState<WatchItem[]>([])
+  useEffect(() => {
+    void window.api.progress.history(currentSourceId).then((r) => setHistory(r.data ?? []))
+  }, [currentSourceId, continueItems, profileId])
+  const recs = useMemo(() => recommend(vod, myListItems, history), [vod, myListItems, history])
+  const myList = useMemo(() => {
+    const byId = new Map(vod.map((c) => [c.id, c]))
+    return myListItems.map((i) => byId.get(i.key) ?? listItemChannel(i))
+  }, [vod, myListItems])
 
   // Built-in sections (Live TV, Guide…) live in the top tabs, so the apps row
   // only shows real apps.
@@ -208,6 +229,9 @@ export function Home(): JSX.Element {
         </div>
       )}
 
+      {myList.length > 0 && <PosterRail title="My List" items={myList} onOpen={openDetail} />}
+      {recs.forYou.length > 0 && <PosterRail title="Recommended for you" items={recs.forYou} onOpen={openDetail} />}
+
       {/* ---- row 2: live channels ---- */}
       {live.length > 0 && (
         <MediaRail
@@ -217,6 +241,10 @@ export function Home(): JSX.Element {
           nn={nn}
           onPlay={(id) => void play(id, live.map((r) => r.id))}
         />
+      )}
+
+      {recs.because && (
+        <PosterRail title={`Because you watched ${recs.because.title}`} items={recs.because.items} onOpen={openDetail} />
       )}
 
       {recents.length > 0 && (
@@ -394,4 +422,29 @@ function heroColor(seed: string): string {
   let h = 0
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
   return ['#1a73e8', '#c5221f', '#137333', '#8430ce', '#d56e0c', '#007b83'][h % 6]
+}
+
+/** A row of movie / series posters (My List, recommendations). */
+function PosterRail({ title, items, onOpen }: { title: string; items: Channel[]; onOpen: (c: Channel) => void }): JSX.Element {
+  return (
+    <div className="rail">
+      <div className="rail-title">{title}</div>
+      <ScrollRow className="rail-track posters">
+        {items.map((c) => (
+          <button key={c.id} className="focusable poster-card" onClick={() => onOpen(c)}>
+            <div className="art">
+              <span className="ph-txt">{c.name.replace(/^[A-Z]{2,3}\s*[-|:]\s*/, '').slice(0, 2).toUpperCase()}</span>
+              {c.logo && <FadeImg src={c.logo} alt="" className="poster-img" />}
+            </div>
+            <div className="cap">{c.name}</div>
+          </button>
+        ))}
+      </ScrollRow>
+    </div>
+  )
+}
+
+/** A saved title that's no longer in the provider's list still opens its detail screen. */
+function listItemChannel(i: ListItem): Channel {
+  return { id: i.key, sourceId: i.sourceId, type: i.kind, providerId: i.key.split(':').pop() ?? '', name: i.title, logo: i.poster, group: i.group, url: '' }
 }

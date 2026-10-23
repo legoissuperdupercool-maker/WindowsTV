@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useStore, type SeriesRef } from '../store'
+import { activeProfile, useStore, type SeriesRef } from '../store'
 import { Icon } from '../components/Icon'
 import { FadeImg } from '../components/FadeImg'
 import { ScrollRow } from '../components/ScrollRow'
@@ -11,7 +11,8 @@ import type { MediaDetails, SeriesEpisode, WatchItem } from '@shared/types'
  * and an episode row with per-episode progress.
  */
 export function Details(): JSX.Element | null {
-  const { detail, closeDetail, play, playEpisode, playerVisible } = useStore()
+  const { detail, closeDetail, play, playEpisode, playerVisible, toggleMyList } = useStore()
+  const myList = useStore((s) => activeProfile(s)?.myList)
   const [info, setInfo] = useState<MediaDetails | null>(null)
   const [episodes, setEpisodes] = useState<SeriesEpisode[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -123,6 +124,7 @@ export function Details(): JSX.Element | null {
                 <Icon name="play" size={22} /> Play
               </button>
             )}
+            <MyListButton inList={Boolean(myList?.some((i) => i.key === detail.id))} onToggle={() => void toggleMyList(detail)} />
           </div>
 
           {canResume && movieProgress && (
@@ -205,4 +207,12 @@ function minutesLeft(i: WatchItem): string {
   const m = Math.max(1, Math.round((i.duration - i.position) / 60))
   if (m < 60) return `${m} min`
   return m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m / 60} h`
+}
+
+function MyListButton({ inList, onToggle }: { inList: boolean; onToggle: () => void }): JSX.Element {
+  return (
+    <button className={`focusable btn ${inList ? 'in-list' : ''}`} onClick={onToggle} title={inList ? 'Remove from My List' : 'Add to My List'}>
+      <Icon name={inList ? 'check' : 'add'} size={20} /> {inList ? 'In My List' : 'My List'}
+    </button>
+  )
 }

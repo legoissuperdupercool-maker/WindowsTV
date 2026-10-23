@@ -18,6 +18,8 @@ import { Details } from './pages/Details'
 import { PlayerOverlay } from './components/PlayerOverlay'
 import { WebAppView } from './components/WebAppView'
 import { LoadToast } from './components/LoadToast'
+import { ProfilePicker } from './components/ProfilePicker'
+import { AppBackground } from './components/AppBackground'
 
 export default function App(): JSX.Element {
   const {
@@ -32,7 +34,9 @@ export default function App(): JSX.Element {
     webApp,
     closeWebApp,
     detail,
-    closeDetail
+    closeDetail,
+    profilePicker,
+    setProfilePicker
   } = useStore()
 
   useSpatialNavigation()
@@ -63,11 +67,15 @@ export default function App(): JSX.Element {
       }
     }, 60)
     return () => clearTimeout(t)
-  }, [route, ready, detail?.id])
+  }, [route, ready, detail?.id, profilePicker])
 
   // Global back behaviour: close player → return home → (root).
   useEffect(() => {
     setBackHandler(() => {
+      if (profilePicker) {
+        setProfilePicker(false)
+        return true
+      }
       if (webApp.open) {
         closeWebApp()
         return true
@@ -88,7 +96,7 @@ export default function App(): JSX.Element {
       return false
     })
     return () => setBackHandler(null)
-  }, [playerVisible, route, navigate, stopPlayback, setPlayerVisible, webApp.open, closeWebApp, detail, closeDetail])
+  }, [playerVisible, route, navigate, stopPlayback, setPlayerVisible, webApp.open, closeWebApp, detail, closeDetail, profilePicker, setProfilePicker])
 
   if (!ready) {
     // Same splash as index.html, so there's no flash while settings load.
@@ -111,7 +119,7 @@ export default function App(): JSX.Element {
   // The full-screen player and the in-app browser bring their own top controls,
   // so the main top bar is hidden while either is active.
   const overlayUp = playerVisible || webApp.open
-  const showChrome = !overlayUp && !detail
+  const showChrome = !overlayUp && !detail && !profilePicker
 
   return (
     <>
@@ -135,6 +143,8 @@ export default function App(): JSX.Element {
       )}
       {playerVisible && !webApp.open && <PlayerOverlay />}
       {webApp.open && <WebAppView />}
+      {profilePicker && !overlayUp && <ProfilePicker />}
+      <AppBackground />
       <LoadToast />
     </>
   )

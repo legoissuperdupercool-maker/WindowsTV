@@ -31,6 +31,11 @@ import add from '@material-symbols/svg-400/rounded/add-fill.svg?raw'
 import open from '@material-symbols/svg-400/rounded/open_in_new-fill.svg?raw'
 import chevron from '@material-symbols/svg-400/rounded/chevron_right-fill.svg?raw'
 import history from '@material-symbols/svg-400/rounded/history-fill.svg?raw'
+import check from '@material-symbols/svg-400/rounded/check-fill.svg?raw'
+import edit from '@material-symbols/svg-400/rounded/edit-fill.svg?raw'
+import image from '@material-symbols/svg-400/rounded/image-fill.svg?raw'
+import del from '@material-symbols/svg-400/rounded/delete-fill.svg?raw'
+import thumb from '@material-symbols/svg-400/rounded/thumb_up-fill.svg?raw'
 
 const ICONS: Record<string, string> = {
   live,
@@ -62,7 +67,12 @@ const ICONS: Record<string, string> = {
   add,
   open,
   chevron,
-  history
+  history,
+  check,
+  edit,
+  image,
+  delete: del,
+  thumb
 }
 
 export function Icon({ name, size = 22 }: { name: string; size?: number; stroke?: number }): JSX.Element {

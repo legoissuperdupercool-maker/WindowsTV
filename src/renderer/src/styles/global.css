@@ -1898,3 +1898,248 @@ img {
 .player-digits {
   top: 120px;
 }
+
+/* ================================================================ profiles */
+/* The active profile's background (set by AppBackground). The player keeps its
+   own transparent rules (html.playing …, !important). */
+html:not(.playing) body {
+  background: var(--app-bg, var(--bg));
+  background-attachment: fixed;
+}
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1;
+  flex: 0 0 auto;
+  user-select: none;
+}
+.avatar-btn {
+  padding: 0;
+  width: 44px;
+  height: 44px;
+}
+.profile-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 44px;
+  background: var(--app-bg, var(--bg));
+  animation: page-in 0.3s var(--ease);
+}
+.profile-screen h1 {
+  font-size: 44px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.profile-row {
+  display: flex;
+  gap: 34px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 1100px;
+}
+.profile-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: none;
+  border-radius: 24px;
+  padding: 10px;
+}
+.profile-pic {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
+}
+.profile-pic.add {
+  border: 2px dashed rgba(255, 255, 255, 0.28);
+  color: var(--text-dim);
+}
+.profile-tile:hover .profile-pic,
+.profile-tile.is-focused .profile-pic {
+  transform: scale(1.07);
+  box-shadow: 0 0 0 4px #fff;
+}
+.profile-tile.is-focused {
+  outline: none;
+}
+.profile-name {
+  font-size: 18px;
+  color: var(--text-dim);
+}
+.profile-tile:hover .profile-name,
+.profile-tile.is-focused .profile-name,
+.profile-tile.current .profile-name {
+  color: var(--text);
+}
+.profile-edit {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.btn.ghost-outline {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(5, 6, 8, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  animation: page-in 0.2s var(--ease);
+}
+.sheet {
+  width: min(800px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: #16191e;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  padding: 26px 30px 26px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+.profile-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+.profile-name-input {
+  flex: 1;
+  height: 56px;
+  font-size: 24px;
+  font-weight: 600;
+  padding: 0 18px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 2px solid transparent;
+  color: var(--text);
+  outline: none;
+}
+.profile-name-input:focus {
+  border-color: var(--blue);
+}
+.field-label {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 14px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.swatches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+}
+.swatch.on,
+.swatch.is-focused {
+  box-shadow:
+    0 0 0 3px #16191e,
+    0 0 0 5px #fff;
+}
+.emoji {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 22px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.emoji.on,
+.emoji.is-focused {
+  background: var(--surface-3);
+  box-shadow: 0 0 0 2px #fff;
+}
+.bg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 12px;
+}
+.bg-option {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: left;
+  border-radius: 14px;
+  padding: 4px;
+}
+.bg-option:disabled {
+  opacity: 0.45;
+}
+.bg-swatch {
+  height: 50px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+}
+.bg-swatch.picture {
+  background: var(--surface-2);
+}
+.bg-option.on .bg-swatch,
+.bg-option.is-focused .bg-swatch {
+  box-shadow: 0 0 0 3px #fff;
+}
+.bg-option.on {
+  color: var(--text);
+}
+.sheet-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 20px;
+}
+.sheet-actions .spacer {
+  flex: 1;
+}
+.sheet .test-result {
+  margin-top: 16px;
+}
+
+/* ---- My List / recommendation rows ---- */
+.rail-track.posters .poster-card {
+  width: 168px;
+}
+.btn.in-list {
+  background: rgba(52, 199, 89, 0.16);
+  color: #8ee6a4;
+}

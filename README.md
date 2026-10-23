@@ -125,6 +125,14 @@ Two specific UHF pain points drove the design:
 - ⚡ **Channel zapping** (prev/next, or type a channel number) and a polished
   player overlay: channel logo, now/next mini-guide, seek bar with time left,
   and live stats (resolution, codecs, bitrate, buffer).
+- 👥 **Profiles** — Netflix-style “Who’s watching?”: each person gets their own
+  favourites, history, Continue watching, My List and background (presets or
+  your own picture). Switch from the avatar in the top bar.
+- ➕ **My List** — save movies and series from their detail page; they show up
+  in a row on Home.
+- ✨ **Recommendations** — “Recommended for you” and “Because you watched …”
+  rows, worked out on your PC from your My List and what you’ve watched (same
+  categories, sequels/franchises, ratings, new arrivals). Nothing is sent anywhere.
 - 🔄 **Automatic updates** (installer version) — see above.
 - 🛠️ Tunable player settings: hardware-decode mode, cache size, timeouts,
   deinterlacing, User-Agent (global and per-source).
