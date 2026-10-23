@@ -1667,16 +1667,48 @@ img {
   font-variant-numeric: tabular-nums;
 }
 .seek-bar {
+  /* Tall invisible hit area around the thin visible track. */
+  position: relative;
   flex: 1;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+.seek-track {
+  width: 100%;
   height: 5px;
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.22);
   overflow: hidden;
+  transition: height 0.15s ease;
 }
-.seek-bar > span {
+.seek-track > span {
   display: block;
   height: 100%;
   background: #fff;
+}
+.seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  transform: scale(0);
+  transition: transform 0.15s ease;
+  pointer-events: none;
+}
+.seek-bar:hover .seek-track,
+.seek-bar.dragging .seek-track {
+  height: 7px;
+}
+.seek-bar:hover .seek-thumb,
+.seek-bar.dragging .seek-thumb {
+  transform: scale(1);
 }
 .key-hint {
   font-size: 13px;

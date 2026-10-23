@@ -329,13 +329,7 @@ export function PlayerOverlay(): JSX.Element {
 
         {/* VOD: seek bar */}
         {!isLive && playback.duration > 0 && (
-          <div className="seek">
-            <span>{fmtDur(playback.position)}</span>
-            <div className="seek-bar">
-              <span style={{ width: `${(playback.position / playback.duration) * 100}%` }} />
-            </div>
-            <span>-{fmtDur(playback.duration - playback.position)}</span>
-          </div>
+          <SeekBar position={playback.position} duration={playback.duration} onActivity={reveal} />
         )}
 
         <div className="transport">
@@ -415,4 +409,48 @@ function fmtDur(sec: number): string {
   const m = Math.floor((s % 3600) / 60)
   const ss = s % 60
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${m}:${String(ss).padStart(2, '0')}`
+}
+
+/** Clickable / draggable progress bar for movies and episodes. */
+function SeekBar({ position, duration, onActivity }: { position: number; duration: number; onActivity: () => void }): JSX.Element {
+  const barRef = useRef<HTMLDivElement>(null)
+  // While dragging, show where you'll land instead of the playing position.
+  const [drag, setDrag] = useState<number | null>(null)
+  const fractionAt = (clientX: number): number => {
+    const r = barRef.current!.getBoundingClientRect()
+    return Math.min(1, Math.max(0, (clientX - r.left) / r.width))
+  }
+  const shown = drag ?? position / duration
+  return (
+    <div className="seek">
+      <span>{fmtDur(shown * duration)}</span>
+      <div
+        ref={barRef}
+        className={`seek-bar ${drag != null ? 'dragging' : ''}`}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId)
+          setDrag(fractionAt(e.clientX))
+          onActivity()
+        }}
+        onPointerMove={(e) => {
+          if (drag != null) {
+            setDrag(fractionAt(e.clientX))
+            onActivity()
+          }
+        }}
+        onPointerUp={(e) => {
+          if (drag == null) return
+          window.api.player.command({ action: 'seek', value: fractionAt(e.clientX) * duration })
+          setDrag(null)
+        }}
+        onPointerCancel={() => setDrag(null)}
+      >
+        <div className="seek-track">
+          <span style={{ width: `${shown * 100}%` }} />
+        </div>
+        <i className="seek-thumb" style={{ left: `${shown * 100}%` }} />
+      </div>
+      <span>-{fmtDur(duration - shown * duration)}</span>
+    </div>
+  )
 }

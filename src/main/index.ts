@@ -13,6 +13,12 @@ import { WatchProgress } from './progress'
 
 const progress = new WatchProgress()
 
+// mpv draws into a native child of our video window. With Chromium's GPU
+// compositing on (any PC with a real graphics card) Chromium paints that window's
+// surface over mpv and the picture is black with sound; software compositing
+// leaves mpv's child visible. Verified by the Windows video test in CI.
+app.commandLine.appendSwitch('disable-gpu-compositing')
+
 // Single instance only — a second launch focuses the existing window.
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -102,7 +108,17 @@ app.whenReady().then(async () => {
       setTimeout(() => void player.load(testUrl, { title: 'Video test' }), 4000)
       const gpuLog = process.env['ELLO_GPU_LOG']
       if (gpuLog) writeFileSync(gpuLog, JSON.stringify(app.getGPUFeatureStatus(), null, 1))
-      if (process.env['ELLO_TEST_HIDE_UI']) setTimeout(() => windows.uiWindow.setOpacity(0), 6000)
+      // Screen position of the play/pause button, so the test can click it.
+      const rectsFile = process.env['ELLO_UI_RECTS']
+      if (rectsFile) {
+        setTimeout(async () => {
+          const r = await windows.uiWindow.webContents.executeJavaScript(
+            `(() => { const b = document.querySelector('.transport .tbtn.primary')?.getBoundingClientRect(); return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2 } : null })()`
+          )
+          const c = windows.uiWindow.getContentBounds()
+          writeFileSync(rectsFile, r ? `${Math.round(c.x + r.x)} ${Math.round(c.y + r.y)}` : 'none')
+        }, 12000)
+      }
     })
   }
 

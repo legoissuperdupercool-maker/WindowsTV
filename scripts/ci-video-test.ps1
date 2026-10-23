@@ -6,6 +6,13 @@ Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 
 $exe = Get-ChildItem -Path release/win-unpacked -Filter *.exe | Where-Object { $_.Name -notmatch 'Uninstall' } | Select-Object -First 1
 $mpv = (Resolve-Path resources/mpv/mpv.exe).Path
+Add-Type @'
+using System.Runtime.InteropServices;
+public static class Mouse {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, int e);
+}
+'@
 $testUrl = 'av://lavfi:testsrc2=size=1280x720:rate=30'
 New-Item -ItemType Directory -Force -Path shots | Out-Null
 
@@ -46,20 +53,29 @@ Start-Sleep -Seconds 2
 # Chromium fall back to software compositing.
 $gpu = @('--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-gpu-rasterization')
 $variants = @(
-  @{ name = 'gpu';          args = $gpu },
-  @{ name = 'gpu-hideui';   args = $gpu; hideUi = $true },
-  @{ name = 'gpu-nodcomp';  args = $gpu + @('--disable-direct-composition') },
-  @{ name = 'gpu-swcomp';   args = $gpu + @('--disable-gpu-compositing') }
+  @{ name = 'default'; args = @() },
+  @{ name = 'gpu';     args = $gpu }
 )
 foreach ($v in $variants) {
   $mode = $v.name
   $env:ELLO_TEST_PLAY = $testUrl
   $env:ELLO_MPV_LOG = (Join-Path (Get-Location) "shots/mpv-$mode.log")
   $env:ELLO_GPU_LOG = (Join-Path (Get-Location) "shots/gpu-$mode.json")
-  $env:ELLO_TEST_HIDE_UI = $(if ($v.hideUi) { '1' } else { '' })
+  $rects = Join-Path (Get-Location) "shots/rects-$mode.txt"
+  $env:ELLO_UI_RECTS = $rects
   $p = Start-Process -FilePath $exe.FullName -ArgumentList $v.args -PassThru
   Start-Sleep -Seconds 25
   Measure-Screen "app-$mode"
+  # Click the play/pause button with the real mouse; mpv should log a pause toggle.
+  if ((Test-Path $rects) -and ((Get-Content $rects) -ne 'none')) {
+    $xy = (Get-Content $rects).Split(' ')
+    [Mouse]::SetCursorPos([int]$xy[0] - 40, [int]$xy[1]); Start-Sleep -Milliseconds 300
+    [Mouse]::SetCursorPos([int]$xy[0], [int]$xy[1]); Start-Sleep -Milliseconds 500
+    [Mouse]::mouse_event(0x0002, 0, 0, 0, 0); [Mouse]::mouse_event(0x0004, 0, 0, 0, 0)
+    Start-Sleep -Seconds 2
+    $clicked = Select-String -Path "shots/mpv-$mode.log" -Pattern 'Run command: cycle' -Quiet
+    Write-Host "RESULT click-$mode : play/pause button at $($xy -join ',') -> $(if ($clicked) { 'mpv toggled pause' } else { 'NO pause command reached mpv' })"
+  } else { Write-Host "RESULT click-$mode : play/pause button not found" }
   Get-Process | Where-Object { $_.Name -match 'ello|mpv' } | Stop-Process -Force -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 3
   if (Test-Path "shots/gpu-$mode.json") {
