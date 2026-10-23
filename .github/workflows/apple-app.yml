@@ -1,0 +1,83 @@
+name: Build ello smartTV for iPad/iPhone
+
+# Builds the SwiftUI app (apple-app/) on a Mac runner: an unsigned .ipa for
+# ello Sideloader to sign and install, plus iPad simulator screenshots of the
+# demo catalogue so the UI can be checked without a device.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'claude/**'
+    paths:
+      - 'apple-app/**'
+      - '.github/workflows/apple-app.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  ios:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apple-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -version
+
+      - name: Build for iPad/iPhone (unsigned)
+        run: |
+          xcodebuild -project Ello.xcodeproj -scheme Ello -configuration Release -sdk iphoneos \
+            -derivedDataPath build/device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="0.1.${{ github.run_number }}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            build -quiet
+          mkdir -p out/Payload
+          cp -R "build/device/Build/Products/Release-iphoneos/ello smartTV.app" out/Payload/
+          (cd out && zip -qry "ello-smartTV-iOS-0.1.${{ github.run_number }}.ipa" Payload)
+          ls -la out
+
+      - name: Screenshots in the iPad simulator
+        run: |
+          xcodebuild -project Ello.xcodeproj -scheme Ello -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build/sim build -quiet
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          devs = [d for k, v in json.load(sys.stdin)['devices'].items() if 'iOS' in k for d in v]
+          pads = [d for d in devs if d['name'].startswith('iPad Air')] or [d for d in devs if d['name'].startswith('iPad')]
+          print(pads[-1]['udid'])")
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "build/sim/Build/Products/Debug-iphonesimulator/ello smartTV.app"
+          mkdir -p shots
+          shoot() {
+            name=$1; shift
+            xcrun simctl launch --terminate-running-process "$UDID" com.ello.smarttv -demo "$@"
+            sleep 7
+            xcrun simctl io "$UDID" screenshot "shots/$name.png"
+            sips -Z 760 -s format jpeg -s formatOptions 60 "shots/$name.png" --out "shots/$name.jpg" >/dev/null
+            echo "PREVIEW $name $(base64 -i "shots/$name.jpg" | tr -d '\n')"
+          }
+          shoot home
+          shoot live -tab live
+          shoot movies -tab movies
+          shoot series -tab series
+          shoot settings -screen settings
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apple-app-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: ello smartTV for iPad/iPhone — build ${{ github.run_number }}
+          prerelease: true
+          body: |
+            Unsigned app for iPad and iPhone. Install it with ello Sideloader
+            (it signs the app with your own free Apple ID).
+          files: apple-app/out/*.ipa
+          fail_on_unmatched_files: true
