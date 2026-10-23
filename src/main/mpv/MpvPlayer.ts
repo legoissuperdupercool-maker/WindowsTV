@@ -21,6 +21,8 @@ interface MpvConfig {
   cacheSeconds: number
   hwdec: string
   videoOutput?: string
+  /** D3D11 adapter (GPU) for mpv to render on; unset = Windows' default. */
+  d3d11Adapter?: string
   deinterlace: boolean
   networkTimeoutMs: number
 }
@@ -50,6 +52,7 @@ export class MpvPlayer extends EventEmitter {
   private buffer = ''
   private startWatchdog: NodeJS.Timeout | null = null
   private started = false
+  private adapterReady: Promise<void> = Promise.resolve()
   /** mpv stderr lines since the current load started. */
   private recentLog: string[] = []
   /** Stream open, first frames not playing yet. */
@@ -78,8 +81,16 @@ export class MpvPlayer extends EventEmitter {
     return this.state
   }
 
+  /** Render on this GPU once the lookup finishes; mpv's start waits for it. */
+  useAdapter(name: Promise<string | undefined>): void {
+    this.adapterReady = name.then((n) => {
+      this.cfg.d3d11Adapter = n
+    })
+  }
+
   /** Launch mpv in idle mode and connect to its IPC pipe. Idempotent. */
   async start(): Promise<void> {
+    await this.adapterReady
     if (this.proc) return
 
     const args = this.buildArgs()
@@ -125,6 +136,7 @@ export class MpvPlayer extends EventEmitter {
       `--input-ipc-server=${this.pipePath}`,
       // --- Video quality ---
       ...videoOutputArgs(c.videoOutput),
+      ...(c.d3d11Adapter && c.videoOutput !== 'gpu-gl' ? [`--d3d11-adapter=${c.d3d11Adapter}`] : []),
       `--hwdec=${c.hwdec || 'auto-safe'}`,
       '--profile=high-quality',
       '--video-sync=audio',

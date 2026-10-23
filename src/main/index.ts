@@ -10,6 +10,7 @@ import { getSettings } from './store'
 import { IPC } from '../shared/ipc'
 import { initUpdater } from './updater'
 import { WatchProgress } from './progress'
+import { findDisplayGpu } from './mpv/displayGpu'
 
 const progress = new WatchProgress()
 
@@ -28,6 +29,8 @@ let windows: WindowManager
 let player: MpvPlayer
 let catalog: Catalog
 let mpvInfo: { path?: string; reason?: string }
+/** GPU driving the screen on two-GPU laptops (see displayGpu.ts). */
+let displayGpu: Promise<string | undefined>
 
 function buildPlayer(wid: number): MpvPlayer {
   const settings = getSettings()
@@ -49,6 +52,7 @@ function buildPlayer(wid: number): MpvPlayer {
   p.on('log', (line: string) => {
     if (process.env['WTV_DEBUG']) console.log('[mpv]', line.trim())
   })
+  p.useAdapter(displayGpu)
   return p
 }
 
@@ -77,6 +81,7 @@ app.whenReady().then(async () => {
   windows.create()
 
   catalog = new Catalog()
+  displayGpu = findDisplayGpu()
   player = buildPlayer(windows.getVideoWindowId())
 
   ctx = {
