@@ -10,7 +10,9 @@ import type {
   Channel,
   PlaybackState,
   LoadProgress,
-  StreamType
+  StreamType,
+  ListItem,
+  Profile
 } from '@shared/types'
 
 export type RouteName = 'home' | 'live' | 'movies' | 'series' | 'guide' | 'settings'
@@ -47,6 +49,12 @@ interface State {
   /** Unfinished movies/episodes for the "Continue watching" row. */
   continueItems: WatchItem[]
 
+  /** Netflix-style profiles; the active one owns favourites, history, My List and background. */
+  profiles: Profile[]
+  activeProfileId: string | null
+  /** "Who's watching?" screen: shown at start when there are several profiles. */
+  profilePicker: boolean
+
   // actions
   init: () => Promise<void>
   navigate: (route: RouteName) => void
@@ -74,6 +82,19 @@ interface State {
   /** Get a list (cached) without making it the active tab's list. */
   fetchList: (type: StreamType) => Promise<Channel[]>
   closeWebApp: () => void
+  loadProfiles: () => Promise<void>
+  selectProfile: (id: string) => Promise<void>
+  saveProfile: (p: Partial<Profile> & { name: string }) => Promise<string | null>
+  deleteProfile: (id: string) => Promise<string | null>
+  pickBackground: (id: string) => Promise<string | null>
+  setProfilePicker: (open: boolean) => void
+  /** Add/remove a movie or series from the active profile's My List. */
+  toggleMyList: (c: Channel) => Promise<void>
+}
+
+/** The active profile (or undefined before profiles load). */
+export function activeProfile(s: { profiles: Profile[]; activeProfileId: string | null }): Profile | undefined {
+  return s.profiles.find((p) => p.id === s.activeProfileId)
 }
 
 /**
@@ -123,8 +144,13 @@ export const useStore = create<State>((set, get) => ({
   detail: null,
   episodeCtx: null,
   continueItems: [],
+  profiles: [],
+  activeProfileId: null,
+  profilePicker: false,
 
   async init() {
+    await get().loadProfiles()
+    set({ profilePicker: get().profiles.length > 1 })
     const res = await window.api.settings.get()
     const settings = res.data ?? null
     const currentSourceId =
@@ -141,6 +167,14 @@ export const useStore = create<State>((set, get) => ({
     window.api.onUpdateState((update) => set({ update }))
     void window.api.updates.getState().then((r) => r.data && set({ update: r.data }))
     window.api.onCatalogProgress((progress) => {
+      if (progress.quiet) {
+        // Background refresh: just pick up the new lists when it's done.
+        if (progress.phase === 'done' && progress.sourceId === get().currentSourceId) {
+          clearListCache(progress.sourceId)
+          void get().loadCatalog(get().activeType, false)
+        }
+        return
+      }
       set({ progress })
       if (progress.sourceId === get().currentSourceId) {
         if (progress.phase === 'error') set({ loadError: progress.message })
@@ -338,6 +372,67 @@ export const useStore = create<State>((set, get) => ({
     const list = { channels: res.data.channels, categories: res.data.categories }
     if (list.channels.length) listCache.set(key, list)
     return list.channels
+  },
+
+  async loadProfiles() {
+    const res = await window.api.profiles.get()
+    if (res.data) set({ profiles: res.data.profiles, activeProfileId: res.data.activeId })
+  },
+
+  async selectProfile(id) {
+    if (id !== get().activeProfileId) {
+      if (get().playerVisible) get().stopPlayback()
+      const res = await window.api.profiles.select(id)
+      if (res.data) set({ profiles: res.data.profiles, activeProfileId: res.data.activeId })
+      await get().refreshSettings()
+      void get().refreshContinue()
+    }
+    set({ profilePicker: false, route: 'home', detail: null })
+  },
+
+  async saveProfile(p) {
+    const res = await window.api.profiles.save(p)
+    if (!res.data) return res.error ?? 'Couldn’t save the profile.'
+    set({ profiles: res.data.profiles, activeProfileId: res.data.activeId })
+    return null
+  },
+
+  async deleteProfile(id) {
+    const res = await window.api.profiles.remove(id)
+    if (!res.data) return res.error ?? 'Couldn’t delete the profile.'
+    set({ profiles: res.data.profiles, activeProfileId: res.data.activeId })
+    await get().refreshSettings()
+    void get().refreshContinue()
+    return null
+  },
+
+  async pickBackground(id) {
+    const res = await window.api.profiles.pickBackground(id)
+    if (!res.ok) return res.error ?? 'Couldn’t use that picture.'
+    if (res.data) set({ profiles: res.data.profiles, activeProfileId: res.data.activeId })
+    return null
+  },
+
+  setProfilePicker(open) {
+    set({ profilePicker: open })
+  },
+
+  async toggleMyList(c) {
+    if (c.type !== 'movie' && c.type !== 'series') return
+    const item: ListItem = {
+      key: c.id,
+      sourceId: c.sourceId,
+      kind: c.type,
+      title: c.name,
+      poster: c.logo,
+      group: c.group,
+      addedAt: Date.now()
+    }
+    const res = await window.api.myList.toggle(item)
+    if (res.data) {
+      const myList = res.data
+      set({ profiles: get().profiles.map((p) => (p.id === get().activeProfileId ? { ...p, myList } : p)) })
+    }
   },
 
   closeWebApp() {

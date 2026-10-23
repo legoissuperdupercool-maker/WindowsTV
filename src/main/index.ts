@@ -10,6 +10,7 @@ import { getSettings } from './store'
 import { IPC } from '../shared/ipc'
 import { initUpdater } from './updater'
 import { WatchProgress } from './progress'
+import { Profiles } from './profiles'
 import { findDisplayGpu } from './mpv/displayGpu'
 
 const progress = new WatchProgress()
@@ -93,7 +94,8 @@ app.whenReady().then(async () => {
     },
     restartPlayer,
     updater: initUpdater((state) => windows.send(IPC.updateState, state)),
-    progress
+    progress,
+    profiles: new Profiles(progress)
   } as unknown as MainContext
 
   registerIpc(ctx)

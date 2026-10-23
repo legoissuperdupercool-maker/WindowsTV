@@ -33,7 +33,19 @@ export function PlayerOverlay(): JSX.Element {
 
   const channel = channels.find((c) => c.id === playback.channelId)
   const isLive = nowPlayingKind === 'live'
-  const busy = playback.status === 'loading' || playback.status === 'buffering'
+  // Short buffering blips (a fraction of a second) are invisible in the video,
+  // so only show "Buffering…" when it lasts a moment.
+  const buffering = playback.status === 'buffering'
+  const [showBuffering, setShowBuffering] = useState(false)
+  useEffect(() => {
+    if (!buffering) {
+      setShowBuffering(false)
+      return
+    }
+    const t = setTimeout(() => setShowBuffering(true), 1500)
+    return () => clearTimeout(t)
+  }, [buffering])
+  const busy = playback.status === 'loading' || showBuffering
   const errored = playback.status === 'error'
   const nextEp = episodeCtx ? episodeCtx.episodes[episodeCtx.index + 1] : undefined
   const close = useCallback(() => {
@@ -50,12 +62,27 @@ export function PlayerOverlay(): JSX.Element {
     }, 3800)
   }, [])
 
+  // Show the controls for a new channel/title, and when playback pauses or
+  // fails; not on every buffering blip, which made them pop up mid-film.
   useEffect(() => {
     reveal()
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current)
     }
-  }, [reveal, playback.status, playback.channelId])
+  }, [reveal, playback.channelId, playback.title])
+  useEffect(() => {
+    if (playback.paused || playback.status === 'error') reveal()
+  }, [reveal, playback.paused, playback.status === 'error'])
+  // When a title first starts playing, hide the controls after a moment (the
+  // hide timer only hides while playing). Once per title, not after each blip.
+  const startedFor = useRef<string | null>(null)
+  useEffect(() => {
+    const key = `${playback.channelId}|${playback.title}`
+    if (playback.status === 'playing' && startedFor.current !== key) {
+      startedFor.current = key
+      reveal()
+    }
+  }, [reveal, playback.status, playback.channelId, playback.title])
 
   // Now/next for live channels (refreshed every minute).
   useEffect(() => {

@@ -12,10 +12,17 @@ import type {
   MediaDetails,
   PlayOptions,
   WatchItem,
+  ListItem,
+  Profile,
   SeriesDetails,
   Source,
   StreamType
 } from '../shared/types'
+
+export interface ProfilesState {
+  activeId: string
+  profiles: Profile[]
+}
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<Result<T>> =>
   ipcRenderer.invoke(channel, ...args)
@@ -66,12 +73,24 @@ const api = {
   },
   progress: {
     list: (sourceId?: string) => invoke<WatchItem[]>(IPC.progressList, sourceId),
+    history: (sourceId?: string) => invoke<WatchItem[]>(IPC.progressHistory, sourceId),
     get: (key: string) => invoke<WatchItem | null>(IPC.progressGet, key),
     series: (sourceId: string, seriesId: string) =>
       invoke<Record<string, WatchItem>>(IPC.progressSeries, { sourceId, seriesId })
   },
   vod: {
     info: (sourceId: string, vodId: string) => invoke<MediaDetails>(IPC.vodInfo, { sourceId, vodId })
+  },
+  profiles: {
+    get: () => invoke<ProfilesState>(IPC.profilesGet),
+    select: (id: string) => invoke<ProfilesState>(IPC.profileSelect, id),
+    save: (p: Partial<Profile> & { name: string }) => invoke<ProfilesState>(IPC.profileSave, p),
+    remove: (id: string) => invoke<ProfilesState>(IPC.profileDelete, id),
+    pickBackground: (id: string) => invoke<ProfilesState | null>(IPC.profilePickBackground, id),
+    backgroundImage: (background: string) => invoke<string | null>(IPC.profileBackgroundImage, background)
+  },
+  myList: {
+    toggle: (item: ListItem) => invoke<ListItem[]>(IPC.myListToggle, item)
   },
   favorites: {
     toggle: (channelId: string) => invoke<AppSettings>(IPC.favoriteToggle, channelId)

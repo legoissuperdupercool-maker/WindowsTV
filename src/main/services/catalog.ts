@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { join } from 'node:path'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import type {
   AppSettings,
   Category,
@@ -23,6 +23,8 @@ interface SourceData {
   epgUrl?: string
   /** Provider clock (Xtream), needed for catch-up start times. */
   clock?: ServerClock
+  /** When the lists were downloaded (ms epoch). */
+  fetchedAt?: number
 }
 
 /**
@@ -45,6 +47,8 @@ export class Catalog {
     if (!existsSync(file)) return false
     try {
       const parsed = JSON.parse(await readFile(file, 'utf8')) as SourceData
+      // Caches written before fetchedAt existed: the file's date is close enough.
+      parsed.fetchedAt ??= statSync(file).mtimeMs
       this.data.set(sourceId, parsed)
       return true
     } catch {
@@ -61,12 +65,24 @@ export class Catalog {
     return s
   }
 
-  /** Full refresh of a source from the network. Emits progress throughout. */
+  /** True when the lists are older than `maxAgeMs` (or were never downloaded). */
+  isStale(sourceId: string, maxAgeMs: number): boolean {
+    const at = this.data.get(sourceId)?.fetchedAt
+    return !at || Date.now() - at > maxAgeMs
+  }
+
+  /**
+   * Full refresh of a source from the network. Emits progress throughout.
+   * `sequential` downloads the live / movie / series lists one after another
+   * (one connection at a time — gentler on providers' connection limits);
+   * otherwise in parallel, which is faster when someone is waiting for them.
+   */
   async refreshSource(
     source: Source,
     settings: AppSettings,
     onProgress: ProgressFn,
-    force = true
+    force = true,
+    sequential = false
   ): Promise<SourceData> {
     const ua = source.userAgent || settings.userAgent
     const timeout = settings.networkTimeoutMs
@@ -84,11 +100,17 @@ export class Catalog {
       onProgress({ sourceId: source.id, phase: 'channels', message: 'Fetching channels, movies & series…' })
       // Fetch all three lists together and keep whatever succeeds, so one slow
       // or broken list (common on overloaded panels) doesn't leave you with nothing.
-      const [liveR, vodR, seriesR] = await Promise.allSettled([
-        xtream.getLiveStreams(source, ua, timeout),
-        xtream.getVod(source, ua, timeout),
-        xtream.getSeries(source, ua, timeout)
-      ])
+      const lists = [
+        () => xtream.getLiveStreams(source, ua, timeout),
+        () => xtream.getVod(source, ua, timeout),
+        () => xtream.getSeries(source, ua, timeout)
+      ]
+      const settled = <T>(p: Promise<T>): Promise<PromiseSettledResult<T>> =>
+        p.then((value) => ({ status: 'fulfilled', value }) as const, (reason) => ({ status: 'rejected', reason }) as const)
+      const results: PromiseSettledResult<Channel[]>[] = []
+      if (sequential) for (const get of lists) results.push(await settled(get()))
+      else results.push(...(await Promise.all(lists.map((get) => settled(get())))))
+      const [liveR, vodR, seriesR] = results
       const live = liveR.status === 'fulfilled' ? liveR.value : []
       const vod = vodR.status === 'fulfilled' ? vodR.value : []
       const series = seriesR.status === 'fulfilled' ? seriesR.value : []
@@ -106,7 +128,8 @@ export class Catalog {
         channels: [...live, ...vod, ...series],
         categories,
         epgUrl: source.epgUrl || xtream.xtreamEpgUrl(source),
-        clock: auth.clock
+        clock: auth.clock,
+        fetchedAt: Date.now()
       }
     } else {
       onProgress({ sourceId: source.id, phase: 'channels', message: 'Downloading playlist…' })
@@ -114,7 +137,8 @@ export class Catalog {
       result = {
         channels: m3u.channels,
         categories: m3u.categories,
-        epgUrl: source.epgUrl || m3u.epgUrl
+        epgUrl: source.epgUrl || m3u.epgUrl,
+        fetchedAt: Date.now()
       }
     }
 

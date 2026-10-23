@@ -53,6 +53,36 @@ export interface Channel {
   }
 }
 
+/** A movie or series saved to a profile's "My List". */
+export interface ListItem {
+  /** Channel id (`${sourceId}:movie:${id}` / `${sourceId}:series:${id}`). */
+  key: string
+  sourceId: string
+  kind: 'movie' | 'series'
+  title: string
+  poster?: string
+  /** Category (group) id, used for recommendations. */
+  group?: string
+  addedAt: number
+}
+
+/** One person in the household (Netflix-style). */
+export interface Profile {
+  id: string
+  name: string
+  /** Avatar colour. */
+  color: string
+  /** Optional emoji shown instead of the initial. */
+  emoji?: string
+  /** Background preset id, or `image:<file>` for a picture the person chose. */
+  background: string
+  /** Live channels starred by this person (stored here while another profile is active). */
+  favorites: string[]
+  recents: string[]
+  myList: ListItem[]
+  createdAt: number
+}
+
 export interface SeriesEpisode {
   id: string
   title: string
@@ -235,4 +265,6 @@ export interface LoadProgress {
   phase: 'connecting' | 'categories' | 'channels' | 'epg' | 'done' | 'error'
   message: string
   count?: number
+  /** Background refresh: update the lists, but don't show it on screen. */
+  quiet?: boolean
 }

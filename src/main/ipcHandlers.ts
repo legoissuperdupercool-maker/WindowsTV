@@ -1,7 +1,8 @@
 import { app, ipcMain, shell } from 'electron'
 import { IPC, type PlayerCommand, type UpdateState, type VideoRegion } from '../shared/ipc'
-import type { PlayOptions, Result, Source, StreamType } from '../shared/types'
+import type { LoadProgress, PlayOptions, Result, Source, StreamType } from '../shared/types'
 import type { WatchProgress } from './progress'
+import { backgroundImage, type Profiles } from './profiles'
 import { getSettings, updateSettings } from './store'
 import type { Catalog } from './services/catalog'
 import type { MpvPlayer } from './mpv/MpvPlayer'
@@ -18,6 +19,7 @@ export interface MainContext {
   restartPlayer: () => Promise<void>
   updater: { check: () => void; install: () => void; getState: () => UpdateState }
   progress: WatchProgress
+  profiles: Profiles
 }
 
 function ok<T>(data: T): Result<T> {
@@ -97,19 +99,45 @@ export function registerIpc(ctx: MainContext): void {
   })
 
   // ---------------------------------------------------------------- catalogue
+  /** Lists older than this are refreshed in the background. */
+  const CATALOG_MAX_AGE_MS = 12 * 3600_000
+  const backgroundRefreshing = new Set<string>()
+  /** Run `job` once nothing is playing (checked every 20 s). */
+  const whenNotPlaying = (job: () => Promise<unknown>): Promise<unknown> =>
+    new Promise((resolve) => {
+      const tryRun = (): void => {
+        const status = ctx.player.getState().status
+        if (status === 'idle' || status === 'error') resolve(job())
+        else setTimeout(tryRun, 20_000)
+      }
+      tryRun()
+    })
   ipcMain.handle(IPC.catalogLoad, async (_e, args: { sourceId: string; force?: boolean }) => {
     const settings = getSettings()
     const source = settings.sources.find((s) => s.id === args.sourceId)
     if (!source) return fail('Source not found')
     const onProgress = (p: unknown): void => windows.send(IPC.catalogProgress, p)
     try {
-      // Fast path: show cached catalogue immediately, then refresh if stale/forced.
+      // Fast path: show the cached catalogue immediately. Only refresh it when
+      // it's out of date, quietly, one list at a time, and never while something
+      // is playing: big list downloads compete with the stream for bandwidth and
+      // for the provider's (often 1–2) allowed connections, which causes buffering.
       const hadCache = catalog.hasData(source.id) || (await catalog.loadFromCache(source.id))
       if (hadCache && !args.force) {
-        void catalog.refreshSource(source, settings, onProgress, false).catch((e) =>
-          onProgress({ sourceId: source.id, phase: 'error', message: (e as Error).message })
-        )
-        await catalog.ensureEpg(source, settings, false)
+        if (catalog.isStale(source.id, CATALOG_MAX_AGE_MS) && !backgroundRefreshing.has(source.id)) {
+          backgroundRefreshing.add(source.id)
+          const quiet = (p: LoadProgress): void => onProgress({ ...p, quiet: true })
+          void whenNotPlaying(() =>
+            catalog
+              .refreshSource(source, getSettings(), quiet, false, true)
+              .catch(() => {
+                /* keep the cached lists; try again next start */
+              })
+              .finally(() => backgroundRefreshing.delete(source.id))
+          )
+        } else {
+          void whenNotPlaying(() => catalog.ensureEpg(source, settings, false))
+        }
         return ok({ count: catalog.getChannels(source.id).length, cached: true })
       }
       const data = await catalog.refreshSource(source, settings, onProgress, Boolean(args.force))
@@ -433,6 +461,29 @@ export function registerIpc(ctx: MainContext): void {
   })
 
   ipcMain.handle(IPC.progressList, (_e, sourceId?: string) => ok(ctx.progress.list(sourceId)))
+  ipcMain.handle(IPC.progressHistory, (_e, sourceId?: string) => ok(ctx.progress.history(sourceId)))
+
+  // ---------------------------------------------------------------- profiles / My List
+  const guard = <T>(fn: () => T): Result<T> => {
+    try {
+      return ok(fn())
+    } catch (e) {
+      return fail(e)
+    }
+  }
+  ipcMain.handle(IPC.profilesGet, () => ok(ctx.profiles.get()))
+  ipcMain.handle(IPC.profileSelect, (_e, id: string) => guard(() => ctx.profiles.select(id)))
+  ipcMain.handle(IPC.profileSave, (_e, p) => guard(() => ctx.profiles.save(p)))
+  ipcMain.handle(IPC.profileDelete, (_e, id: string) => guard(() => ctx.profiles.delete(id)))
+  ipcMain.handle(IPC.myListToggle, (_e, item) => guard(() => ctx.profiles.toggleMyList(item)))
+  ipcMain.handle(IPC.profilePickBackground, async (_e, id: string) => {
+    try {
+      return ok(await ctx.profiles.pickBackground(windows.uiWindow, id))
+    } catch (e) {
+      return fail(e)
+    }
+  })
+  ipcMain.handle(IPC.profileBackgroundImage, (_e, background: string) => ok(backgroundImage(background)))
   ipcMain.handle(IPC.progressGet, (_e, key: string) => ok(ctx.progress.get(key) ?? null))
   ipcMain.handle(IPC.progressSeries, (_e, args: { sourceId: string; seriesId: string }) =>
     ok(ctx.progress.forSeries(args.sourceId, args.seriesId))

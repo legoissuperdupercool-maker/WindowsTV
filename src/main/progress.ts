@@ -1,4 +1,7 @@
 import Store from 'electron-store'
+import { app } from 'electron'
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
 import type { PlaybackState, WatchItem } from '../shared/types'
 
 type Current = Omit<WatchItem, 'position' | 'duration' | 'updatedAt' | 'finished'>
@@ -10,19 +13,34 @@ const FINISHED_AT = 0.95
 const MAX_ITEMS = 300
 
 /**
- * Remembers how far you got in every movie/episode, saved to
- * userData/watch-progress.json. Fed by the player's state events, so it works
- * however playback was started and survives the app being closed mid-film.
+ * Remembers how far you got in every movie/episode, per profile, saved to
+ * userData/watch-progress[-<profile>].json. Fed by the player's state events, so
+ * it works however playback was started and survives the app being closed mid-film.
  */
 export class WatchProgress {
-  private store = new Store<{ items: Record<string, WatchItem> }>({
-    name: 'watch-progress',
-    defaults: { items: {} }
-  })
+  private store = WatchProgress.open('default')
   private current: Current | null = null
   private pos = 0
   private dur = 0
   private lastSave = 0
+
+  private static open(profileId: string): Store<{ items: Record<string, WatchItem> }> {
+    // The first profile keeps the file from before profiles existed.
+    const name = profileId === 'default' ? 'watch-progress' : `watch-progress-${profileId}`
+    return new Store<{ items: Record<string, WatchItem> }>({ name, defaults: { items: {} } })
+  }
+
+  /** Switch to another profile's history (saves the title playing now first). */
+  useProfile(profileId: string): void {
+    this.flush()
+    this.current = null
+    this.store = WatchProgress.open(profileId)
+  }
+
+  deleteProfile(profileId: string): void {
+    if (profileId === 'default') return
+    rmSync(join(app.getPath('userData'), `watch-progress-${profileId}.json`), { force: true })
+  }
 
   /** Call when playback starts. `null` for live TV (not tracked). */
   begin(item: Current | null): void {
@@ -90,6 +108,14 @@ export class WatchProgress {
       .filter((i) => !i.finished && i.position >= MIN_RESUME_S && (!sourceId || i.sourceId === sourceId))
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 20)
+  }
+
+  /** Everything watched (finished or not), most recent first — for recommendations. */
+  history(sourceId?: string): WatchItem[] {
+    return Object.values(this.store.get('items'))
+      .filter((i) => !sourceId || i.sourceId === sourceId)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 100)
   }
 
   get(key: string): WatchItem | undefined {

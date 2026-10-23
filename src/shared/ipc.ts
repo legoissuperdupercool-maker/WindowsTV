@@ -62,6 +62,16 @@ export const IPC = {
   updateCheck: 'update:check',
   updateInstall: 'update:install',
 
+  // Profiles (who's watching), My List, backgrounds
+  profilesGet: 'profiles:get',
+  profileSelect: 'profiles:select',
+  profileSave: 'profiles:save',
+  profileDelete: 'profiles:delete',
+  profilePickBackground: 'profiles:pickBackground',
+  profileBackgroundImage: 'profiles:backgroundImage',
+  myListToggle: 'mylist:toggle',
+  progressHistory: 'progress:history',
+
   // Misc
   openExternal: 'app:openExternal',
   appInfo: 'app:info'
