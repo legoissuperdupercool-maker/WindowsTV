@@ -111,7 +111,7 @@ export class MpvPlayer extends EventEmitter {
       '--osd-level=0',
       `--input-ipc-server=${this.pipePath}`,
       // --- Video quality ---
-      '--vo=gpu-next,gpu,d3d11',
+      '--vo=gpu-next,gpu',
       '--gpu-api=d3d11',
       `--hwdec=${c.hwdec || 'auto-safe'}`,
       '--profile=high-quality',

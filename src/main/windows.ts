@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView, shell } from 'electron'
+import { BaseWindow, BrowserWindow, WebContentsView, shell } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import type { VideoRegion, WebAppState } from '../shared/ipc'
@@ -26,9 +26,17 @@ const DRM_HINTS: Array<{ re: RegExp; name: string }> = [
  *   │   └───────────────────────┘ │
  *   └─────────────────────────────┘
  *
+ * The video window is a BaseWindow (a plain native window with no web page), not a
+ * BrowserWindow: Chromium's own rendering surface would sit on top of mpv's child
+ * window and hide the picture. It must also never be made layered — Electron's
+ * setIgnoreMouseEvents() adds WS_EX_LAYERED on Windows, and mpv's GPU output
+ * inside a layered window is not shown (black screen with sound). Mouse input
+ * stays with the UI window because its playback background is not fully
+ * transparent (see html.playing in global.css).
+ *
  * The two windows are independent top-level windows (no owner/child relationship,
  * which on Windows can drop the main window from the taskbar). The video window is
- * created `focusable: false` and ignores mouse events, so it is a purely passive
+ * created `focusable: false`, so it is a purely passive
  * display surface that never steals focus or input — the UI window always stays in
  * front as the active window. We keep the video window glued to the UI window's
  * content rectangle (or a sub-rectangle for previews) and show/hide it to match the
@@ -36,14 +44,14 @@ const DRM_HINTS: Array<{ re: RegExp; name: string }> = [
  */
 export class WindowManager {
   uiWindow!: BrowserWindow
-  videoWindow!: BrowserWindow
+  videoWindow!: BaseWindow
   private lastRegion: VideoRegion = { x: 0, y: 0, width: 0, height: 0, visible: false }
   private webView: WebContentsView | null = null
   private webHome = ''
 
   create(): void {
     // The video window is created first so we can hand mpv its native handle.
-    this.videoWindow = new BrowserWindow({
+    this.videoWindow = new BaseWindow({
       show: false,
       width: 1280,
       height: 720,
@@ -51,11 +59,8 @@ export class WindowManager {
       resizable: false,
       focusable: false,
       skipTaskbar: true,
-      backgroundColor: '#000000',
-      webPreferences: { offscreen: false }
+      backgroundColor: '#000000'
     })
-    this.videoWindow.setIgnoreMouseEvents(true)
-    this.videoWindow.loadURL('data:text/html,<body style="margin:0;background:#000"></body>')
 
     this.uiWindow = new BrowserWindow({
       width: 1280,

@@ -43,11 +43,15 @@ body {
   user-select: none;
   -webkit-font-smoothing: antialiased;
 }
-/* During playback BOTH html and body must be transparent: the mpv video is a
-   separate window behind this one and shows through. */
-html.playing,
-html.playing body {
+/* During playback BOTH html and body must be (almost) transparent: the mpv
+   video is a separate window behind this one and shows through. The 1% black
+   is invisible but keeps the window hit-testable — fully transparent pixels
+   would let mouse clicks fall through to the video window. */
+html.playing {
   background: transparent !important;
+}
+html.playing body {
+  background: rgba(0, 0, 0, 0.01) !important;
 }
 #root {
   display: flex;
