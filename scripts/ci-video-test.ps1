@@ -66,6 +66,7 @@ foreach ($v in $variants) {
   $p = Start-Process -FilePath $exe.FullName -ArgumentList $v.args -PassThru
   Start-Sleep -Seconds 25
   Measure-Screen "app-$mode"
+  if (Test-Path "$rects.debug") { Write-Host "DEBUG $mode : $(Get-Content "$rects.debug")" }
   # Click the play/pause button with the real mouse; mpv should log a pause toggle.
   if ((Test-Path $rects) -and ((Get-Content $rects) -ne 'none')) {
     $xy = (Get-Content $rects).Split(' ')

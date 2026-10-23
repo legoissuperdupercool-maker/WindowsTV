@@ -118,6 +118,7 @@ app.whenReady().then(async () => {
           )
           const c = windows.uiWindow.getContentBounds()
           writeFileSync(rectsFile, r ? `${Math.round(c.x + r.x)} ${Math.round(c.y + r.y)}` : 'none')
+          writeFileSync(`${rectsFile}.debug`, JSON.stringify({ content: c, button: r, maximized: windows.uiWindow.isMaximized(), video: windows.videoWindow.getBounds() }))
         }, 12000)
       }
     })
