@@ -34,6 +34,7 @@ $exe = Get-ChildItem $dir -Filter *.exe -ErrorAction SilentlyContinue | Where-Ob
 Write-Host "Setup exit code: $($p.ExitCode); installed app: $($exe.FullName)"
 $errFile = Join-Path $env:TEMP 'ello-setup-error.txt'
 if (Test-Path $errFile) { Write-Host "Setup error: $(Get-Content $errFile -Raw)" }
+Write-Host "Test folder:"; Get-ChildItem D:\ello-install-test -Recurse -Depth 1 -ErrorAction SilentlyContinue | Select-Object -First 10 | ForEach-Object { Write-Host "  $($_.FullName)" }
 Write-Host "Install folder contents:"; Get-ChildItem $dir -ErrorAction SilentlyContinue | Select-Object -First 20 | ForEach-Object { Write-Host "  $($_.Name)" }
 if ($p.ExitCode -ne 0 -or -not $exe) { throw 'Custom setup did not install the app.' }
 Write-Host 'RESULT custom setup installed the app OK'

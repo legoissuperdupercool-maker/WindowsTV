@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
+using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 
 namespace ElloSetup
@@ -58,8 +59,9 @@ namespace ElloSetup
                 await Payload.ExtractTo(tmp, new Progress<double>(f => SetProgress(f * 0.15)));
 
                 StatusText.Text = "Installing ello smartTV…";
-                // NSIS: /S = silent; /D= must be last and unquoted.
-                var proc = Process.Start(new ProcessStartInfo(tmp, "/S /D=" + installDir) { UseShellExecute = false });
+                // NSIS: /S = silent. electron-builder reads /D= itself (StdUtils), which
+                // cuts an unquoted path at the first space, so quote the whole switch.
+                var proc = Process.Start(new ProcessStartInfo(tmp, "/S \"/D=" + installDir + "\"") { UseShellExecute = false });
                 while (!proc.HasExited)
                 {
                     await Task.Delay(200);
@@ -69,10 +71,7 @@ namespace ElloSetup
                 if (proc.ExitCode != 0)
                     throw new Exception("The installer stopped with code " + proc.ExitCode + ". If ello smartTV is open, close it and try again.");
 
-                installedExe = Directory.Exists(installDir)
-                    ? Directory.GetFiles(installDir, "*.exe")
-                        .FirstOrDefault(p => !Path.GetFileName(p).StartsWith("Uninstall", StringComparison.OrdinalIgnoreCase))
-                    : null;
+                installedExe = FindAppExe(installDir) ?? RegisteredAppExe();
                 if (installedExe == null) throw new Exception("ello smartTV wasn't found after installing. Please try again.");
 
                 if (DesktopBox.IsChecked != true)
@@ -107,7 +106,7 @@ namespace ElloSetup
         private void OnLaunch(object sender, RoutedEventArgs e)
         {
             if (installedExe != null)
-                Process.Start(new ProcessStartInfo(installedExe) { UseShellExecute = true, WorkingDirectory = installDir });
+                Process.Start(new ProcessStartInfo(installedExe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(installedExe) });
             Close();
         }
 
@@ -159,6 +158,32 @@ namespace ElloSetup
             ProgressFill.BeginAnimation(WidthProperty,
                 new DoubleAnimation(width, TimeSpan.FromMilliseconds(250)) { EasingFunction = new QuadraticEase() });
             PercentText.Text = Math.Round(f * 100) + "%";
+        }
+
+        private static string FindAppExe(string dir) =>
+            Directory.Exists(dir)
+                ? Directory.GetFiles(dir, "*.exe")
+                    .FirstOrDefault(p => !Path.GetFileName(p).StartsWith("Uninstall", StringComparison.OrdinalIgnoreCase))
+                : null;
+
+        /// <summary>Where Windows says the app is installed (its Apps &amp; features entry).</summary>
+        private static string RegisteredAppExe()
+        {
+            using (var root = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall"))
+            {
+                if (root == null) return null;
+                foreach (var name in root.GetSubKeyNames())
+                {
+                    using (var key = root.OpenSubKey(name))
+                    {
+                        if (!((key?.GetValue("DisplayName") as string) ?? "").StartsWith("ello smartTV", StringComparison.OrdinalIgnoreCase)) continue;
+                        // DisplayIcon is "<path to app exe>,0".
+                        var icon = (key.GetValue("DisplayIcon") as string ?? "").Split(',')[0].Trim('"');
+                        if (File.Exists(icon)) return icon;
+                    }
+                }
+            }
+            return null;
         }
 
         private static long DirSize(string dir)
