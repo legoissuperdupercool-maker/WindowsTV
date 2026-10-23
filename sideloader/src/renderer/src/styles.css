@@ -801,3 +801,10 @@ h3 {
     display: none;
   }
 }
+
+.devmode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}

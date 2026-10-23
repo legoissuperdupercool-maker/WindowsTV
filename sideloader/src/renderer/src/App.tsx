@@ -179,7 +179,7 @@ function DeviceCard({
   onUpdate: (d: AppleDevice) => void
   onForget: () => void
 }): JSX.Element {
-  const [busy, setBusy] = useState<'check' | 'forget' | null>(null)
+  const [busy, setBusy] = useState<'check' | 'forget' | 'reveal' | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [confirmForget, setConfirmForget] = useState(false)
   const os = device.kind === 'tv' ? 'tvOS' : device.kind === 'ipad' ? 'iPadOS' : 'iOS'
@@ -196,6 +196,19 @@ function DeviceCard({
       onUpdate({ ...device, online: false })
       setMessage({ ok: false, text: r.error })
     }
+  }
+
+  const reveal = async (): Promise<void> => {
+    setBusy('reveal')
+    setMessage(null)
+    const r = await window.api.revealDevMode(device.id)
+    setBusy(null)
+    const where = device.kind === 'ipad' ? 'iPad' : 'iPhone'
+    setMessage(
+      r.ok
+        ? { ok: true, text: `Done. On the ${where}: Settings › Privacy & Security › Developer Mode › on, then restart when it asks and confirm “Turn On”. Then click Check connection.` }
+        : { ok: false, text: r.error }
+    )
   }
 
   const forget = async (): Promise<void> => {
@@ -233,10 +246,16 @@ function DeviceCard({
       </div>
 
       {device.kind !== 'tv' && device.developerMode === false && (
-        <p className="hint">
-          Turn it on: Settings › Privacy &amp; Security › Developer Mode. It’s Apple’s own switch for running your
-          own apps.
-        </p>
+        <div className="devmode">
+          <p className="hint">
+            Developer Mode is Apple’s own switch for running your own apps. Apple hides it until a computer asks
+            for it:
+          </p>
+          <button className="btn ghost small" onClick={() => void reveal()} disabled={busy != null || !device.usb}>
+            {busy === 'reveal' ? 'Asking…' : 'Show the switch on the device'}
+          </button>
+          {!device.usb && <p className="hint">Connect it with a cable to do this.</p>}
+        </div>
       )}
 
       <div className="install-row">

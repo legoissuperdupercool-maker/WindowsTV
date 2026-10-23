@@ -34,7 +34,7 @@ function createWindow(): void {
   else void win.loadFile(join(__dirname, '../renderer/index.html'))
 }
 
-const ALLOWED = new Set(['devices', 'discover', 'pair', 'check', 'trustUsb', 'forget'])
+const ALLOWED = new Set(['devices', 'discover', 'pair', 'check', 'trustUsb', 'forget', 'revealDevMode'])
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.ello.sideloader')

@@ -11,6 +11,7 @@ const api = {
   check: (id: string) => call<AppleDevice>('check', { id }),
   trustUsb: () => call<AppleDevice>('trustUsb'),
   forget: (id: string) => call<boolean>('forget', { id }),
+  revealDevMode: (id: string) => call<boolean>('revealDevMode', { id }),
   sendPin: (pin: string): Promise<void> => ipcRenderer.invoke('apple:pin', pin),
   onEvent: (cb: (e: HelperEvent) => void): (() => void) => {
     const fn = (_: unknown, e: HelperEvent): void => cb(e)

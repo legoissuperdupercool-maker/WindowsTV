@@ -53,9 +53,9 @@ function Done({ device, onClose }: { device: AppleDevice; onClose: () => void })
         <div className="banner">
           <Icon name="info" />
           <span>
-            One more thing on the {device.kind === 'ipad' ? 'iPad' : 'iPhone'}: turn on{' '}
-            <b>Settings › Privacy &amp; Security › Developer Mode</b> and restart when it asks. It’s Apple’s own switch
-            for running your own apps.
+            One more thing: the {device.kind === 'ipad' ? 'iPad' : 'iPhone'} needs <b>Developer Mode</b>, Apple’s own
+            switch for running your own apps. Use <b>Show the switch on the device</b> on its card, then turn it on in
+            Settings › Privacy &amp; Security.
           </span>
         </div>
       )}

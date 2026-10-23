@@ -268,6 +268,24 @@ async def cmd_trust_usb(_: dict) -> dict:
         await lockdown.close()
 
 
+async def cmd_reveal_dev_mode(msg: dict) -> bool:
+    """Make the Developer Mode switch appear in the iPhone/iPad's Settings (Apple hides it
+    until a developer connection asks for it). Turning it on stays on the device."""
+    from pymobiledevice3.lockdown import create_using_usbmux
+    from pymobiledevice3.services.amfi import AmfiService
+
+    usb = await _usb_devices() or []
+    serial = next((d.serial for d in usb if d.serial == msg["id"]), None) or (usb[0].serial if len(usb) == 1 else None)
+    if serial is None:
+        raise RuntimeError("Connect the iPhone or iPad with a cable first, and unlock it.")
+    lockdown = await create_using_usbmux(serial=serial, autopair=False)
+    try:
+        await AmfiService(lockdown).reveal_developer_mode_option_in_ui()
+    finally:
+        await lockdown.close()
+    return True
+
+
 async def cmd_forget(msg: dict) -> bool:
     from pymobiledevice3.common import get_home_folder
 
@@ -290,6 +308,7 @@ COMMANDS: dict[str, Callable[[dict], Any]] = {
     "check": cmd_check,
     "trustUsb": cmd_trust_usb,
     "forget": cmd_forget,
+    "revealDevMode": cmd_reveal_dev_mode,
 }
 
 
