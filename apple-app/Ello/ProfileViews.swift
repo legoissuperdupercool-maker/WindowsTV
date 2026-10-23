@@ -36,6 +36,7 @@ struct ProfilePickerView: View {
             Theme.background
             VStack(spacing: 40) {
                 Text("Who’s watching?").font(.system(size: 38, weight: .semibold))
+                GeometryReader { geo in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 34) {
                         ForEach(model.profiles) { p in
@@ -68,8 +69,10 @@ struct ProfilePickerView: View {
                         }
                     }
                     .padding(.horizontal, 40)
+                    .frame(minWidth: geo.size.width)
                 }
-                .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(height: 190)
                 Button(manage ? "Done" : "Manage profiles") { manage.toggle() }.buttonStyle(PillButtonStyle())
             }
         }

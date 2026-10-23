@@ -234,6 +234,7 @@ struct ChannelFilterView: View {
                     }
                 }
             }
+            .foregroundStyle(Theme.text)
             .navigationTitle("Filter channels")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
