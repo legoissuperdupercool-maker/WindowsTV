@@ -113,6 +113,10 @@ app.whenReady().then(async () => {
       if (rectsFile) {
         setTimeout(() => windows.uiWindow.maximize(), 9000)
         setTimeout(async () => {
+          // Bring the auto-hidden controls back (they slide off-screen) before measuring.
+          await windows.uiWindow.webContents.executeJavaScript(
+            `document.querySelector('.player-root')?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true })); new Promise((r) => setTimeout(r, 600))`
+          )
           const r = await windows.uiWindow.webContents.executeJavaScript(
             `(() => { const b = document.querySelector('.transport .tbtn.primary')?.getBoundingClientRect(); return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2 } : null })()`
           )
