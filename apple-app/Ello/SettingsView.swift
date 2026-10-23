@@ -5,6 +5,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editing: Source?
     @State private var adding = RootView.startScreen == "add"
+    @State private var editingProfile: Profile?
+    @State private var showFilters = false
 
     var body: some View {
         NavigationStack {
@@ -28,20 +30,51 @@ struct SettingsView: View {
                     .onDelete { idx in idx.map { model.sources[$0] }.forEach(model.remove) }
                     Button { adding = true } label: { Label("Add source", systemImage: "plus.circle.fill") }
                 }
+                Section("Profiles") {
+                    ForEach(model.profiles) { p in
+                        Button { editingProfile = p } label: {
+                            HStack(spacing: 12) {
+                                Avatar(profile: p, size: 34)
+                                Text(p.name)
+                                if p.kids { Text("Kids").font(.system(size: 12, weight: .bold)).foregroundStyle(.yellow) }
+                                Spacer()
+                                if p.id == model.activeProfileId { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.blue) }
+                            }
+                        }
+                        .foregroundStyle(Theme.text)
+                    }
+                    Button { editingProfile = Profile(name: "", color: Theme.profileColors[model.profiles.count % Theme.profileColors.count]) } label: {
+                        Label("Add profile", systemImage: "person.badge.plus")
+                    }
+                    Button { dismiss(); model.showProfilePicker = true } label: { Label("Switch profile", systemImage: "person.2") }
+                }
+                Section {
+                    Button { showFilters = true } label: { Label("Filter & hide channels", systemImage: "line.3.horizontal.decrease.circle") }
+                } footer: {
+                    Text("Only show the countries you watch, hide categories and channels, and sort A–Z. Saved per profile.")
+                }
                 Section {
                     Button { Task { await model.load(force: true) } } label: { Label("Reload channels, movies & series", systemImage: "arrow.clockwise") }
                         .disabled(model.currentSource == nil)
                 }
+                Section("VPN") {
+                    Text("To hide your IP address, install the Mullvad (or any WireGuard) app from the App Store and switch it on. On iPad a VPN app covers every app, ello included, and Mullvad’s “Lockdown mode” blocks traffic if the VPN drops.")
+                        .font(.system(size: 13)).foregroundStyle(Theme.dim)
+                }
                 Section("About") {
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–")
-                    Text("Your logins stay on this device (passwords in the Keychain). ello only talks to your IPTV provider.")
+                    Text("Your logins stay on this device (passwords in the Keychain). ello only talks to your IPTV provider. Recommendations are worked out on the iPad.")
                         .font(.system(size: 13)).foregroundStyle(Theme.dim)
+                    Text("Video playback for MKV and other formats by VLC (MobileVLCKit, LGPL 2.1).")
+                        .font(.system(size: 13)).foregroundStyle(Theme.faint)
                 }
             }
             .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .sheet(isPresented: $adding) { SourceForm(source: nil) }
             .sheet(item: $editing) { s in SourceForm(source: s) }
+            .sheet(item: $editingProfile) { p in ProfileEditor(profile: p) }
+            .sheet(isPresented: $showFilters) { ChannelFilterView() }
         }
         .preferredColorScheme(.dark)
     }

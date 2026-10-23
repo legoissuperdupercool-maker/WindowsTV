@@ -13,6 +13,8 @@ enum Theme {
     static let bad = Color(hex: 0xFF453A)
     static let palette: [Color] = [0x1A73E8, 0xD93025, 0x188038, 0x9334E6, 0xE8710A, 0x007B83, 0xC5221F, 0xA142F4].map { Color(hex: $0) }
 
+    static let profileColors: [UInt32] = [0x1A73E8, 0xD93025, 0x188038, 0x9334E6, 0xE8710A, 0x007B83, 0xE52592, 0xF9AB00]
+
     static func color(for name: String) -> Color {
         var h: UInt32 = 0
         for u in name.unicodeScalars { h = h &* 31 &+ u.value }

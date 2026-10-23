@@ -39,7 +39,13 @@ struct LibraryView: View {
 
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 18)], spacing: 22) {
-                    ForEach(shown) { c in PosterCard(channel: c) { detail = c } }
+                    ForEach(shown) { c in
+                        PosterCard(channel: c) { detail = c }
+                            .contextMenu {
+                                Button(model.inMyList(c) ? "Remove from My List" : "Add to My List",
+                                       systemImage: model.inMyList(c) ? "minus" : "plus") { model.toggleMyList(c) }
+                            }
+                    }
                 }
                 .padding(.horizontal, 28).padding(.bottom, 30)
             }
@@ -71,7 +77,14 @@ struct DetailView: View {
                         Text(channel.cleanName).font(.system(size: 32, weight: .bold))
                         Text([channel.year, channel.genre, channel.rating.map { String(format: "★ %.1f", $0) }].compactMap { $0 }.joined(separator: "  ·  "))
                             .foregroundStyle(Theme.dim)
-                        HStack(spacing: 12) { actions }.padding(.vertical, 6)
+                        HStack(spacing: 12) {
+                            actions
+                            Button { model.toggleMyList(channel) } label: {
+                                Label("My List", systemImage: model.inMyList(channel) ? "checkmark" : "plus")
+                            }
+                            .buttonStyle(PillButtonStyle())
+                        }
+                        .padding(.vertical, 6)
                         if let plot = channel.plot { Text(plot).foregroundStyle(Theme.dim).fixedSize(horizontal: false, vertical: true) }
                         if let cast = channel.cast {
                             (Text("Cast  ").foregroundStyle(Theme.faint) + Text(cast).foregroundStyle(Theme.dim)).font(.system(size: 14))

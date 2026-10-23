@@ -16,6 +16,10 @@ targets:
     platform: iOS
     sources:
       - Ello
+    dependencies:
+      # Downloaded by CI (see .github/workflows/apple-app.yml).
+      - framework: Frameworks/MobileVLCKit.xcframework
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ello.smarttv
@@ -33,6 +37,8 @@ targets:
     info:
       path: Ello/Info.plist
       properties:
+        NSPhotoLibraryUsageDescription: Pick a photo as your profile background.
+        NSLocalNetworkUsageDescription: Play streams from IPTV servers on your home network.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         UIBackgroundModes: [audio]

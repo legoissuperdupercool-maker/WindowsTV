@@ -18,10 +18,39 @@ struct HomeView: View {
                         }
                     }
                 }
-                if !model.live.isEmpty {
+                if !model.favoriteChannels.isEmpty {
+                    Rail(title: "Favourite channels", action: ("See all", { tab = .live })) {
+                        ForEach(model.favoriteChannels) { c in
+                            ChannelCard(channel: c, favorite: true) { model.play(c) }.contextMenu { ChannelMenu(channel: c) }
+                        }
+                    }
+                }
+                if !model.myList.isEmpty {
+                    Rail(title: "My List") {
+                        ForEach(model.myList) { c in PosterCard(channel: c) { detail = c } }
+                    }
+                }
+                let recs = model.recommendations
+                if !recs.forYou.isEmpty {
+                    Rail(title: "Recommended for you") {
+                        ForEach(recs.forYou) { c in PosterCard(channel: c) { detail = c } }
+                    }
+                }
+                if let because = recs.because {
+                    Rail(title: "Because you watched \(because.title)") {
+                        ForEach(because.items) { c in PosterCard(channel: c) { detail = c } }
+                    }
+                }
+                if !model.recentChannels.isEmpty {
+                    Rail(title: "Recently watched channels") {
+                        ForEach(model.recentChannels.prefix(16)) { c in
+                            ChannelCard(channel: c, favorite: model.isFavorite(c)) { model.play(c) }.contextMenu { ChannelMenu(channel: c) }
+                        }
+                    }
+                } else if !model.live.isEmpty {
                     Rail(title: "Live TV", action: ("See all", { tab = .live })) {
                         ForEach(model.live.prefix(16)) { c in
-                            ChannelCard(channel: c) { model.play(c) }
+                            ChannelCard(channel: c, favorite: model.isFavorite(c)) { model.play(c) }.contextMenu { ChannelMenu(channel: c) }
                         }
                     }
                 }
@@ -127,6 +156,7 @@ struct PosterCard: View {
 
 struct ChannelCard: View {
     let channel: Channel
+    var favorite = false
     let open: () -> Void
     var body: some View {
         Button(action: open) {
@@ -137,6 +167,11 @@ struct ChannelCard: View {
                     if let n = channel.number {
                         Text("\(n)").font(.system(size: 12, weight: .bold)).padding(.horizontal, 7).padding(.vertical, 3)
                             .background(.black.opacity(0.55), in: Capsule()).padding(8)
+                    }
+                    if favorite {
+                        Image(systemName: "star.fill").font(.system(size: 13)).foregroundStyle(.yellow)
+                            .padding(7).background(.black.opacity(0.55), in: Circle()).padding(8)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
                 .frame(width: 200, height: 112)

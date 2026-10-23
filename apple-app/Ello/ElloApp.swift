@@ -21,7 +21,7 @@ struct ElloApp: App {
 }
 
 enum Tab: String, CaseIterable, Identifiable {
-    case home = "Home", live = "Live TV", movies = "Movies", series = "Series"
+    case home = "Home", live = "Live TV", guide = "Guide", movies = "Movies", series = "Series"
     var id: String { rawValue }
 }
 
@@ -47,7 +47,7 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
         ZStack {
-            Theme.background
+            AppBackground(profile: model.profile)
             VStack(spacing: 0) {
                 TopBar(tab: $tab, showSettings: $showSettings)
                 if model.sources.isEmpty {
@@ -60,12 +60,17 @@ struct RootView: View {
                     switch tab {
                     case .home: HomeView(tab: $tab)
                     case .live: LiveView()
+                    case .guide: GuideView()
                     case .movies: LibraryView(kind: .movie)
                     case .series: LibraryView(kind: .series)
                     }
                 }
             }
         }
+        .overlay {
+            if model.showProfilePicker { ProfilePickerView().transition(.opacity) }
+        }
+        .animation(.easeOut(duration: 0.2), value: model.showProfilePicker)
         .sheet(isPresented: $showSettings) { SettingsView() }
         .fullScreenCover(item: $model.playing) { req in PlayerView(request: req) }
     }
@@ -75,19 +80,24 @@ struct TopBar: View {
     @Environment(AppModel.self) private var model
     @Binding var tab: Tab
     @Binding var showSettings: Bool
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var compact: Bool { sizeClass == .compact }
 
     var body: some View {
         HStack(spacing: 6) {
+            if !compact {
             HStack(spacing: 0) {
                 Text("ello").font(.system(size: 22, weight: .bold))
                 Text(".").font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.blue)
                 Text(" smartTV").font(.system(size: 22)).foregroundStyle(Theme.dim)
             }
             .padding(.trailing, 18)
+            }
             ForEach(Tab.allCases) { t in
                 Button(t.rawValue) { tab = t }
                     .font(.system(size: 16, weight: .medium))
-                    .padding(.horizontal, 16)
+                    .lineLimit(1)
+                    .padding(.horizontal, compact ? 10 : 16)
                     .frame(height: 38)
                     .foregroundStyle(tab == t ? Color.black : Theme.dim)
                     .background(tab == t ? Theme.text : Color.clear, in: Capsule())
@@ -108,6 +118,8 @@ struct TopBar: View {
                 Image(systemName: "gearshape.fill").font(.system(size: 20)).frame(width: 44, height: 44)
             }
             .foregroundStyle(Theme.dim)
+            Button { model.showProfilePicker = true } label: { Avatar(profile: model.profile, size: 38) }
+                .padding(.leading, 4)
         }
         .padding(.horizontal, 28)
         .padding(.top, 8)

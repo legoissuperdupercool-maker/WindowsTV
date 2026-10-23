@@ -24,6 +24,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # VLC's player library (LGPL 2.1) for MKV / TS / AVI and anything Apple's player can't open.
+      - name: Fetch MobileVLCKit
+        run: |
+          curl -fsSL -o vlc.tar.xz https://download.videolan.org/pub/cocoapods/prod/MobileVLCKit-3.7.3-319ed2c0-79128878.tar.xz
+          echo "Downloaded $(du -h vlc.tar.xz | cut -f1)"
+          mkdir -p vlc Frameworks
+          tar -xJf vlc.tar.xz -C vlc
+          mv "$(find vlc -name MobileVLCKit.xcframework -type d | head -1)" Frameworks/
+          rm -rf vlc vlc.tar.xz
+          ls Frameworks/MobileVLCKit.xcframework
+
       - name: Generate Xcode project
         run: |
           brew install xcodegen
@@ -63,8 +74,11 @@ jobs:
             sips -Z 760 -s format jpeg -s formatOptions 60 "shots/$name.png" --out "shots/$name.jpg" >/dev/null
             echo "PREVIEW $name $(base64 -i "shots/$name.jpg" | tr -d '\n')"
           }
+          shoot picker picker
           shoot home
           shoot live -tab live
+          shoot filters -tab live -screen filters
+          shoot guide -tab guide
           shoot movies -tab movies
           shoot series -tab series
           shoot settings -screen settings

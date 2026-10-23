@@ -8,6 +8,7 @@ enum DemoData {
         let channels: [Channel]
         let categories: [Category]
         let progress: [String: WatchItem]
+        let profiles: [Profile]
     }
 
     static func make() -> Sample {
@@ -21,9 +22,11 @@ enum DemoData {
         let seriesNames = ["EN - Harbor Lights", "EN - The Wire Room", "EN - Ozark Falls", "EN - City of Glass",
                            "EN - Northern Stars", "EN - The Crown Jewels", "EN - Undertow", "EN - Homecoming"]
         var channels: [Channel] = []
+        // Live categories: 0 NL, 1 UK, 2 Sports (NL), 3 Kids, 4 DE
+        let liveGroup = [0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 1, 1, 1, 3, 3, 1, 2, 2, 4, 4]
         for (i, n) in liveNames.enumerated() {
             channels.append(Channel(id: "demo:live:\(i)", sourceId: "demo", kind: .live, providerId: "\(i)", name: n,
-                                    group: "demo:live:\(i % 3)", url: "", number: 101 + i))
+                                    group: "demo:live:\(liveGroup[i])", url: "", number: 101 + i, catchupDays: i < 8 ? 7 : nil))
         }
         for (i, n) in movieNames.enumerated() {
             channels.append(Channel(id: "demo:movie:\(i)", sourceId: "demo", kind: .movie, providerId: "\(i)", name: n,
@@ -38,7 +41,8 @@ enum DemoData {
                                     genre: "Crime, Drama", plot: "A gripping drama about family, loyalty and the price of secrets.",
                                     year: "\(2015 + i)", cast: "Lena Ortiz, Marcus Hale"))
         }
-        let cats = [("News & General", StreamKind.live), ("Sports", .live), ("Kids", .live),
+        let cats = [("NL | Algemeen", StreamKind.live), ("UK | Entertainment & News", .live), ("NL | Sport", .live),
+                    ("Kids", .live), ("DE | Allgemein", .live),
                     ("New releases", .movie), ("Action", .movie), ("Family", .movie),
                     ("Drama series", .series), ("Crime", .series)]
         var categories: [Category] = []
@@ -54,7 +58,16 @@ enum DemoData {
             "demo:ep:h-1-3": WatchItem(key: "demo:ep:h-1-3", title: "Harbor Lights", subtitle: "S1 E3 · Crossings", url: "",
                                        seriesId: "demo:series:0", position: 900, duration: 2600, updatedAt: Date().addingTimeInterval(-60))
         ]
-        return Sample(source: src, channels: channels, categories: categories, progress: progress)
+        var me = Profile(id: "p1", name: "Me", color: 0x1A73E8)
+        me.progress = progress
+        me.favorites = ["demo:live:0", "demo:live:4", "demo:live:9"]
+        me.recents = ["demo:live:4", "demo:live:0", "demo:live:7"]
+        me.myList = [ListItem(key: "demo:series:1", title: "EN - The Wire Room", kind: .series, addedAt: Date()),
+                     ListItem(key: "demo:movie:1", title: "EN - Northern Lights", kind: .movie, addedAt: Date())]
+        let profiles = [me,
+                        Profile(id: "p2", name: "Sam", color: 0x188038, emoji: "🎧"),
+                        Profile(id: "p3", name: "Kids", color: 0xE8710A, emoji: "🦊", kids: true)]
+        return Sample(source: src, channels: channels, categories: categories, progress: progress, profiles: profiles)
     }
 
     static func episodes(for show: Channel) -> [Episode] {
@@ -65,5 +78,23 @@ enum DemoData {
                         plot: "The truth starts to surface.", duration: "00:4\(i):12")
             }
         }
+    }
+
+    static func guide(for channel: Channel) -> [Programme] {
+        let shows = ["Morning News", "The Big Quiz", "Nature Walks", "Football Tonight", "City Stories", "Late Show",
+                     "Weather", "Documentary: Oceans", "Film: Silver Coast", "Kitchen Heroes"]
+        let cal = Calendar.current
+        let now = Date()
+        var start = cal.date(bySettingHour: cal.component(.hour, from: now), minute: 0, second: 0, of: now)!.addingTimeInterval(-4 * 3600)
+        var out: [Programme] = []
+        var i = Int(channel.providerId) ?? 0
+        while start < now.addingTimeInterval(8 * 3600) {
+            let len = Double([30, 60, 45, 90][i % 4]) * 60
+            out.append(Programme(title: shows[i % shows.count], start: start, stop: start.addingTimeInterval(len),
+                                 description: "An episode full of surprises.", hasArchive: channel.catchupDays != nil))
+            start = start.addingTimeInterval(len)
+            i += 1
+        }
+        return out
     }
 }

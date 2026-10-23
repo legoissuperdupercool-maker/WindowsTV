@@ -31,6 +31,13 @@ private func str(_ v: Any?) -> String? {
 }
 private func dbl(_ v: Any?) -> Double? { str(v).flatMap { Double($0) } }
 
+/// Xtream sends guide titles base64-encoded (some panels don't).
+private func decode64(_ s: String?) -> String? {
+    guard let s else { return nil }
+    if let data = Data(base64Encoded: s), let text = String(data: data, encoding: .utf8), !text.isEmpty { return text }
+    return s
+}
+
 private let session: URLSession = {
     let cfg = URLSessionConfiguration.default
     cfg.timeoutIntervalForRequest = 30
@@ -115,7 +122,8 @@ struct XtreamClient {
                 logo: str(r["stream_icon"]),
                 group: str(r["category_id"]).map { "\(source.id):live:\($0)" },
                 url: "\(base)/live/\(enc(source.username))/\(enc(password))/\(id).m3u8",
-                number: str(r["num"]).flatMap { Int($0) }
+                number: str(r["num"]).flatMap { Int($0) },
+                catchupDays: str(r["tv_archive"]) == "1" ? (str(r["tv_archive_duration"]).flatMap { Int($0) } ?? 1) : nil
             )
         }
     }
@@ -148,6 +156,34 @@ struct XtreamClient {
                 cast: str(r["cast"]), added: dbl(r["last_modified"])
             )
         }
+    }
+
+    /// TV guide for one channel: past (for catch-up), now and upcoming.
+    func guide(streamId: String) async throws -> [Programme] {
+        guard let root = try await json("get_simple_data_table", ["stream_id": streamId]) as? [String: Any],
+              let rows = root["epg_listings"] as? [[String: Any]] else { return [] }
+        return rows.compactMap { r in
+            guard let s = dbl(r["start_timestamp"]), let e = dbl(r["stop_timestamp"]) else { return nil }
+            return Programme(
+                title: decode64(str(r["title"])) ?? "Programme",
+                start: Date(timeIntervalSince1970: s),
+                stop: Date(timeIntervalSince1970: e),
+                description: decode64(str(r["description"])),
+                serverStart: str(r["start"]),
+                hasArchive: str(r["has_archive"]) == "1"
+            )
+        }
+        .sorted { $0.start < $1.start }
+    }
+
+    /// Replay a past programme: Xtream's timeshift URL, with the start in the server's own clock.
+    func catchupURL(streamId: String, programme: Programme) -> String? {
+        guard let s = programme.serverStart, s.count >= 16 else { return nil }
+        // "2026-10-23 20:30:00" -> "2026-10-23:20-30"
+        let day = s.prefix(10)
+        let hm = s.dropFirst(11).prefix(5).replacingOccurrences(of: ":", with: "-")
+        let minutes = max(1, Int(programme.stop.timeIntervalSince(programme.start) / 60))
+        return "\(base)/timeshift/\(enc(source.username))/\(enc(password))/\(minutes)/\(day):\(hm)/\(streamId).ts"
     }
 
     func episodes(seriesId: String) async throws -> [Episode] {
