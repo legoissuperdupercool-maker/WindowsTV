@@ -42,9 +42,18 @@ A GitHub Actions workflow (`.github/workflows/build.yml`) builds the real Window
 executables on a Windows runner, with **mpv bundled in**, every time this branch
 is pushed. Two files are produced:
 
-- **`ello-smartTV-<version>-Setup.exe`** — a normal installer.
+- **`ello-smartTV-<version>-Setup.exe`** — the installer: ello smartTV's own
+  setup window (dark, rounded, one **Install** button, with an optional install
+  folder and desktop shortcut). It installs per-user, so no admin prompt.
 - **`ello-smartTV-<version>-Portable.exe`** — a single self-contained `.exe` you can
   run directly, no install.
+- `ello-smartTV-<version>-Setup-Classic.exe` — the plain Windows-wizard
+  installer. The setup window runs this one in the background, and
+  auto-update uses it too.
+
+The setup window lives in `installer/` (WPF on .NET Framework 4.8, which ships
+with Windows 10/11). `scripts/build-custom-installer.ps1` builds it and appends
+the classic installer to it.
 
 **To get the EXE:** open the repo's **Releases** page and download the `.exe`
 from the newest **“ello smartTV — build N”** pre-release. Every push publishes a
