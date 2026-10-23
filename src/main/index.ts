@@ -102,6 +102,7 @@ app.whenReady().then(async () => {
       setTimeout(() => void player.load(testUrl, { title: 'Video test' }), 4000)
       const gpuLog = process.env['ELLO_GPU_LOG']
       if (gpuLog) writeFileSync(gpuLog, JSON.stringify(app.getGPUFeatureStatus(), null, 1))
+      if (process.env['ELLO_TEST_HIDE_UI']) setTimeout(() => windows.uiWindow.setOpacity(0), 6000)
     })
   }
 
