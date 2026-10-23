@@ -33,6 +33,9 @@ python3 -m pip install --quiet --disable-pip-version-check --target "$OUT/python
   pymobiledevice3==11.43.1 anisette==1.2.4 srp==1.0.22 \
   pywin32==311 colorama  # Windows-only dependencies: pip skips them when run on Linux
 find "$OUT/python/Lib/site-packages" -name '__pycache__' -prune -exec rm -rf {} +
+# Keep only what the helper imports (traced on Windows and Linux): ~12,000 files
+# down to a few thousand, so the installer doesn't crawl while Defender scans each one.
+python3 scripts/prune-site-packages.py "$OUT/python/Lib/site-packages"
 
 echo "== rcodesign $RCODESIGN_VERSION"
 fetch "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$RCODESIGN_VERSION/apple-codesign-$RCODESIGN_VERSION-x86_64-pc-windows-msvc.zip" rcodesign-win.zip

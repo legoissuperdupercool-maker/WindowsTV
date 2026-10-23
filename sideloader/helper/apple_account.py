@@ -174,6 +174,16 @@ def _ssl_context() -> ssl.SSLContext:
 _http = urllib3.PoolManager(ssl_context=_ssl_context(), timeout=urllib3.Timeout(connect=15, read=60), retries=False)
 
 
+def _snippet(r: urllib3.BaseHTTPResponse) -> str:
+    """Apple's own words from an error page, short."""
+    import re
+
+    text = re.sub(r"<[^>]+>", " ", r.data[:4000].decode("utf-8", "replace"))
+    text = " ".join(text.split())[:160]
+    server = r.headers.get("server") or r.headers.get("Server") or ""
+    return (text or "(empty reply)") + (f" [server: {server}]" if server else "")
+
+
 def _log_failure(step: str, r: urllib3.BaseHTTPResponse) -> None:
     """Keep the last odd answer from Apple (status, headers, start of the body) for troubleshooting.
     Requests (with the password proof and tokens) are never written."""
@@ -274,6 +284,7 @@ class SignIn:
             "prkgen": True,
             "svct": "iCloud",
             "loc": "en_US",
+            "X-Apple-Locale": "en_US",
             **{k: v for k, v in h.items() if k.startswith("X-Apple-I") or k in ("X-Mme-Device-Id",)},
         }
 
@@ -289,7 +300,7 @@ class SignIn:
             return plistlib.loads(r.data)["Response"]
         except Exception as e:
             _log_failure("gsa " + str(request.get("o")), r)
-            raise AppleError(f"Apple's sign-in server answered HTTP {r.status} at step “{request.get('o')}”.") from e
+            raise AppleError(f"Apple's sign-in server answered HTTP {r.status} at step “{request.get('o')}”: {_snippet(r)}") from e
 
     def login(self) -> None:
         """SRP sign-in. Raises NeedsCode when Apple wants a two-factor code."""
