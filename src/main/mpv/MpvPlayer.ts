@@ -553,14 +553,22 @@ export class MpvPlayer extends EventEmitter {
 
 export type { MpvConfig, LoadOptions }
 
-/** mpv renderer flags for the "Video renderer" setting. */
+/**
+ * mpv renderer flags for the "Video renderer" setting.
+ *
+ * --d3d11-flip=no: mpv draws into a child window of ours (--wid). With the
+ * default flip-model swapchain, laptops with two GPUs (e.g. Intel/AMD + NVIDIA
+ * Optimus) show a black picture when mpv renders on the other GPU than the one
+ * driving the screen; the classic blit model is composited by Windows and works
+ * on every setup.
+ */
 function videoOutputArgs(mode?: string): string[] {
   switch (mode) {
     case 'gpu':
-      return ['--vo=gpu', '--gpu-api=d3d11']
+      return ['--vo=gpu', '--gpu-api=d3d11', '--d3d11-flip=no']
     case 'gpu-gl':
       return ['--vo=gpu', '--gpu-api=opengl']
     default:
-      return ['--vo=gpu-next,gpu', '--gpu-api=d3d11']
+      return ['--vo=gpu-next,gpu', '--gpu-api=d3d11', '--d3d11-flip=no']
   }
 }
