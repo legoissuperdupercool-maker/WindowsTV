@@ -1,0 +1,47 @@
+name: Apple device check (Windows EXE)
+
+# Builds apple/check/ello_apple_check.py into a single Windows program that
+# tests pairing with an Apple TV (Wi-Fi) and iPhone/iPad (USB) from this PC.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'claude/**'
+    paths:
+      - 'apple/check/**'
+      - '.github/workflows/apple-check.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install tools
+        run: python -m pip install pymobiledevice3==11.43.1 pyinstaller==6.16.0
+      - name: Build EXE
+        run: >
+          pyinstaller --onefile --console --name ello-apple-check
+          --icon installer/app.ico
+          --collect-all pymobiledevice3 --collect-all pmd_pytcp --collect-all pytun_pmd3
+          apple/check/ello_apple_check.py
+      - name: Check the EXE starts
+        run: ./dist/ello-apple-check.exe --selftest
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apple-check-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: ello Apple device check ${{ github.run_number }}
+          prerelease: true
+          body: |
+            Tests whether this Windows PC can pair with your Apple TV (Wi-Fi) and
+            iPhone/iPad (USB) — step 1 of the ello sideloader. Nothing is sent to
+            the internet. Run it, follow the steps, and share ello-apple-check.txt.
+          files: dist/ello-apple-check.exe
+          fail_on_unmatched_files: true

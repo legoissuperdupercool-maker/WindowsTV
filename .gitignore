@@ -24,3 +24,6 @@ resources/mpv/*
 installer/bin
 installer/obj
 installer/out
+
+# Apple device check report
+apple/check/ello-apple-check.txt
