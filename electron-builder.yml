@@ -12,8 +12,20 @@ files:
   - '!{.eslintrc.cjs,.prettierrc,.prettierignore,.editorconfig}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!{.env,.env.*,.npmrc}'
+asar: true
 asarUnpack:
   - resources/**
+# Anti-tamper: flip Electron fuses at package time. Embedded ASAR integrity
+# validation makes the app refuse to run if app.asar is modified, and the rest
+# close off ways to run the binary as a plain Node process to bypass app code.
+# (This is belt-and-braces with the panel's own integrity allowlist.)
+electronFuses:
+  runAsNode: false
+  enableRunAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
 win:
   target:
     - nsis        # a normal installer .exe

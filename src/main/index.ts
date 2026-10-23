@@ -11,6 +11,7 @@ import { IPC } from '../shared/ipc'
 import { initUpdater } from './updater'
 import { WatchProgress } from './progress'
 import { findDisplayGpu } from './mpv/displayGpu'
+import { enforceLicense } from './panel/license'
 
 const progress = new WatchProgress()
 
@@ -71,6 +72,11 @@ async function restartPlayer(): Promise<void> {
 let ctx: MainContext
 
 app.whenReady().then(async () => {
+  // License + integrity gate. Returns null (and quits) if not authorized, ''
+  // when the panel isn't configured yet, or the valid key on success.
+  const licenseKey = await enforceLicense()
+  if (licenseKey === null) return
+
   electronApp.setAppUserModelId('com.ello.smarttv')
 
   app.on('browser-window-created', (_, win) => {
