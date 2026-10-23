@@ -13,6 +13,8 @@ on:
     paths-ignore:
       - 'sideloader/**'
       - 'apple/**'
+      - 'apple-app/**'
+      - '.github/workflows/apple-app.yml'
       - '.github/workflows/sideloader.yml'
       - '.github/workflows/apple-check.yml'
     tags:
