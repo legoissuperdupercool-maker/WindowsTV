@@ -247,6 +247,25 @@ def _decrypt_cbc(session_key: bytes, data: bytes) -> bytes:
     return unpad.update(padded) + unpad.finalize()
 
 
+_PLIST_HEADER = (b'<?xml version="1.0" encoding="UTF-8"?>\n'
+                 b'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n')
+
+
+def _decrypted_plist(data: bytes, what: str) -> dict:
+    """Apple's encrypted sign-in data is a plist without its XML header (sometimes just
+    the <dict>), which Python's plistlib rejects as "Invalid file". Add what's missing."""
+    body = data.strip()
+    for candidate in (body, _PLIST_HEADER + body, _PLIST_HEADER + b'<plist version="1.0">' + body + b"</plist>"):
+        try:
+            value = plistlib.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(value, dict):
+            return value
+    # Only the first bytes (the format, not the tokens) go into the message.
+    raise AppleError(f"Apple's {what} came in a format ello doesn't know ({body[:10]!r}…, {len(body)} bytes).")
+
+
 def _decrypt_gcm(key: bytes, data: bytes) -> bytes:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -355,7 +374,7 @@ class SignIn:
         usr.verify_session(r["M2"])
         if not usr.authenticated():
             raise AppleError("Wrong Apple ID or password.")
-        self._spd = plistlib.loads(_decrypt_cbc(usr.get_session_key(), r["spd"]))
+        self._spd = _decrypted_plist(_decrypt_cbc(usr.get_session_key(), r["spd"]), "account details")
         au = status.get("au")
         if au == "trustedDeviceSecondaryAuth":
             self._request_code("device")
@@ -429,7 +448,7 @@ class SignIn:
         status = r.get("Status", {})
         if status.get("ec", 0) != 0:
             raise AppleError(_error_text(status))
-        tokens = plistlib.loads(_decrypt_gcm(sk, r["et"]))["t"][XCODE_APP]
+        tokens = _decrypted_plist(_decrypt_gcm(sk, r["et"]), "app token")["t"][XCODE_APP]
         expiry = tokens.get("expiry")
         if expiry:
             expiry = float(expiry) / (1000 if float(expiry) > 1e11 else 1)
