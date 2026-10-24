@@ -223,8 +223,11 @@ export const useStore = create<State>((set, get) => ({
   setSearchOpen: (open) => set({ searchOpen: open }),
   license: { premium: false },
   async refreshLicense() {
+    // What's saved first (instant), then a renewal with the licence server if due.
     const r = await window.api.license.get()
     set({ license: r.data ?? { premium: false } })
+    const fresh = await window.api.license.refresh()
+    if (fresh.data) set({ license: fresh.data })
   },
   premiumSheet: null,
   requirePremium(feature) {
@@ -245,7 +248,8 @@ export const useStore = create<State>((set, get) => ({
   profilePicker: false,
 
   async init() {
-    await Promise.all([get().loadProfiles(), get().refreshLicense()])
+    void get().refreshLicense()
+    await get().loadProfiles()
     set({ profilePicker: get().profiles.length > 1 })
     const res = await window.api.settings.get()
     const settings = res.data ?? null

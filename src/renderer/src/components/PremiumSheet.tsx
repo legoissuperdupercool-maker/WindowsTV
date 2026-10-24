@@ -16,6 +16,7 @@ export function PremiumSheet(): JSX.Element | null {
   const refreshLicense = useStore((s) => s.refreshLicense)
   const [key, setKey] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
   if (feature == null) return null
   const close = (): void => {
     setPremiumSheet(null)
@@ -23,14 +24,17 @@ export function PremiumSheet(): JSX.Element | null {
     setKey('')
   }
   const unlock = async (): Promise<void> => {
+    setBusy(true)
+    setMsg(null)
     const r = await window.api.license.set(key)
-    if (r.data?.premium) {
-      await refreshLicense()
-      setMsg(null)
-    } else setMsg('That key isn’t valid. Paste the whole key, starting with ELLO1.')
+    setBusy(false)
+    if (r.data?.premium) await refreshLicense()
+    else setMsg(r.data?.error ?? r.error ?? 'That licence key didn’t work.')
   }
   const remove = async (): Promise<void> => {
-    await window.api.license.set('')
+    setBusy(true)
+    await window.api.license.remove()
+    setBusy(false)
     await refreshLicense()
   }
 
@@ -41,7 +45,7 @@ export function PremiumSheet(): JSX.Element | null {
           <Icon name="premium" size={34} />
           <div>
             <h2>ello Premium</h2>
-            <p>{license.premium ? `Unlocked${license.name ? ` for ${license.name}` : ''}. Thank you!` : feature ? `${feature} is part of ello Premium.` : 'One key, yours to keep.'}</p>
+            <p>{license.premium ? `Unlocked${license.name ? ` for ${license.name}` : ''}. Thank you!` : feature ? `${feature} is part of ello Premium.` : 'Enter the licence key you bought.'}</p>
           </div>
         </div>
         <ul className="premium-list">
@@ -61,7 +65,7 @@ export function PremiumSheet(): JSX.Element | null {
             <input
               id="premium-key"
               className="focusable"
-              placeholder="ELLO1.…"
+              placeholder="ELLO-XXXX-XXXX-XXXX-XXXX"
               value={key}
               spellCheck={false}
               onChange={(e) => setKey(e.target.value)}
@@ -72,8 +76,8 @@ export function PremiumSheet(): JSX.Element | null {
         )}
         <div className="sheet-actions">
           {license.premium && (
-            <button className="focusable btn" onClick={() => void remove()}>
-              Remove key
+            <button className="focusable btn" onClick={() => void remove()} disabled={busy} title="Frees this PC's place on your key">
+              Remove from this PC
             </button>
           )}
           <span className="spacer" />
@@ -81,8 +85,8 @@ export function PremiumSheet(): JSX.Element | null {
             {license.premium ? 'Done' : 'Not now'}
           </button>
           {!license.premium && (
-            <button className="focusable btn primary" onClick={() => void unlock()} disabled={!key.trim()}>
-              Unlock
+            <button className="focusable btn primary" onClick={() => void unlock()} disabled={!key.trim() || busy}>
+              {busy ? 'Checking…' : 'Unlock'}
             </button>
           )}
         </div>

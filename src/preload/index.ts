@@ -46,7 +46,9 @@ const api = {
   },
   license: {
     get: () => invoke<LicenseState>(IPC.licenseGet),
-    set: (key: string) => invoke<LicenseState>(IPC.licenseSet, key)
+    set: (key: string) => invoke<LicenseState>(IPC.licenseSet, key),
+    refresh: () => invoke<LicenseState>(IPC.licenseRefresh),
+    remove: () => invoke<LicenseState>(IPC.licenseRemove)
   },
   sources: {
     save: (source: Source) => invoke<AppSettings>(IPC.sourcesSave, source),

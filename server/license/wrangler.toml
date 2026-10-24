@@ -1,0 +1,10 @@
+# ello Premium licence server (Cloudflare Worker + D1).
+# Setup: see README.md in this folder.
+name = "ello-license"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ello-license"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"

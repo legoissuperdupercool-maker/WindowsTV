@@ -6,6 +6,8 @@ export const IPC = {
   settingsUpdate: 'settings:update',
   licenseGet: 'license:get',
   licenseSet: 'license:set',
+  licenseRefresh: 'license:refresh',
+  licenseRemove: 'license:remove',
   sourcesSave: 'sources:save',
   sourcesRemove: 'sources:remove',
   sourceTest: 'sources:test',
