@@ -350,6 +350,16 @@ def _log_failure(step: str, r: urllib3.BaseHTTPResponse) -> None:
         pass
 
 
+def _log_complete(status: dict, r: dict) -> None:
+    """Apple's status for the password step and which parts its answer had (no secrets)."""
+    try:
+        with open(data_dir() / "last-apple-2fa.txt", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now(timezone.utc).isoformat()} complete status={json.dumps(status, default=str)} "
+                    f"parts={sorted(k for k in r if k != 'Status')}\n\n")
+    except Exception:
+        pass
+
+
 def _log_2fa(step: str, r: urllib3.BaseHTTPResponse) -> None:
     """Apple's answers during the two-factor step (phone list, text request), for troubleshooting.
     Apple only shows the last digits of phone numbers here; no codes or tokens are written."""
@@ -519,13 +529,20 @@ class SignIn:
             raise AppleError("Sign-in failed (bad challenge from Apple).")
         r = self._gsa({"c": r["c"], "M1": m1, "cpd": self._cpd(), "o": "complete", "u": self.apple_id})
         status = r.get("Status", {})
-        if status.get("ec", 0) != 0:
+        _log_complete(status, r)
+        # Apple sometimes answers a correct password with an error (-80046 / -80045) while it
+        # sends the two-factor prompt to the user's devices anyway. When the answer still holds
+        # the signed-in session (M2 + spd), carry on to the code instead of giving up.
+        if status.get("ec", 0) != 0 and not (r.get("M2") and r.get("spd")):
             raise AppleError(_error_text(status))
         usr.verify_session(r["M2"])
         if not usr.authenticated():
             raise AppleError("Wrong Apple ID or password.")
         self._spd = _decrypted_plist(_decrypt_cbc(usr.get_session_key(), r["spd"]), "account details")
         au = status.get("au")
+        if status.get("ec", 0) != 0:
+            # The prompt is already on the devices; don't ask Apple again, just take the code.
+            raise NeedsCode("device")
         if au == "trustedDeviceSecondaryAuth":
             self._request_code("device")
         elif au == "secondaryAuth":
