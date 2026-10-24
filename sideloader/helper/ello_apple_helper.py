@@ -311,11 +311,15 @@ async def cmd_account(_: dict) -> dict:
 
 
 async def cmd_get_anisette(msg: dict) -> str:
+    import apple_account
+
     return apple_account.anisette_server()
 
 
 async def cmd_set_anisette(msg: dict) -> str:
     """Use an anisette server for Apple's machine data ("" = back to iCloud / built-in)."""
+    import apple_account
+
     url = apple_account.set_anisette_server(str(msg.get("url") or ""))
     if url:
         # Check it answers before anyone signs in with it.
