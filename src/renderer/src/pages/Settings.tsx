@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ExtrasSettings } from '../components/ExtrasSettings'
+import { AppearanceSettings } from '../components/AppearanceSettings'
 import { useStore } from '../store'
 import { Icon } from '../components/Icon'
 import { VpnCard } from '../components/VpnCard'
@@ -98,6 +99,8 @@ export function Settings(): JSX.Element {
         <h1 className="section-title">Settings</h1>
 
         {/* About & updates */}
+        <AppearanceSettings />
+
         <div className="card">
           <h3>About &amp; updates</h3>
           <p className="hint" style={{ marginBottom: 14 }}>

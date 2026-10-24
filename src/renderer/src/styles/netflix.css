@@ -1,11 +1,19 @@
 /* ello smartTV, Netflix-style layout. Loaded after global.css.
    The accent colour comes from the profile (theme.ts sets --accent / --blue). */
 
-:root {
+:root.theme-cinema {
   --bg: #0b0b0d;
   --surface: #181818;
   --surface-2: #232323;
   --surface-3: #2f2f2f;
+  --accent: #4c8dff;
+  --on-accent: #fff;
+  --accent-soft: #4c8dff33;
+  --nf-pad: clamp(24px, 4vw, 60px);
+  --card-w: clamp(132px, 12.2vw, 232px);
+}
+
+:root {
   --accent: #4c8dff;
   --on-accent: #fff;
   --accent-soft: #4c8dff33;
@@ -77,16 +85,16 @@
 }
 
 /* Pages start under the bar. */
-.page.pad {
+.theme-cinema .page.pad {
   padding-top: 84px;
 }
-.page.fixed {
+.theme-cinema .page.fixed {
   padding-top: 80px;
 }
-.page {
+.theme-cinema .page {
   scrollbar-width: none;
 }
-.page::-webkit-scrollbar {
+.theme-cinema .page::-webkit-scrollbar {
   display: none;
 }
 .page.nf-page {
@@ -974,8 +982,8 @@
 }
 
 /* ------------------------------------------------------------------ other screens, in the same style */
-.profile-picker,
-.picker {
+.theme-cinema .profile-picker,
+.theme-cinema .picker {
   background: var(--bg);
 }
 .swatches.accents .swatch {
@@ -983,12 +991,12 @@
   height: 42px;
   border-radius: 10px;
 }
-.btn.primary,
-.ghost-btn.primary {
+.theme-cinema .btn.primary,
+.theme-cinema .ghost-btn.primary {
   background: var(--accent);
   color: var(--on-accent);
 }
-.card {
+.theme-cinema .card {
   background: #161616;
   border-color: rgba(255, 255, 255, 0.06);
 }

@@ -14,6 +14,10 @@ import { Home } from './pages/Home'
 import { LiveTV } from './pages/LiveTV'
 import { Guide } from './pages/Guide'
 import { Movies, MyList, Series } from './pages/Browse'
+import { ClassicHome } from './pages/classic/Home'
+import { ClassicMovies } from './pages/classic/Movies'
+import { ClassicSeries } from './pages/classic/Series'
+import { ClassicDetails } from './pages/classic/Details'
 import { Settings } from './pages/Settings'
 import { Details } from './pages/Details'
 import { PlayerOverlay } from './components/PlayerOverlay'
@@ -39,6 +43,13 @@ export default function App(): JSX.Element {
     profilePicker,
     setProfilePicker
   } = useStore()
+  const settings = useStore((st) => st.settings)
+  // Theme class on <html>: the cinema stylesheet only applies under it.
+  const themeName = settings?.uiTheme ?? 'cinema'
+  useEffect(() => {
+    document.documentElement.classList.toggle('theme-cinema', themeName === 'cinema')
+    document.documentElement.classList.toggle('theme-classic', themeName !== 'cinema')
+  }, [themeName])
   const multiView = useStore((st) => st.multiView)
 
   useSpatialNavigation()
@@ -152,8 +163,10 @@ export default function App(): JSX.Element {
   // The full-screen player and the in-app browser bring their own top controls,
   // so the main top bar is hidden while either is active.
   const overlayUp = playerVisible || webApp.open || multiView != null
-  // The detail window opens over the page (Netflix style), so the page stays.
-  const showChrome = !overlayUp && !profilePicker
+  const cinema = (settings?.uiTheme ?? 'cinema') === 'cinema'
+  // Cinema: the detail window opens over the page, so the page stays. Classic:
+  // the detail screen replaces it.
+  const showChrome = !overlayUp && !profilePicker && (cinema || !detail)
 
   return (
     <>
@@ -163,17 +176,17 @@ export default function App(): JSX.Element {
           the transparent window still shows the mpv video behind it. */}
       <div style={{ display: showChrome ? 'contents' : 'none' }}>
         <TopBar />
-        {route === 'home' && <Home />}
+        {route === 'home' && (cinema ? <Home /> : <ClassicHome />)}
         {route === 'live' && <LiveTV />}
         {route === 'guide' && <Guide />}
-        {route === 'movies' && <Movies />}
-        {route === 'series' && <Series />}
+        {route === 'movies' && (cinema ? <Movies /> : <ClassicMovies />)}
+        {route === 'series' && (cinema ? <Series /> : <ClassicSeries />)}
         {route === 'settings' && <Settings />}
         {route === 'mylist' && <MyList />}
       </div>
       {detail && (
         <div style={{ display: overlayUp ? 'none' : 'contents' }}>
-          <Details />
+          {cinema ? <Details /> : <ClassicDetails />}
         </div>
       )}
       {playerVisible && !webApp.open && <PlayerOverlay />}

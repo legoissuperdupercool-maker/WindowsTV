@@ -3,6 +3,14 @@ import { activeProfile, useStore, type RouteName } from '../store'
 import { Icon } from './Icon'
 import { Avatar } from './Avatar'
 
+const CLASSIC_TABS: Array<{ route: RouteName; label: string }> = [
+  { route: 'home', label: 'Home' },
+  { route: 'live', label: 'Live TV' },
+  { route: 'guide', label: 'Guide' },
+  { route: 'movies', label: 'Movies' },
+  { route: 'series', label: 'Series' }
+]
+
 const TABS: Array<{ route: RouteName; label: string }> = [
   { route: 'home', label: 'Home' },
   { route: 'series', label: 'Series' },
@@ -36,6 +44,7 @@ export function TopBar(): JSX.Element {
   const { settings, currentSourceId, setSource, navigate, route, update, setProfilePicker } = useStore()
   const me = useStore(activeProfile)
   const sources = settings?.sources ?? []
+  const cinema = (settings?.uiTheme ?? 'cinema') === 'cinema'
 
   // See-through over the billboard; solid once the page scrolls.
   const [solid, setSolid] = useState(false)
@@ -53,11 +62,11 @@ export function TopBar(): JSX.Element {
   }, [route])
 
   return (
-    <div className={`topbar nf-topbar ${solid ? 'solid' : ''}`}>
+    <div className={`topbar ${cinema ? 'nf-topbar' : ''} ${solid ? 'solid' : ''}`}>
       <Wordmark />
 
       <nav className="tabs">
-        {TABS.map((t) => (
+        {(cinema ? TABS : CLASSIC_TABS).map((t) => (
           <button
             key={t.route}
             className={`focusable tab ${route === t.route ? 'active' : ''}`}

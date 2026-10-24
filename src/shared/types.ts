@@ -72,7 +72,9 @@ export interface Profile {
   name: string
   /** Avatar colour. */
   color: string
-  /** Optional emoji shown instead of the initial. */
+  /** Profile picture: `art:<id>` (ello's characters) or `image:<file>` (uploaded). */
+  avatar?: string
+  /** Older profiles: emoji shown instead of the initial. */
   emoji?: string
   /** Kids profile: only kid-friendly categories, never adult content. */
   kids?: boolean
@@ -254,6 +256,8 @@ export interface AppSettings {
   appTiles: AppTile[]
   /** Last opened source id, for restoring context. */
   lastSourceId?: string
+  /** Look of the app: 'cinema' (billboard + rows, default) or 'classic' (the original tiles). */
+  uiTheme?: 'cinema' | 'classic'
   /** Settings → Multi-view: watch 2 or 4 live channels at once. */
   multiView?: boolean
   /** Settings → Recording: record live TV and get reminders from the Guide. */

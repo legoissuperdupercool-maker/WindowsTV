@@ -92,7 +92,9 @@ const api = {
     save: (p: Partial<Profile> & { name: string }) => invoke<ProfilesState>(IPC.profileSave, p),
     remove: (id: string) => invoke<ProfilesState>(IPC.profileDelete, id),
     pickBackground: (id: string) => invoke<ProfilesState | null>(IPC.profilePickBackground, id),
-    backgroundImage: (background: string) => invoke<string | null>(IPC.profileBackgroundImage, background)
+    backgroundImage: (background: string) => invoke<string | null>(IPC.profileBackgroundImage, background),
+    pickAvatar: () => invoke<string | null>(IPC.profilePickAvatar),
+    avatarImage: (avatar: string) => invoke<string | null>(IPC.profileAvatarImage, avatar)
   },
   vpn: {
     get: () => invoke<VpnState>(IPC.vpnGet),

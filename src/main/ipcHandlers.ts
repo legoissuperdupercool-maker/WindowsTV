@@ -2,7 +2,7 @@ import { app, ipcMain, shell } from 'electron'
 import { IPC, type PlayerCommand, type UpdateState, type VideoRegion } from '../shared/ipc'
 import type { LoadProgress, PlayOptions, Result, Source, StreamType } from '../shared/types'
 import type { WatchProgress } from './progress'
-import { backgroundImage, type Profiles } from './profiles'
+import { avatarImage, backgroundImage, pickAvatar, type Profiles } from './profiles'
 import type { Vpn } from './vpn'
 import { dialog } from 'electron'
 import { readFileSync, statSync } from 'node:fs'
@@ -598,6 +598,14 @@ export function registerIpc(ctx: MainContext): void {
     }
   })
   ipcMain.handle(IPC.profileBackgroundImage, (_e, background: string) => ok(backgroundImage(background)))
+  ipcMain.handle(IPC.profilePickAvatar, async () => {
+    try {
+      return ok(await pickAvatar(windows.uiWindow))
+    } catch (e) {
+      return fail(e)
+    }
+  })
+  ipcMain.handle(IPC.profileAvatarImage, (_e, avatar: string) => ok(avatarImage(avatar)))
   ipcMain.handle(IPC.progressGet, (_e, key: string) => ok(ctx.progress.get(key) ?? null))
   ipcMain.handle(IPC.progressSeries, (_e, args: { sourceId: string; seriesId: string }) =>
     ok(ctx.progress.forSeries(args.sourceId, args.seriesId))

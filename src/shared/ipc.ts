@@ -69,6 +69,8 @@ export const IPC = {
   profileDelete: 'profiles:delete',
   profilePickBackground: 'profiles:pickBackground',
   profileBackgroundImage: 'profiles:backgroundImage',
+  profilePickAvatar: 'profiles:pickAvatar',
+  profileAvatarImage: 'profiles:avatarImage',
   myListToggle: 'mylist:toggle',
   progressHistory: 'progress:history',
 

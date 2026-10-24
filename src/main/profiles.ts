@@ -85,6 +85,7 @@ export class Profiles {
         background: input.background ?? existing.background,
         kids: input.kids ?? existing.kids,
         accent: typeof input.accent === 'string' && input.accent.length < 24 ? input.accent : existing.accent,
+        avatar: validAvatar(input.avatar) ?? existing.avatar,
         hideAdult: input.hideAdult ?? existing.hideAdult,
         countries: stringList(input.countries) ?? existing.countries,
         hiddenCategories: stringList(input.hiddenCategories) ?? existing.hiddenCategories,
@@ -98,6 +99,8 @@ export class Profiles {
         name,
         color: input.color ?? PROFILE_COLORS[profiles.length % PROFILE_COLORS.length],
         emoji: input.emoji || undefined,
+        avatar: validAvatar(input.avatar),
+        accent: typeof input.accent === 'string' && input.accent.length < 24 ? input.accent : undefined,
         background: input.background ?? 'default',
         kids: input.kids ?? false,
         hideAdult: input.hideAdult ?? input.kids ?? false,
@@ -152,6 +155,43 @@ export class Profiles {
     if (profile) removeBackgroundFile(profile.background)
     return this.save({ id: profileId, name: profile?.name ?? 'Profile', background: `image:${file}` })
   }
+}
+
+/** Let the person pick their own profile picture; it's copied into the app's folder. */
+export async function pickAvatar(win: BrowserWindow): Promise<string | null> {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Choose a profile picture',
+    properties: ['openFile'],
+    filters: [{ name: 'Pictures', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] }]
+  })
+  if (res.canceled || !res.filePaths[0]) return null
+  const src = res.filePaths[0]
+  if (statSync(src).size > 10 * 1024 * 1024) throw new Error('That picture is too big (10 MB max).')
+  const dir = avatarDir()
+  mkdirSync(dir, { recursive: true })
+  const file = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extname(src).toLowerCase()}`
+  copyFileSync(src, join(dir, file))
+  return `image:${file}`
+}
+
+/** An uploaded profile picture as a data: URL. */
+export function avatarImage(avatar: string): string | null {
+  if (!avatar.startsWith('image:')) return null
+  const file = join(avatarDir(), basename(avatar.slice(6)))
+  try {
+    const ext = extname(file).slice(1).replace('jpg', 'jpeg')
+    return `data:image/${ext};base64,${readFileSync(file).toString('base64')}`
+  } catch {
+    return null
+  }
+}
+
+function avatarDir(): string {
+  return join(app.getPath('userData'), 'avatars')
+}
+
+function validAvatar(v: unknown): string | undefined {
+  return typeof v === 'string' && /^(art:[a-z0-9-]{1,32}|image:[\w.-]{1,80})$/i.test(v) ? v : undefined
 }
 
 function backgroundDir(): string {
