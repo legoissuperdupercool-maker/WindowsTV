@@ -752,6 +752,9 @@
   display: block;
 }
 /* Wide artwork has no title on it: a soft shade with the title at the bottom. */
+:is(.theme-premium, .theme-wonder, .theme-glass) .nf-card .nf-poster.crop img.nf-art-poster {
+  object-position: 50% 18%;
+}
 :is(.theme-premium, .theme-wonder) .nf-card .nf-poster.has-wide::before {
   content: '';
   position: absolute;
@@ -1089,4 +1092,8 @@
 }
 .theme-glass .nf-wide-art {
   border-radius: 12px;
+}
+/* The title is already on wide tiles (or under them, Glass). */
+:is(.theme-premium, .theme-wonder, .theme-glass) .nf-card .nf-poster.has-wide .nf-ph {
+  display: none;
 }

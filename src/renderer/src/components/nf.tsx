@@ -7,6 +7,7 @@ import { Initials } from './Initials'
 import { ScrollRow } from './ScrollRow'
 import { getFocused } from '../hooks/useSpatialNavigation'
 import { lookOf } from '../theme'
+import { useArtwork } from '../hooks/useArtwork'
 import type { Channel, MediaDetails, Programme, WatchItem } from '@shared/types'
 
 /*
@@ -260,23 +261,31 @@ export function PosterCard({ c, onOpen, wide: allowWide = true }: { c: Channel; 
   const year = metaStr(c, 'year')
   const rating = metaStr(c, 'rating')
   const genre = metaStr(c, 'genre')?.split(/[,/]/)[0]
-  // Wide looks show the provider's wide artwork as a wide tile; without it (or
-  // if it fails to load) the card stays a normal poster: cropping a poster to
-  // 16:9 cuts off its title. Grids always use posters.
+  // Wide looks: rows of wide tiles. Wide artwork comes from the list or, for
+  // movies, from the provider's movie info (read once the card is on screen).
+  // A title with no wide artwork shows its poster cropped, with the title over
+  // it. Grids always use posters. Posters missing from the list come from the
+  // movie info too.
+  const ref = useRef<HTMLDivElement>(null)
   const [wideFailed, setWideFailed] = useState(false)
-  const backdrop = metaStr(c, 'backdrop')
-  const wide = allowWide && wideLook && backdrop && !wideFailed ? backdrop : undefined
+  const [posterFailed, setPosterFailed] = useState(false)
+  const isWide = allowWide && wideLook
+  const listBackdrop = metaStr(c, 'backdrop')
+  const art = useArtwork(c, (isWide && (!listBackdrop || wideFailed)) || !c.logo || posterFailed, ref)
+  const backdrop = !wideFailed && listBackdrop ? listBackdrop : art.backdrop
+  const poster = c.logo && !posterFailed ? c.logo : art.poster
+  const wideArt = isWide ? backdrop : undefined
   return (
-    <div className={`nf-card ${wide ? 'is-wide' : ''}`}>
+    <div ref={ref} className={`nf-card ${isWide ? 'is-wide' : ''}`}>
       <button className="focusable nf-card-hit" onClick={() => onOpen(c)} title={title}>
-        <div className={`nf-poster ${wide ? 'has-wide' : ''}`} style={{ ['--h' as string]: hue(title) }}>
+        <div className={`nf-poster ${isWide ? 'has-wide' : ''} ${isWide && !wideArt ? 'crop' : ''}`} style={{ ['--h' as string]: hue(title) }}>
           <span className="nf-ph">{title}</span>
-          {wide ? (
-            <FadeImg key="w" src={wide} alt="" className="nf-art-wide" onError={() => setWideFailed(true)} />
+          {wideArt ? (
+            <FadeImg key={wideArt} src={wideArt} alt="" className="nf-art-wide" onError={() => (wideArt === listBackdrop ? setWideFailed(true) : undefined)} />
           ) : (
-            c.logo && <FadeImg key="p" src={c.logo} alt="" className="nf-art-poster" />
+            poster && <FadeImg key={poster} src={poster} alt="" className="nf-art-poster" onError={() => (poster === c.logo ? setPosterFailed(true) : undefined)} />
           )}
-          {wide && (
+          {isWide && (
             <span className="nf-art-title">
               <b>{title}</b>
             </span>
@@ -318,8 +327,12 @@ export function PosterCard({ c, onOpen, wide: allowWide = true }: { c: Channel; 
 /** Top 10: big outlined numbers next to the posters. */
 export function Top10Card({ c, n, onOpen }: { c: Channel; n: number; onOpen: (c: Channel) => void }): JSX.Element {
   const title = cleanTitle(c.name)
+  const ref = useRef<HTMLButtonElement>(null)
+  const [failed, setFailed] = useState(false)
+  const art = useArtwork(c, !c.logo || failed, ref)
+  const poster = c.logo && !failed ? c.logo : art.poster
   return (
-    <button className="focusable nf-top10" onClick={() => onOpen(c)} title={title}>
+    <button ref={ref} className="focusable nf-top10" onClick={() => onOpen(c)} title={title}>
       <svg className="nf-top10-num" viewBox="0 0 120 160" aria-hidden>
         <text x="118" y="150" textAnchor="end">
           {n}
@@ -327,7 +340,7 @@ export function Top10Card({ c, n, onOpen }: { c: Channel; n: number; onOpen: (c:
       </svg>
       <div className="nf-poster" style={{ ['--h' as string]: hue(title) }}>
         <span className="nf-ph">{title}</span>
-        {c.logo && <FadeImg src={c.logo} alt="" />}
+        {poster && <FadeImg key={poster} src={poster} alt="" onError={() => (poster === c.logo ? setFailed(true) : undefined)} />}
       </div>
     </button>
   )
