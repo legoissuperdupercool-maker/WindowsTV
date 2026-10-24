@@ -636,6 +636,11 @@ class SignIn:
             self._request_code("sms")
         elif au:
             raise AppleError(f"Apple asked for an extra step ello doesn't support yet ({au}).")
+        elif status.get("hsc") == 409:
+            # Apple now often leaves out "au" and only says HTTP-style 409 ("two-factor needed")
+            # while it shows the prompt on the user's devices. Skipping the code here makes the
+            # next step fail with -80046.
+            self._request_code("device")
 
     # --- two-factor
 
@@ -774,6 +779,7 @@ class SignIn:
         if mode in ("device", "manual"):
             h = {**self._2fa_headers(), "security-code": code}
             r = self._auth_http("GET", "https://gsa.apple.com/grandslam/GsService2/validate", h)
+            _log_2fa("validate", r)
             try:
                 ec = plistlib.loads(r.data).get("ec", 0)
             except Exception:
@@ -820,6 +826,7 @@ class SignIn:
             "u": adsid,
         })
         status = r.get("Status", {})
+        _log_note(f"apptokens status={json.dumps(status, default=str)}")
         if status.get("ec", 0) != 0:
             raise AppleError(_error_text(status), status.get("ec"))
         tokens = _decrypted_plist(_decrypt_gcm(sk, r["et"]), "app token")["t"][XCODE_APP]
