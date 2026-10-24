@@ -465,21 +465,23 @@ function AnisetteCard(): JSX.Element {
     <div className="card wide">
       <h3 style={{ margin: '0 0 6px' }}>Machine data (anisette)</h3>
       <p className="lead small">
-        Apple wants machine data with every sign-in. Automatic tries iCloud for Windows first and, if Apple refuses it
-        (-80046, -80045), quietly tries again with Apple Music’s own code on this PC, then your server if you set one.
+        Apple wants machine data with every sign-in, and since October 2026 only takes data from its real Mac or Windows
+        code. Automatic uses a Mac anisette service (it gets no Apple ID, password or code; this PC keeps its own identity
+        there), then your server, iCloud for Windows and Apple Music’s code on this PC.
       </p>
       <label className="signin" style={{ display: 'block', marginBottom: 14 }}>
         <span>Use</span>
         <select value={mode} onChange={(e) => void pickMode(e.target.value as AnisetteMode)}>
           <option value="auto">Automatic (recommended)</option>
+          <option value="mac">Mac anisette service</option>
           <option value="builtin">Apple Music (built-in, on this PC)</option>
           <option value="icloud">iCloud for Windows</option>
           <option value="server">Anisette server only</option>
         </select>
       </label>
       <p className="lead small">
-        Anisette server (optional): one that answers with v1 JSON, such as your own anisette-v3-server. It sees no password,
-        only that a sign-in is happening.
+        Anisette server (optional): your own anisette-v3-server or omnisette server (v3 is used when it offers it, else
+        v1 JSON). It sees no password, only that a sign-in is happening.
       </p>
       <form
         className="signin"

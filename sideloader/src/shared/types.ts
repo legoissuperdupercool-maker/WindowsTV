@@ -68,4 +68,4 @@ export type HelperEvent =
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
 /** Where Apple's machine data comes from at sign-in. */
-export type AnisetteMode = 'auto' | 'builtin' | 'icloud' | 'server'
+export type AnisetteMode = 'auto' | 'mac' | 'builtin' | 'icloud' | 'server'

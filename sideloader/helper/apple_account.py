@@ -295,6 +295,36 @@ class RemoteMachine:
         return self._client_info
 
 
+class MacMachine:
+    """This PC as a Mac, with machine data from a Mac anisette service (v3 protocol, see
+    anisette_v3.py). The sign-in then uses that service's Mac identity at every step, as Apple
+    expects the identity to match the machine data."""
+
+    def __init__(self, servers: tuple[str, ...] | None = None) -> None:
+        import anisette_v3
+
+        try:
+            self._v3 = anisette_v3.V3Machine(data_dir(), _http, _ssl_context(), servers or anisette_v3.SERVERS)
+        except anisette_v3.Unavailable as e:
+            raise AppleError(f"No Mac anisette service answered: {e}", MACHINE_FAILED) from e
+
+    def headers(self) -> dict[str, str]:
+        import anisette_v3
+
+        try:
+            return self._v3.headers()
+        except anisette_v3.Unavailable as e:
+            raise AppleError(f"The Mac anisette service stopped answering: {e}", MACHINE_FAILED) from e
+
+    @property
+    def identity(self) -> tuple[str, str]:
+        return self._v3.client_info, self._v3.user_agent
+
+    @property
+    def client_info(self) -> str:
+        return self._v3.client_info
+
+
 def anisette_server() -> str:
     """The anisette server set in the app ("" = none)."""
     try:
@@ -315,12 +345,12 @@ def set_anisette_server(url: str) -> str:
     return url
 
 
-ANISETTE_MODES = ("auto", "builtin", "icloud", "server")
+ANISETTE_MODES = ("auto", "mac", "builtin", "icloud", "server")
 
 
 def anisette_mode() -> str:
-    """Where Apple's machine data comes from: auto (iCloud, then Apple Music, then server),
-    or always one of them."""
+    """Where Apple's machine data comes from: auto (Mac service, then iCloud, then Apple
+    Music, then server), or always one of them."""
     try:
         mode = (data_dir() / "anisette-mode.txt").read_text(encoding="utf-8").strip()
     except OSError:
@@ -336,18 +366,31 @@ def set_anisette_mode(mode: str) -> str:
 
 def machine_sources() -> list[tuple[str, Callable[[], "Machine | ICloudMachine | RemoteMachine | None"]]]:
     """The machine-data sources to try, in order, for the chosen mode."""
+    import anisette_v3
+
     url = anisette_server()
+    mac = ("Mac anisette service", MacMachine)
     icloud = ("iCloud for Windows", ICloudMachine.available)
     builtin = ("Apple Music (built-in)", Machine)
-    server = (f"anisette server: {url}", lambda: RemoteMachine(url) if url else None)
+
+    def own_server():
+        if not url:
+            return None
+        return MacMachine((url,)) if anisette_v3.is_v3(_http, url) else RemoteMachine(url)
+
+    server = (f"anisette server: {url}", own_server)
     mode = anisette_mode()
+    if mode == "mac":
+        return [mac]
     if mode == "builtin":
         return [builtin]
     if mode == "icloud":
         return [icloud]
     if mode == "server":
         return [server]
-    return [icloud, builtin] + ([server] if url else [])
+    # Since late October 2026 Apple only takes machine data from its real macOS/Windows code at the
+    # final token step, so the Mac service comes first; Apple Music (built-in) is a last resort.
+    return [mac] + ([server] if url else []) + [icloud, builtin]
 
 
 def _note_source(name: str) -> None:
@@ -558,7 +601,9 @@ class SignIn:
         self._sms_route: str | None = None
         self._idms_session: dict[str, str] = {}
         self._sms_device_id: str | None = None
-        self._auth_client = WIN_CLIENT_INFO
+        # The identity Apple sees: the machine-data source's own (Mac service), else Windows.
+        self._identity: tuple[str, str] = getattr(machine, "identity", None) or (WIN_CLIENT_INFO, AKD_USER_AGENT)
+        self._auth_client = self._identity[0]
 
     def _cpd(self) -> dict:
         h = self.m.headers()
@@ -577,11 +622,12 @@ class SignIn:
         import time
 
         body = plistlib.dumps({"Header": {"Version": "1.0.1"}, "Request": request})
+        client_info, user_agent = self._identity
         headers = {
             "Content-Type": "text/x-xml-plist",
             "Accept": "*/*",
-            "User-Agent": AKD_USER_AGENT,
-            "X-MMe-Client-Info": WIN_CLIENT_INFO,
+            "User-Agent": user_agent,
+            "X-MMe-Client-Info": client_info,
         }
         # Busy (429/503, sometimes an HTML page instead of a plist): wait and try again, twice.
         for wait in (2, 5, None):
@@ -650,7 +696,7 @@ class SignIn:
         # As current Xcode sends them (same as xtool and isideload).
         return {
             "Content-Type": "application/x-plist",
-            "User-Agent": "akd/1.0 CFNetwork/808.1.4",
+            "User-Agent": self._identity[1],
             "Accept": "application/x-buddyml",
             "Accept-Language": "en-us",
             "X-Apple-Identity-Token": identity,

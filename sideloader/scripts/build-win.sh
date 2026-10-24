@@ -56,7 +56,7 @@ fi
 cp "$CACHE/anisette-libs.bin" "$OUT/app/"
 
 echo "== helper scripts"
-cp helper/ello_apple_helper.py helper/apple_account.py helper/apple_dev.py helper/app_signer.py helper/icloud_anisette.py "$OUT/app/"
+cp helper/ello_apple_helper.py helper/apple_account.py helper/apple_dev.py helper/app_signer.py helper/icloud_anisette.py helper/anisette_v3.py "$OUT/app/"
 if [ -n "${ELLO_IPA:-}" ]; then cp "$ELLO_IPA" "$OUT/app/ello-smartTV.ipa"; fi
 
 if command -v wine >/dev/null; then
