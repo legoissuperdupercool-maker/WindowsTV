@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from './store'
 import { SearchOverlay } from './components/SearchOverlay'
 import { MultiViewScreen } from './components/MultiView'
@@ -25,6 +25,9 @@ import { WebAppView } from './components/WebAppView'
 import { LoadToast } from './components/LoadToast'
 import { ProfilePicker } from './components/ProfilePicker'
 import { AppBackground } from './components/AppBackground'
+import { Intro } from './components/Intro'
+import { LOOKS, lookOf } from './theme'
+import { useGlassTilt } from './hooks/useGlassTilt'
 
 export default function App(): JSX.Element {
   const {
@@ -44,12 +47,27 @@ export default function App(): JSX.Element {
     setProfilePicker
   } = useStore()
   const settings = useStore((st) => st.settings)
-  // Theme class on <html>: the cinema stylesheet only applies under it.
-  const themeName = settings?.uiTheme ?? 'cinema'
+  // Look classes on <html>: theme-cinema for every look built on the shared
+  // screens (Theater, Premium, Wonder, Glass), plus theme-<look> for its design.
+  const look = lookOf(settings?.uiTheme)
   useEffect(() => {
-    document.documentElement.classList.toggle('theme-cinema', themeName === 'cinema')
-    document.documentElement.classList.toggle('theme-classic', themeName !== 'cinema')
-  }, [themeName])
+    const root = document.documentElement.classList
+    root.toggle('theme-cinema', look !== 'classic')
+    root.toggle('theme-classic', look === 'classic')
+    for (const l of LOOKS) root.toggle(`theme-${l.id}`, l.id === look)
+  }, [look])
+
+  // Logo animation at start (and from Settings → Look → "Play intro").
+  const [intro, setIntro] = useState<'pending' | 'playing' | 'done'>('pending')
+  useEffect(() => {
+    if (intro === 'pending' && settings) setIntro(settings.intro === false ? 'done' : 'playing')
+  }, [settings, intro])
+  useEffect(() => {
+    const replay = (): void => setIntro('playing')
+    window.addEventListener('ello:intro', replay)
+    return () => window.removeEventListener('ello:intro', replay)
+  }, [])
+  useGlassTilt(look === 'glass')
   const multiView = useStore((st) => st.multiView)
 
   useSpatialNavigation()
@@ -163,7 +181,7 @@ export default function App(): JSX.Element {
   // The full-screen player and the in-app browser bring their own top controls,
   // so the main top bar is hidden while either is active.
   const overlayUp = playerVisible || webApp.open || multiView != null
-  const cinema = (settings?.uiTheme ?? 'cinema') === 'cinema'
+  const cinema = look !== 'classic'
   // Cinema: the detail window opens over the page, so the page stays. Classic:
   // the detail screen replaces it.
   const showChrome = !overlayUp && !profilePicker && (cinema || !detail)
@@ -196,6 +214,7 @@ export default function App(): JSX.Element {
       {multiView && !playerVisible && <MultiViewScreen initial={multiView} />}
       <AppBackground />
       <LoadToast />
+      {intro === 'playing' && <Intro look={look} onDone={() => setIntro('done')} />}
     </>
   )
 }

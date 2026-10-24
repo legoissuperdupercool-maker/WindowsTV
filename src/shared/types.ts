@@ -256,8 +256,10 @@ export interface AppSettings {
   appTiles: AppTile[]
   /** Last opened source id, for restoring context. */
   lastSourceId?: string
-  /** Look of the app: 'cinema' (billboard + rows, default) or 'classic' (the original tiles). */
-  uiTheme?: 'cinema' | 'classic'
+  /** Look of the app ('cinema' is the old name for 'theater'). */
+  uiTheme?: 'theater' | 'premium' | 'wonder' | 'glass' | 'classic' | 'cinema'
+  /** Play the logo animation when the app starts (default on). */
+  intro?: boolean
   /** Settings → Multi-view: watch 2 or 4 live channels at once. */
   multiView?: boolean
   /** Settings → Recording: record live TV and get reminders from the Guide. */

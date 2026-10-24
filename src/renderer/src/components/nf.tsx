@@ -120,6 +120,16 @@ export function Billboard({ items, fallback }: { items: BillboardItem[]; fallbac
         </div>
       </div>
       {items.length > 1 && (
+        <>
+          <button className="nf-bb-arrow prev" aria-label="Previous" onClick={() => setI((n) => (n - 1 + items.length) % items.length)}>
+            <Icon name="chevron" size={34} />
+          </button>
+          <button className="nf-bb-arrow next" aria-label="Next" onClick={() => setI((n) => n + 1)}>
+            <Icon name="chevron" size={34} />
+          </button>
+        </>
+      )}
+      {items.length > 1 && (
         <div className="nf-bb-dots">
           {items.map((it, n) => (
             <button key={n === index ? `${it.channel.id}-${i}` : it.channel.id} className={`nf-dot ${n === index ? 'on' : ''}`} onClick={() => setI(n)} aria-label={`Title ${n + 1}`} />
@@ -131,6 +141,33 @@ export function Billboard({ items, fallback }: { items: BillboardItem[]; fallbac
 }
 
 // --------------------------------------------------------------------- rows
+
+/** Wonder look: big glowing tiles for the main collections, under the billboard. */
+export function Collections(): JSX.Element {
+  const navigate = useStore((s) => s.navigate)
+  const tiles: Array<{ route: 'movies' | 'series' | 'live' | 'guide' | 'mylist'; label: string; icon: string; from: string; to: string }> = [
+    { route: 'movies', label: 'Movies', icon: 'movie', from: '#1d3c8f', to: '#0b1640' },
+    { route: 'series', label: 'Series', icon: 'series', from: '#5b2a86', to: '#1d0d33' },
+    { route: 'live', label: 'Live TV', icon: 'live', from: '#0f6e74', to: '#062a33' },
+    { route: 'guide', label: 'TV Guide', icon: 'guide', from: '#8a3b1f', to: '#2e1208' },
+    { route: 'mylist', label: 'Watchlist', icon: 'bookmarks', from: '#2d4f2a', to: '#0d1d0c' }
+  ]
+  return (
+    <div className="nf-collections">
+      {tiles.map((t) => (
+        <button
+          key={t.route}
+          className="focusable nf-collection"
+          style={{ ['--c1' as string]: t.from, ['--c2' as string]: t.to }}
+          onClick={() => navigate(t.route)}
+        >
+          <Icon name={t.icon} size={34} />
+          <span>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 /** Shimmering rows while the catalogue loads. */
 export function SkeletonRows({ rows = 2 }: { rows?: number }): JSX.Element {

@@ -1094,15 +1094,15 @@
 }
 
 /* ------------------------------------------------------------------ sidebar (Cinema look) */
-:root.theme-cinema {
+:root.theme-theater {
   --sb-w: 84px;
   --nf-pad: calc(var(--sb-w) + clamp(18px, 2.6vw, 44px));
 }
-.theme-cinema .page.nf-page.padded {
+.theme-theater .page.nf-page.padded {
   padding-top: 56px;
 }
 /* Other screens (Live TV, Guide, Settings…) make room for the side menu. */
-.theme-cinema .page:not(.nf-page) {
+.theme-theater .page:not(.nf-page) {
   margin-left: var(--sb-w);
   padding-top: 52px;
 }

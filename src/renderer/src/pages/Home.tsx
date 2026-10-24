@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../store'
+import { lookOf } from '../theme'
 import { ADULT, featurable } from '../contentFilter'
 import { recommend, type SeedInfo } from '../recommend'
 import { Icon } from '../components/Icon'
-import { Billboard, ChannelCard, ContinueCard, PosterCard, Row, SkeletonRows, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
+import { Billboard, ChannelCard, Collections, ContinueCard, PosterCard, Row, SkeletonRows, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
 import { Initials } from '../components/Initials'
 import { detectBrand } from '../components/brands'
 import { FadeImg } from '../components/FadeImg'
@@ -202,6 +203,7 @@ export function Home(): JSX.Element {
   return (
     <div className="page nf-page">
       <Billboard items={billboard} fallback={welcome} />
+      {lookOf(settings?.uiTheme) === 'wonder' && <Collections />}
 
       <div className="nf-rows">
         {hasSources && !vod.length && <SkeletonRows rows={3} />}

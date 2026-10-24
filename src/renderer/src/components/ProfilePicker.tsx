@@ -4,7 +4,7 @@ import { Avatar, AvatarArt, fallbackArt } from './Avatar'
 import { Icon } from './Icon'
 import { Wordmark } from './TopBar'
 import { BACKGROUNDS, PROFILE_COLORS, backgroundCss } from '../backgrounds'
-import { ACCENTS, accentColor } from '../theme'
+import { ACCENTS, swatchBackground } from '../theme'
 import { AVATARS, freeAvatar } from '../avatars'
 import type { Profile } from '@shared/types'
 
@@ -65,7 +65,7 @@ function ProfileEditor({ profile, onClose }: { profile: Profile | null; onClose:
   const { saveProfile, deleteProfile, pickBackground, profiles } = useStore()
   const [name, setName] = useState(profile?.name ?? '')
   const [avatar, setAvatar] = useState(profile?.avatar ?? (profile ? `art:${fallbackArt(profile.id)}` : freeAvatar(profiles.map((p) => p.avatar))))
-  const [accent, setAccent] = useState(profile?.accent ?? 'blue')
+  const [accent, setAccent] = useState(profile?.accent ?? 'auto')
   const [background, setBackground] = useState(profile?.background ?? 'default')
   const [kids, setKids] = useState(profile?.kids ?? false)
   const [hideAdult, setHideAdult] = useState(profile?.hideAdult ?? false)
@@ -143,8 +143,8 @@ function ProfileEditor({ profile, onClose }: { profile: Profile | null; onClose:
               {ACCENTS.map((a) => (
                 <button
                   key={a.id}
-                  className={`focusable pe-swatch ${accentColor(accent) === a.color ? 'on' : ''}`}
-                  style={{ background: a.color }}
+                  className={`focusable pe-swatch ${(accent ?? 'auto') === a.id ? 'on' : ''}`}
+                  style={{ background: swatchBackground(a.color) }}
                   title={a.name}
                   onClick={() => setAccent(a.id)}
                 />
