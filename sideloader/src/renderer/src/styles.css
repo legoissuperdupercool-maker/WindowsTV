@@ -877,7 +877,9 @@ h3 {
   color: var(--text-dim);
 }
 .signin input[type='email'],
-.signin input[type='password'] {
+.signin input[type='password'],
+.signin input[type='url'],
+.signin select {
   height: 46px;
   border-radius: 14px;
   border: 2px solid var(--surface-3);

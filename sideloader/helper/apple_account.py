@@ -40,7 +40,13 @@ XCODE_APP = "com.apple.gs.xcode.auth"
 
 
 class AppleError(RuntimeError):
-    pass
+    def __init__(self, message: str, code: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code  # Apple's error code, when Apple gave one
+
+
+# Apple refusing the machine data rather than the password: worth retrying with another source.
+MACHINE_REFUSED = (-80046, -80045, -7005)
 
 
 class NeedsCode(Exception):
@@ -295,18 +301,67 @@ def set_anisette_server(url: str) -> str:
     return url
 
 
-def pick_machine() -> "Machine | ICloudMachine | RemoteMachine":
-    """An anisette server when one is set, else Apple's own iCloud when it's installed (most
-    trusted), otherwise ello's built-in one."""
-    url = anisette_server()
-    machine: "Machine | ICloudMachine | RemoteMachine | None" = RemoteMachine(url) if url else ICloudMachine.available()
+ANISETTE_MODES = ("auto", "builtin", "icloud", "server")
+
+
+def anisette_mode() -> str:
+    """Where Apple's machine data comes from: auto (iCloud, then Apple Music, then server),
+    or always one of them."""
     try:
-        (data_dir() / "anisette-source.txt").write_text(
-            f"anisette server: {url}\n" if url else "iCloud for Windows\n" if machine else "built-in (iCloud for Windows 7.x not found or not answering)\n",
-            encoding="utf-8")
+        mode = (data_dir() / "anisette-mode.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        mode = ""
+    return mode if mode in ANISETTE_MODES else "auto"
+
+
+def set_anisette_mode(mode: str) -> str:
+    mode = mode if mode in ANISETTE_MODES else "auto"
+    (data_dir() / "anisette-mode.txt").write_text(mode, encoding="utf-8")
+    return mode
+
+
+def machine_sources() -> list[tuple[str, Callable[[], "Machine | ICloudMachine | RemoteMachine | None"]]]:
+    """The machine-data sources to try, in order, for the chosen mode."""
+    url = anisette_server()
+    icloud = ("iCloud for Windows", ICloudMachine.available)
+    builtin = ("Apple Music (built-in)", Machine)
+    server = (f"anisette server: {url}", lambda: RemoteMachine(url) if url else None)
+    mode = anisette_mode()
+    if mode == "builtin":
+        return [builtin]
+    if mode == "icloud":
+        return [icloud]
+    if mode == "server":
+        return [server]
+    return [icloud, builtin] + ([server] if url else [])
+
+
+def _note_source(name: str) -> None:
+    try:
+        (data_dir() / "anisette-source.txt").write_text(name + "\n", encoding="utf-8")
     except OSError:
         pass
-    return machine or Machine()
+
+
+def pick_machine() -> "Machine | ICloudMachine | RemoteMachine":
+    """The first machine-data source that's available (renewals and developer services use
+    the same one the last sign-in used when possible)."""
+    sources = machine_sources()
+    try:
+        last_ok = (data_dir() / "anisette-last-ok.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        last_ok = ""
+    sources.sort(key=lambda src: src[0] != last_ok)
+    for name, make in sources:
+        try:
+            m = make()
+        except Exception:
+            m = None
+        if m:
+            _note_source(name)
+            return m
+    _note_source("Apple Music (built-in)")
+    return Machine()
 
 
 # ----------------------------------------------------------------------------- http
@@ -346,6 +401,14 @@ def _log_failure(step: str, r: urllib3.BaseHTTPResponse) -> None:
         (data_dir() / "last-apple-error.txt").write_text(
             f"{datetime.now(timezone.utc).isoformat()} {step}\nHTTP {r.status}\n{json.dumps(keep, indent=1)}\n\n{text}\n",
             encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _log_note(text: str) -> None:
+    try:
+        with open(data_dir() / "last-apple-2fa.txt", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now(timezone.utc).isoformat()} {text}\n\n")
     except Exception:
         pass
 
@@ -520,7 +583,7 @@ class SignIn:
         r = self._gsa({"A2k": a, "cpd": self._cpd(), "o": "init", "ps": ["s2k", "s2k_fo"], "u": self.apple_id})
         status = r.get("Status", {})
         if status.get("ec", 0) != 0:
-            raise AppleError(_error_text(status))
+            raise AppleError(_error_text(status), status.get("ec"))
         if r.get("sp") not in ("s2k", "s2k_fo"):
             raise AppleError("Apple asked for a sign-in method ello doesn't support.")
         usr.p = _encrypt_password(self.password, r["s"], r["i"], r["sp"])
@@ -534,7 +597,7 @@ class SignIn:
         # sends the two-factor prompt to the user's devices anyway. When the answer still holds
         # the signed-in session (M2 + spd), carry on to the code instead of giving up.
         if status.get("ec", 0) != 0 and not (r.get("M2") and r.get("spd")):
-            raise AppleError(_error_text(status))
+            raise AppleError(_error_text(status), status.get("ec"))
         usr.verify_session(r["M2"])
         if not usr.authenticated():
             raise AppleError("Wrong Apple ID or password.")
@@ -723,7 +786,7 @@ class SignIn:
         })
         status = r.get("Status", {})
         if status.get("ec", 0) != 0:
-            raise AppleError(_error_text(status))
+            raise AppleError(_error_text(status), status.get("ec"))
         tokens = _decrypted_plist(_decrypt_gcm(sk, r["et"]), "app token")["t"][XCODE_APP]
         expiry = tokens.get("expiry")
         if expiry:
@@ -740,11 +803,41 @@ def new_request_id() -> str:
 def sign_in(apple_id: str, password: str, ask_code: Callable[[str], str]) -> Session:
     """Full sign-in; `ask_code(mode)` returns the two-factor code the person typed."""
     (data_dir() / "last-apple-2fa.txt").unlink(missing_ok=True)
-    machine = pick_machine()
-    s = SignIn(machine, apple_id, password)
+    s: SignIn | None = None
+    need: NeedsCode | None = None
+    last: AppleError | None = None
+    for name, make in machine_sources():
+        try:
+            machine = make()
+        except Exception:
+            machine = None
+        if not machine:
+            continue
+        _note_source(name)
+        s = SignIn(machine, apple_id, password)
+        try:
+            s.login()
+            last = None
+            break
+        except NeedsCode as e:
+            need, last = e, None
+            break
+        except AppleError as e:
+            # Apple refused this machine data: try the next source without bothering the person.
+            last = e
+            _log_note(f"{name}: Apple error {e.code}")
+            if e.code in MACHINE_REFUSED:
+                continue
+            raise
+    if last:
+        raise last
+    if s is None:
+        raise AppleError("No way to make Apple's machine data on this PC. Set an anisette server under Apple ID.")
     try:
-        s.login()
-    except NeedsCode as need:
+        (data_dir() / "anisette-last-ok.txt").write_text(name, encoding="utf-8")
+    except OSError:
+        pass
+    if need:
         mode = need.mode
         attempt = 0
         while attempt < 3:

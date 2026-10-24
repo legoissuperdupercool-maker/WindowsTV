@@ -310,10 +310,16 @@ async def cmd_account(_: dict) -> dict:
     return apple_account.describe()
 
 
-async def cmd_get_anisette(msg: dict) -> str:
+async def cmd_get_anisette(msg: dict) -> dict:
     import apple_account
 
-    return apple_account.anisette_server()
+    return {"url": apple_account.anisette_server(), "mode": apple_account.anisette_mode()}
+
+
+async def cmd_set_anisette_mode(msg: dict) -> str:
+    import apple_account
+
+    return apple_account.set_anisette_mode(str(msg.get("mode") or "auto"))
 
 
 async def cmd_set_anisette(msg: dict) -> str:
@@ -529,6 +535,7 @@ COMMANDS: dict[str, Callable[[dict], Any]] = {
     "signOut": cmd_sign_out,
     "getAnisette": cmd_get_anisette,
     "setAnisette": cmd_set_anisette,
+    "setAnisetteMode": cmd_set_anisette_mode,
     "appInfo": cmd_app_info,
     "install": cmd_install,
 }

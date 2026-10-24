@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Icon } from './Icon'
 import { AddAppleTv, AddUsbDevice } from './AddDevice'
 import { CodePrompt, InstallSection } from './Install'
-import type { AccountState, AppleDevice, DevicesResult } from '@shared/types'
+import type { AccountState, AnisetteMode, AppleDevice, DevicesResult } from '@shared/types'
 
 type Tab = 'devices' | 'account' | 'privacy'
 
@@ -436,14 +436,20 @@ function AnisetteCard(): JSX.Element {
   const [saved, setSaved] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [mode, setMode] = useState<AnisetteMode>('auto')
   useEffect(() => {
     void window.api.getAnisette().then((r) => {
       if (r.ok) {
-        setUrl(r.data)
-        setSaved(r.data)
+        setUrl(r.data.url)
+        setSaved(r.data.url)
+        setMode(r.data.mode)
       }
     })
   }, [])
+  const pickMode = async (m: AnisetteMode): Promise<void> => {
+    const r = await window.api.setAnisetteMode(m)
+    if (r.ok) setMode(r.data)
+  }
   const save = async (value: string): Promise<void> => {
     setBusy(true)
     setMsg(null)
@@ -457,10 +463,22 @@ function AnisetteCard(): JSX.Element {
   }
   return (
     <div className="card wide">
-      <h3 style={{ margin: '0 0 6px' }}>Anisette server (advanced)</h3>
+      <h3 style={{ margin: '0 0 6px' }}>Machine data (anisette)</h3>
       <p className="lead small">
-        Apple wants machine data with every sign-in. Leave this empty to make it on this PC. Or enter an anisette server that
-        answers with v1 JSON, such as a public SideStore server or your own (anisette-v3-server). That server sees no password,
+        Apple wants machine data with every sign-in. Automatic tries iCloud for Windows first and, if Apple refuses it
+        (-80046, -80045), quietly tries again with Apple Music’s own code on this PC, then your server if you set one.
+      </p>
+      <label className="signin" style={{ display: 'block', marginBottom: 14 }}>
+        <span>Use</span>
+        <select value={mode} onChange={(e) => void pickMode(e.target.value as AnisetteMode)}>
+          <option value="auto">Automatic (recommended)</option>
+          <option value="builtin">Apple Music (built-in, on this PC)</option>
+          <option value="icloud">iCloud for Windows</option>
+          <option value="server">Anisette server only</option>
+        </select>
+      </label>
+      <p className="lead small">
+        Anisette server (optional): one that answers with v1 JSON, such as your own anisette-v3-server. It sees no password,
         only that a sign-in is happening.
       </p>
       <form
