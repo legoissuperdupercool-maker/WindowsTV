@@ -110,6 +110,31 @@ def _resource(name: str) -> Path:
     raise AppleError(f"ello Sideloader is missing {name}. Reinstall it.")
 
 
+def _guard_provisioning() -> None:
+    """Registering this PC with Apple ("provisioning") happens inside the anisette library,
+    which parses Apple's reply without checking it: an error page or an empty answer surfaced
+    as a bare "Invalid file". Check the reply, keep it for troubleshooting, and say what happened."""
+    from anisette import _session
+
+    if getattr(_session.ProvisioningSession, "_ello_guarded", False):
+        return
+
+    def _request(self, method, url, extra_headers, data=None, cache_key=None):
+        headers = self._ProvisioningSession__headers | extra_headers
+        try:
+            r = self._http.request(method, url, body=data, headers=headers, timeout=urllib3.Timeout(connect=15, read=45), retries=False)
+        except urllib3.exceptions.HTTPError as e:
+            raise AppleError("Couldn't reach Apple to register this PC. Check this PC's internet connection.") from e
+        step = url.rsplit("/", 1)[-1]
+        if r.status != 200 or not r.data.lstrip().startswith((b"<?xml", b"<plist", b"bplist")):
+            _log_failure("provisioning " + step, r)
+            raise AppleError(f"Apple didn't accept registering this PC (HTTP {r.status} at “{step}”): {_snippet(r)}")
+        return r.data
+
+    _session.ProvisioningSession._request = _request
+    _session.ProvisioningSession._ello_guarded = True
+
+
 class Machine:
     """This PC as Apple sees it (like a Mac running Xcode). Kept between runs so Apple
     doesn't see a new computer every time."""
@@ -120,6 +145,7 @@ class Machine:
 
         # Never let the library download anything itself: Apple's libraries ship with ello.
         ani_mod.DEFAULT_LIBS_URL = "about:blank"
+        _guard_provisioning()
         libs = _resource("anisette-libs.bin")
         prov = data_dir() / "machine.bin"
         files = [str(libs)] + ([str(prov)] if prov.exists() else [])
