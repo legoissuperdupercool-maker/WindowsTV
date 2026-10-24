@@ -51,8 +51,8 @@ const api = {
   catalog: {
     load: (sourceId: string, force = false) =>
       invoke<{ count: number; cached: boolean }>(IPC.catalogLoad, { sourceId, force }),
-    get: (sourceId: string, type?: StreamType) =>
-      invoke<{ channels: Channel[]; categories: Category[] }>(IPC.catalogGet, { sourceId, type })
+    get: (sourceId: string, type?: StreamType, offset?: number, limit?: number) =>
+      invoke<{ channels: Channel[]; categories: Category[]; total: number }>(IPC.catalogGet, { sourceId, type, offset, limit })
   },
   epg: {
     nowNext: (sourceId: string, epgChannelId?: string, name?: string) =>

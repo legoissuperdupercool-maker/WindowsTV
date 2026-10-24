@@ -243,7 +243,7 @@ export function Details(): JSX.Element | null {
               <h3>More like this</h3>
               <div className="nf-grid small">
                 {similar.map((c) => (
-                  <PosterCard key={c.id} c={c} onOpen={openDetail} />
+                  <PosterCard key={c.id} c={c} onOpen={openDetail} wide={false} />
                 ))}
               </div>
             </div>

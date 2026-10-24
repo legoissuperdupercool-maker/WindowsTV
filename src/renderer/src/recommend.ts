@@ -118,34 +118,55 @@ function metaStr(c: Channel, key: string): string | undefined {
 
 // ----------------------------------------------------------------------------- index
 
-const indexCache = new WeakMap<Channel[], Indexed[]>()
+// Analysing a title (regexes over its name and category) is the expensive part,
+// so each Channel is analysed once and remembered for as long as it exists.
+const itemCache = new WeakMap<Channel, Indexed>()
+
+function indexOne(c: Channel, catName: Map<string, string>): Indexed {
+  const hit = itemCache.get(c)
+  if (hit) return hit
+  const cat = c.group ? catName.get(c.group) : undefined
+  const core = coreWords(c.name)
+  const rating = parseFloat(metaStr(c, 'rating') ?? '')
+  const added = Number(metaStr(c, 'added')) * 1000
+  const ageDays = added ? (Date.now() - added) / 86400_000 : Infinity
+  const it: Indexed = {
+    c,
+    core,
+    coreKey: `${c.type}:${core.join(' ')}`,
+    genres: genresOf(metaStr(c, 'genre'), cat),
+    people: peopleOf(metaStr(c, 'cast'), metaStr(c, 'director')),
+    lang: langOf(c.name) ?? langOf(cat),
+    adult: ADULT.test(c.name) || ADULT.test(cat ?? ''),
+    rating: Number.isFinite(rating) ? Math.min(10, rating) : 0,
+    fresh: ageDays < 30 ? 1 : ageDays < 120 ? 0.4 : 0
+  }
+  itemCache.set(c, it)
+  return it
+}
 
 function buildIndex(candidates: Channel[], categories: Category[]): Indexed[] {
-  const cached = indexCache.get(candidates)
-  if (cached) return cached
   const catName = new Map(categories.map((c) => [c.id, c.name]))
-  const index = candidates
-    .filter((c) => c.type === 'movie' || c.type === 'series')
-    .map((c) => {
-      const cat = c.group ? catName.get(c.group) : undefined
-      const core = coreWords(c.name)
-      const rating = parseFloat(metaStr(c, 'rating') ?? '')
-      const added = Number(metaStr(c, 'added')) * 1000
-      const ageDays = added ? (Date.now() - added) / 86400_000 : Infinity
-      return {
-        c,
-        core,
-        coreKey: `${c.type}:${core.join(' ')}`,
-        genres: genresOf(metaStr(c, 'genre'), cat),
-        people: peopleOf(metaStr(c, 'cast'), metaStr(c, 'director')),
-        lang: langOf(c.name) ?? langOf(cat),
-        adult: ADULT.test(c.name) || ADULT.test(cat ?? ''),
-        rating: Number.isFinite(rating) ? Math.min(10, rating) : 0,
-        fresh: ageDays < 30 ? 1 : ageDays < 120 ? 0.4 : 0
-      }
-    })
-  indexCache.set(candidates, index)
-  return index
+  const out: Indexed[] = []
+  for (const c of candidates) if (c.type === 'movie' || c.type === 'series') out.push(indexOne(c, catName))
+  return out
+}
+
+/**
+ * Analyse a big list a slice at a time (yielding between slices), so the first
+ * recommendations never freeze the screen. Afterwards `recommend` is quick.
+ */
+export async function prepareRecommendations(candidates: Channel[], categories: Category[]): Promise<void> {
+  const catName = new Map(categories.map((c) => [c.id, c.name]))
+  let last = performance.now()
+  for (const c of candidates) {
+    if (c.type !== 'movie' && c.type !== 'series') continue
+    indexOne(c, catName)
+    if (performance.now() - last > 12) {
+      await new Promise((r) => setTimeout(r, 0))
+      last = performance.now()
+    }
+  }
 }
 
 /** The seed's whole title appears in the candidate's ("Breaking Bad" → "El Camino: A Breaking Bad Movie"). */

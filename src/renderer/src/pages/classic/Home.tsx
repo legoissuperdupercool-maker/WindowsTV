@@ -1,7 +1,9 @@
+import { useShallow } from 'zustand/react/shallow'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../../store'
-import { ADULT, featurable, shelfFilter } from '../../contentFilter'
-import { recommend, type SeedInfo } from '../../recommend'
+import { ADULT, featurable, newestFirst, shelfFilter } from '../../contentFilter'
+import { type SeedInfo } from '../../recommend'
+import { useRecommendations } from '../../hooks/useRecommendations'
 import { Icon } from '../../components/Icon'
 import { ScrollRow } from '../../components/ScrollRow'
 import { Initials } from '../../components/Initials'
@@ -11,8 +13,21 @@ import { getFocused } from '../../hooks/useSpatialNavigation'
 import type { AppTile, Category, Channel, EpgNowNext, ListItem, MediaDetails, Programme, WatchItem } from '@shared/types'
 
 export function ClassicHome(): JSX.Element {
-  const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog, openDetail, fetchList, continueItems, resumeItem } =
-    useStore()
+  const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog, openDetail, fetchList, continueItems, resumeItem } = useStore(
+    useShallow((s) => ({
+      settings: s.settings,
+      navigate: s.navigate,
+      channels: s.channels,
+      play: s.play,
+      openWebApp: s.openWebApp,
+      currentSourceId: s.currentSourceId,
+      loadCatalog: s.loadCatalog,
+      openDetail: s.openDetail,
+      fetchList: s.fetchList,
+      continueItems: s.continueItems,
+      resumeItem: s.resumeItem
+    }))
+  )
 
   // Home shows live channels; make sure the live list is the active one (served
   // from cache after the first load, so this is instant).
@@ -68,10 +83,7 @@ export function ClassicHome(): JSX.Element {
       cancelled = true
     }
   }, [currentSourceId, vod, myListItems, history])
-  const recs = useMemo(
-    () => recommend(vod, vodLists.categories, myListItems, history, seedInfo),
-    [vod, vodLists.categories, myListItems, history, seedInfo]
-  )
+  const recs = useRecommendations(vod, vodLists.categories, myListItems, history, seedInfo)
   const myList = useMemo(() => {
     const byId = new Map(vod.map((c) => [c.id, c]))
     const ok = featurable(vodLists.categories)
@@ -87,8 +99,10 @@ export function ClassicHome(): JSX.Element {
     [channels, currentSourceId]
   )
   const continueShown = useMemo(() => {
+    if (!continueItems.length) return continueItems
     const ok = featurable(vodLists.categories)
-    const adultIds = new Set(vodLists.channels.filter((c) => !ok(c)).map((c) => c.id))
+    const ids = new Set(continueItems.map((it) => it.channelId).filter(Boolean))
+    const adultIds = new Set(vodLists.channels.filter((c) => ids.has(c.id) && !ok(c)).map((c) => c.id))
     return continueItems.filter((it) => !ADULT.test(it.title) && !(it.channelId && adultIds.has(it.channelId)))
   }, [continueItems, vodLists])
   const recents = useMemo(

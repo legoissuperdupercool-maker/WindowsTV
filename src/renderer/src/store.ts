@@ -119,6 +119,33 @@ export function activeProfile(s: { profiles: Profile[]; activeProfileId: string 
  * on every tab switch, until the source is reloaded or changed.
  */
 const listCache = new Map<string, { channels: Channel[]; categories: Category[] }>()
+
+/**
+ * A whole list from the main process, a page at a time with a pause between
+ * pages, so a 50,000-title catalogue never freezes the screen while it's copied.
+ * Requests for the same list at the same moment share one download.
+ */
+const PAGE = 4000
+const inflight = new Map<string, Promise<{ channels: Channel[]; categories: Category[] } | null>>()
+function fetchPaged(sourceId: string, type: StreamType): Promise<{ channels: Channel[]; categories: Category[] } | null> {
+  const key = `${sourceId}:${type}`
+  const running = inflight.get(key)
+  if (running) return running
+  const job = (async () => {
+    const first = await window.api.catalog.get(sourceId, type, 0, PAGE)
+    if (!first.data) return null
+    const channels = first.data.channels.slice()
+    for (let offset = PAGE; offset < first.data.total; offset += PAGE) {
+      await new Promise((r) => setTimeout(r, 0))
+      const page = await window.api.catalog.get(sourceId, type, offset, PAGE)
+      if (!page.data) return null
+      for (const c of page.data.channels) channels.push(c)
+    }
+    return { channels, categories: first.data.categories }
+  })().finally(() => inflight.delete(key))
+  inflight.set(key, job)
+  return job
+}
 function clearListCache(sourceId?: string): void {
   for (const k of [...listCache.keys()]) if (!sourceId || k.startsWith(sourceId + ':')) listCache.delete(k)
 }
@@ -294,9 +321,9 @@ export const useStore = create<State>((set, get) => ({
       const shown = filterForProfile(key, cached, activeProfile(get()))
       set({ channels: shown.channels, categories: shown.categories })
     } else {
-      const res = await window.api.catalog.get(id, type)
-      if (res.data) {
-        const list = { channels: res.data.channels, categories: res.data.categories }
+      const fetched = await fetchPaged(id, type)
+      if (fetched) {
+        const list = fetched
         if (list.channels.length) listCache.set(key, list)
         // Ignore a slow response if the user has already moved to another tab/source.
         if (get().activeType === type && get().currentSourceId === id) {
@@ -440,9 +467,8 @@ export const useStore = create<State>((set, get) => ({
     const key = `${id}:${type}`
     const cached = listCache.get(key)
     if (cached) return filterForProfile(key, cached, activeProfile(get())).channels
-    const res = await window.api.catalog.get(id, type)
-    if (!res.data) return []
-    const list = { channels: res.data.channels, categories: res.data.categories }
+    const list = await fetchPaged(id, type)
+    if (!list) return []
     if (list.channels.length) listCache.set(key, list)
     return filterForProfile(key, list, activeProfile(get())).channels
   },

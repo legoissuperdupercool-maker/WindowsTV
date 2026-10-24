@@ -1,10 +1,24 @@
+import { useShallow } from 'zustand/react/shallow'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../store'
 import { lookOf } from '../theme'
-import { ADULT, featurable, shelfFilter } from '../contentFilter'
-import { recommend, type SeedInfo } from '../recommend'
+import { ADULT, featurable, newestFirst, shelfFilter } from '../contentFilter'
+import { type SeedInfo } from '../recommend'
+import { useRecommendations } from '../hooks/useRecommendations'
 import { Icon } from '../components/Icon'
-import { Billboard, ChannelCard, Collections, ContinueCard, PosterCard, Row, SkeletonRows, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
+import {
+  Billboard,
+  ChannelCard,
+  Collections,
+  ContinueCard,
+  PosterCard,
+  Row,
+  SkeletonRows,
+  Top10Card,
+  cleanCategory,
+  metaStr,
+  type BillboardItem
+} from '../components/nf'
 import { Initials } from '../components/Initials'
 import { detectBrand } from '../components/brands'
 import { FadeImg } from '../components/FadeImg'
@@ -12,8 +26,21 @@ import { getFocused } from '../hooks/useSpatialNavigation'
 import type { AppTile, Category, Channel, EpgNowNext, ListItem, MediaDetails, Programme, WatchItem } from '@shared/types'
 
 export function Home(): JSX.Element {
-  const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog, openDetail, fetchList, continueItems, resumeItem } =
-    useStore()
+  const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog, openDetail, fetchList, continueItems, resumeItem } = useStore(
+    useShallow((s) => ({
+      settings: s.settings,
+      navigate: s.navigate,
+      channels: s.channels,
+      play: s.play,
+      openWebApp: s.openWebApp,
+      currentSourceId: s.currentSourceId,
+      loadCatalog: s.loadCatalog,
+      openDetail: s.openDetail,
+      fetchList: s.fetchList,
+      continueItems: s.continueItems,
+      resumeItem: s.resumeItem
+    }))
+  )
 
   // Home shows live channels; make sure the live list is the active one (served
   // from cache after the first load, so this is instant).
@@ -27,7 +54,10 @@ export function Home(): JSX.Element {
   const profileId = useStore((s) => s.activeProfileId)
   const fullList = useStore((s) => activeProfile(s)?.myList)
   const myListItems = useMemo(() => (fullList ?? []).filter((i) => i.sourceId === currentSourceId), [fullList, currentSourceId])
-  const [vodLists, setVodLists] = useState<{ channels: Channel[]; categories: Category[] }>({ channels: [], categories: [] })
+  const [vodLists, setVodLists] = useState<{
+    channels: Channel[]
+    categories: Category[]
+  }>({ channels: [], categories: [] })
   // Adult titles are never featured on Home.
   const me = useStore(activeProfile)
   const vod = useMemo(() => vodLists.channels.filter(shelfFilter(vodLists.categories, me)), [vodLists, me])
@@ -64,7 +94,13 @@ export function Home(): JSX.Element {
       const found: Record<string, SeedInfo> = {}
       for (const key of todo) {
         const r = await window.api.vod.info(currentSourceId, key.split(':').pop() ?? '')
-        found[key] = r.data ? { genre: r.data.genre, cast: r.data.cast, director: r.data.director } : {}
+        found[key] = r.data
+          ? {
+              genre: r.data.genre,
+              cast: r.data.cast,
+              director: r.data.director
+            }
+          : {}
       }
       if (!cancelled) setSeedInfo((cur) => ({ ...cur, ...found }))
     })()
@@ -72,10 +108,7 @@ export function Home(): JSX.Element {
       cancelled = true
     }
   }, [currentSourceId, vod, myListItems, history])
-  const recs = useMemo(
-    () => recommend(vod, vodLists.categories, myListItems, history, seedInfo),
-    [vod, vodLists.categories, myListItems, history, seedInfo]
-  )
+  const recs = useRecommendations(vod, vodLists.categories, myListItems, history, seedInfo)
   const myList = useMemo(() => {
     const byId = new Map(vod.map((c) => [c.id, c]))
     const ok = featurable(vodLists.categories)
@@ -91,8 +124,10 @@ export function Home(): JSX.Element {
     [channels, currentSourceId]
   )
   const continueShown = useMemo(() => {
+    if (!continueItems.length) return continueItems
     const ok = featurable(vodLists.categories)
-    const adultIds = new Set(vodLists.channels.filter((c) => !ok(c)).map((c) => c.id))
+    const ids = new Set(continueItems.map((it) => it.channelId).filter(Boolean))
+    const adultIds = new Set(vodLists.channels.filter((c) => ids.has(c.id) && !ok(c)).map((c) => c.id))
     return continueItems.filter((it) => !ADULT.test(it.title) && !(it.channelId && adultIds.has(it.channelId)))
   }, [continueItems, vodLists])
   const recents = useMemo(
@@ -116,7 +151,11 @@ export function Home(): JSX.Element {
     void window.api.epg
       .grid(
         currentSourceId,
-        items.map((c) => ({ id: c.id, epgChannelId: c.epgChannelId, name: c.name })),
+        items.map((c) => ({
+          id: c.id,
+          epgChannelId: c.epgChannelId,
+          name: c.name
+        })),
         now - 2 * 3600_000,
         now + 6 * 3600_000
       )
@@ -140,19 +179,25 @@ export function Home(): JSX.Element {
   useEffect(() => {
     if (!vod.length) return
     let cancelled = false
-    const newest = (type: string): Channel[] =>
-      vod.filter((c) => c.type === type).sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0))
+    const newest = (type: string): Channel[] => newestFirst(vod).filter((c) => c.type === type)
     const picks = dedupe([...recs.forYou.slice(0, 2), ...newest('movie').slice(0, 6), ...newest('series').slice(0, 3)])
     void (async () => {
       const items: BillboardItem[] = []
       for (const c of picks) {
         const info = c.type === 'movie' ? (await window.api.vod.info(c.sourceId, c.providerId)).data : null
         const art = info?.backdrop || metaStr(c, 'backdrop') || info?.poster || c.logo
-        if (art) items.push({ channel: c, info, kicker: recs.forYou.includes(c) ? 'Picked for you' : c.type === 'series' ? 'New episodes' : 'New on ello' })
+        if (art)
+          items.push({
+            channel: c,
+            info,
+            kicker: recs.forYou.includes(c) ? 'Picked for you' : c.type === 'series' ? 'New episodes' : 'New on ello'
+          })
         if (items.length >= 6) break
       }
       // Real wide artwork first.
-      items.sort((a, b) => Number(Boolean(b.info?.backdrop || metaStr(b.channel, 'backdrop'))) - Number(Boolean(a.info?.backdrop || metaStr(a.channel, 'backdrop'))))
+      items.sort(
+        (a, b) => Number(Boolean(b.info?.backdrop || metaStr(b.channel, 'backdrop'))) - Number(Boolean(a.info?.backdrop || metaStr(a.channel, 'backdrop')))
+      )
       if (!cancelled) setBillboard(items)
     })()
     return () => {
@@ -160,18 +205,13 @@ export function Home(): JSX.Element {
     }
   }, [vod.length, recs.forYou.length, currentSourceId])
 
-  const newestMovies = useMemo(
-    () => vod.filter((c) => c.type === 'movie').sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)),
-    [vod]
-  )
-  const newestSeries = useMemo(
-    () => vod.filter((c) => c.type === 'series').sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)),
-    [vod]
-  )
+  const sortedVod = useMemo(() => newestFirst(vod), [vod])
+  const newestMovies = useMemo(() => sortedVod.filter((c) => c.type === 'movie'), [sortedVod])
+  const newestSeries = useMemo(() => sortedVod.filter((c) => c.type === 'series'), [sortedVod])
   // The provider's biggest categories become genre rows.
   const genreRows = useMemo(() => {
     const byGroup = new Map<string, Channel[]>()
-    for (const c of vod) if (c.group) (byGroup.get(c.group) ?? byGroup.set(c.group, []).get(c.group)!).push(c)
+    for (const c of sortedVod) if (c.group) (byGroup.get(c.group) ?? byGroup.set(c.group, []).get(c.group)!).push(c)
     const names = new Map(vodLists.categories.map((c) => [c.id, cleanCategory(c.name)]))
     const pick = (type: string, n: number): Array<{ id: string; title: string; items: Channel[] }> =>
       [...byGroup.entries()]
@@ -181,11 +221,25 @@ export function Home(): JSX.Element {
         .map(([id, list]) => ({
           id,
           title: names.get(id)!,
-          items: [...list].sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)).slice(0, 30)
+          items: list.slice(0, 30)
         }))
     return [...pick('movie', 4), ...pick('series', 3)]
-  }, [vod, vodLists.categories])
+  }, [sortedVod, vodLists.categories])
   const favorites = settings?.favorites ?? []
+  const [shownRows, setShownRows] = useState(3)
+  const hasVod = vod.length > 0
+  useEffect(() => {
+    if (!hasVod) return
+    let id = 0
+    const more = (): void => {
+      setShownRows((n) => {
+        if (n < 40) id = requestIdleCallback(more, { timeout: 400 })
+        return n + 1
+      })
+    }
+    id = requestIdleCallback(more, { timeout: 400 })
+    return () => cancelIdleCallback(id)
+  }, [hasVod])
   const welcome = (
     <>
       <div className="nf-bb-kicker">Welcome</div>
@@ -201,6 +255,103 @@ export function Home(): JSX.Element {
     </>
   )
 
+  // Rows: the first few render at once, the rest in idle time, so a big
+  // catalogue arriving doesn't freeze the screen.
+  const rows: JSX.Element[] = []
+  if (continueShown.length > 0)
+    rows.push(
+      <Row key="continue" title="Continue watching">
+        {continueShown.map((it) => (
+          <ContinueCard key={it.key} it={it} onOpen={() => void resumeItem(it)} />
+        ))}
+      </Row>
+    )
+  if (newestMovies.length >= 10)
+    rows.push(
+      <Row key="top10" title="Top 10 new movies" className="top10" onMore={() => navigate('movies')}>
+        {newestMovies.slice(0, 10).map((c, n) => (
+          <Top10Card key={c.id} c={c} n={n + 1} onOpen={openDetail} />
+        ))}
+      </Row>
+    )
+  if (myList.length > 0)
+    rows.push(
+      <Row key="mylist" title="My List" onMore={() => navigate('mylist')}>
+        {myList.map((c) => (
+          <PosterCard key={c.id} c={c} onOpen={openDetail} />
+        ))}
+      </Row>
+    )
+  if (live.length > 0)
+    rows.push(
+      <Row key="live" title="Live now" onMore={() => navigate('live')}>
+        {live.map((c) => (
+          <ChannelCard
+            key={c.id}
+            c={c}
+            now={nn[c.id]?.now}
+            favorite={favorites.includes(c.id)}
+            onPlay={() =>
+              void play(
+                c.id,
+                live.map((r) => r.id)
+              )
+            }
+          />
+        ))}
+      </Row>
+    )
+  if (recs.forYou.length > 0)
+    rows.push(
+      <Row key="foryou" title="Recommended for you">
+        {recs.forYou.map((c) => (
+          <PosterCard key={c.id} c={c} onOpen={openDetail} />
+        ))}
+      </Row>
+    )
+  if (newestSeries.length > 0)
+    rows.push(
+      <Row key="newseries" title="New series" onMore={() => navigate('series')}>
+        {newestSeries.slice(0, 30).map((c) => (
+          <PosterCard key={c.id} c={c} onOpen={openDetail} />
+        ))}
+      </Row>
+    )
+  if (recs.because)
+    rows.push(
+      <Row key="because" title={`Because you watched ${recs.because.title}`}>
+        {recs.because.items.map((c) => (
+          <PosterCard key={c.id} c={c} onOpen={openDetail} />
+        ))}
+      </Row>
+    )
+  for (const g of genreRows)
+    rows.push(
+      <Row key={g.id} title={g.title} onMore={() => navigate(g.items[0]?.type === 'series' ? 'series' : 'movies')}>
+        {g.items.map((c) => (
+          <PosterCard key={c.id} c={c} onOpen={openDetail} />
+        ))}
+      </Row>
+    )
+  if (recents.length > 0)
+    rows.push(
+      <Row key="recents" title="Recently watched channels">
+        {recents.map((c) => (
+          <ChannelCard
+            key={c.id}
+            c={c}
+            now={nn[c.id]?.now}
+            favorite={favorites.includes(c.id)}
+            onPlay={() =>
+              void play(
+                c.id,
+                recents.map((r) => r.id)
+              )
+            }
+          />
+        ))}
+      </Row>
+    )
   return (
     <div className="page nf-page">
       <Billboard items={billboard} fallback={welcome} />
@@ -208,77 +359,7 @@ export function Home(): JSX.Element {
 
       <div className="nf-rows">
         {hasSources && !vod.length && <SkeletonRows rows={3} />}
-        {continueShown.length > 0 && (
-          <Row title="Continue watching">
-            {continueShown.map((it) => (
-              <ContinueCard key={it.key} it={it} onOpen={() => void resumeItem(it)} />
-            ))}
-          </Row>
-        )}
-
-        {newestMovies.length >= 10 && (
-          <Row title="Top 10 new movies" className="top10" onMore={() => navigate('movies')}>
-            {newestMovies.slice(0, 10).map((c, n) => (
-              <Top10Card key={c.id} c={c} n={n + 1} onOpen={openDetail} />
-            ))}
-          </Row>
-        )}
-
-        {myList.length > 0 && (
-          <Row title="My List" onMore={() => navigate('mylist')}>
-            {myList.map((c) => (
-              <PosterCard key={c.id} c={c} onOpen={openDetail} />
-            ))}
-          </Row>
-        )}
-
-        {live.length > 0 && (
-          <Row title="Live now" onMore={() => navigate('live')}>
-            {live.map((c) => (
-              <ChannelCard key={c.id} c={c} now={nn[c.id]?.now} favorite={favorites.includes(c.id)} onPlay={() => void play(c.id, live.map((r) => r.id))} />
-            ))}
-          </Row>
-        )}
-
-        {recs.forYou.length > 0 && (
-          <Row title="Recommended for you">
-            {recs.forYou.map((c) => (
-              <PosterCard key={c.id} c={c} onOpen={openDetail} />
-            ))}
-          </Row>
-        )}
-
-        {newestSeries.length > 0 && (
-          <Row title="New series" onMore={() => navigate('series')}>
-            {newestSeries.slice(0, 30).map((c) => (
-              <PosterCard key={c.id} c={c} onOpen={openDetail} />
-            ))}
-          </Row>
-        )}
-
-        {recs.because && (
-          <Row title={`Because you watched ${recs.because.title}`}>
-            {recs.because.items.map((c) => (
-              <PosterCard key={c.id} c={c} onOpen={openDetail} />
-            ))}
-          </Row>
-        )}
-
-        {genreRows.map((g) => (
-          <Row key={g.id} title={g.title} onMore={() => navigate(g.items[0]?.type === 'series' ? 'series' : 'movies')}>
-            {g.items.map((c) => (
-              <PosterCard key={c.id} c={c} onOpen={openDetail} />
-            ))}
-          </Row>
-        ))}
-
-        {recents.length > 0 && (
-          <Row title="Recently watched channels">
-            {recents.map((c) => (
-              <ChannelCard key={c.id} c={c} now={nn[c.id]?.now} favorite={favorites.includes(c.id)} onPlay={() => void play(c.id, recents.map((r) => r.id))} />
-            ))}
-          </Row>
-        )}
+        {rows.slice(0, shownRows)}
 
         <Row title="Your apps">
           {apps.map((tile) => (
@@ -338,5 +419,14 @@ function deriveNowNext(progs: Programme[], at: number): EpgNowNext {
 
 /** A saved title that's no longer in the provider's list still opens its detail screen. */
 function listItemChannel(i: ListItem): Channel {
-  return { id: i.key, sourceId: i.sourceId, type: i.kind, providerId: i.key.split(':').pop() ?? '', name: i.title, logo: i.poster, group: i.group, url: '' }
+  return {
+    id: i.key,
+    sourceId: i.sourceId,
+    type: i.kind,
+    providerId: i.key.split(':').pop() ?? '',
+    name: i.title,
+    logo: i.poster,
+    group: i.group,
+    url: ''
+  }
 }

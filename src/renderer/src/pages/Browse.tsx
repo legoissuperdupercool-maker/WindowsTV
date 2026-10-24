@@ -4,11 +4,10 @@ import { CatalogStatus } from '../components/CatalogStatus'
 import { useProgressive } from '../hooks/useProgressive'
 import { Billboard, PosterCard, Row, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
 import { cleanTitle } from '../recommend'
-import { shelfFilter } from '../contentFilter'
+import { newestFirst, shelfFilter } from '../contentFilter'
 import { VodFilterSheet } from '../components/VodFilter'
 import type { Channel, ListItem } from '@shared/types'
 
-const newest = (a: Channel, b: Channel): number => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)
 
 /**
  * Movies / Series, Netflix style: a billboard, then "New", Top 10 and one row
@@ -28,7 +27,7 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
   }, [loadCatalog, currentSourceId, type])
 
   const list = useMemo(() => channels.filter((c) => c.type === type), [channels, type])
-  const sorted = useMemo(() => [...list].sort(newest), [list])
+  const sorted = useMemo(() => newestFirst(list), [list])
   // What the page features: everything except adult titles (those only show when their genre is picked).
   const me = useStore(activeProfile)
   const [filtering, setFiltering] = useState(false)
@@ -128,7 +127,7 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
         </div>
         <div className="nf-grid">
           {visible.map((c) => (
-            <PosterCard key={c.id} c={c} onOpen={openDetail} />
+            <PosterCard key={c.id} c={c} onOpen={openDetail} wide={false} />
           ))}
           <div ref={sentinelRef} style={{ gridColumn: '1 / -1', height: 1 }} />
         </div>
@@ -201,7 +200,7 @@ export function MyList(): JSX.Element {
       ) : (
         <div className="nf-grid">
           {items.map((c) => (
-            <PosterCard key={c.id} c={c} onOpen={openDetail} />
+            <PosterCard key={c.id} c={c} onOpen={openDetail} wide={false} />
           ))}
         </div>
       )}

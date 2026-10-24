@@ -80,6 +80,16 @@ async function restartPlayer(): Promise<void> {
 
 let ctx: MainContext
 
+// ELLO_PROFILE=1: log every stall of the main process longer than 100 ms.
+if (process.env['ELLO_PROFILE']) {
+  let last = Date.now()
+  setInterval(() => {
+    const now = Date.now()
+    if (now - last > 150) console.log(`[main] blocked ${now - last - 50} ms`)
+    last = now
+  }, 50).unref()
+}
+
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.ello.smarttv')
 

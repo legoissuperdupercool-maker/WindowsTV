@@ -2554,6 +2554,7 @@ html:not(.playing) body {
   gap: 12px;
   z-index: 4;
   animation: page-in 0.25s var(--ease);
+  transition: bottom 0.35s var(--ease);
 }
 .player-root.hide-cursor .skip-pills {
   bottom: 48px;

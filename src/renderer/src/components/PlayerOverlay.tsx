@@ -403,8 +403,8 @@ export function PlayerOverlay(): JSX.Element {
           {skip.intro && (
             <button
               className="focusable skip-pill"
-              onClick={() => window.api.player.command({ action: 'seek', value: skip.intro!.to })}
-              title={skip.intro.learned ? 'Skips to where you skipped to before' : 'Skips 85 seconds. Adjust with → and ello remembers it for this series.'}
+              onClick={skip.skipIntro}
+              title={skip.intro.learned ? 'Skips to where you skipped to before' : 'Skips ahead. Adjust with → and ello remembers it for this series.'}
             >
               <Icon name="skip" size={20} /> Skip intro
             </button>

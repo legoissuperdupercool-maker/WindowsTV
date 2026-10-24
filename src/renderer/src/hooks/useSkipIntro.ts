@@ -23,7 +23,7 @@ interface Learned {
 const KEY = (seriesId: string): string => `ello.skip.${seriesId}`
 /** Before anything is learned: offer a standard skip in the first minutes. */
 const DEFAULT_INTRO = 85
-const DEFAULT_WINDOW = 300
+const DEFAULT_WINDOW = 180
 const DEFAULT_CREDITS = 40
 
 export function loadLearned(seriesId: string): Learned {
@@ -61,6 +61,8 @@ export function setAutoSkip(on: boolean): void {
 export interface SkipState {
   /** Show "Skip intro" now: seek to `to`. */
   intro: { to: number; learned: boolean } | null
+  /** Press "Skip intro": jumps and hides the button for this episode. */
+  skipIntro: () => void
   /** Show "Next episode" now (credits). */
   credits: boolean
   /** Call when the viewer presses "Next episode" (learns the credits length). */
@@ -83,6 +85,10 @@ export function useSkipIntro(opts: {
   const autoDone = useRef(false)
   const startedAt = useRef(Date.now())
   const settle = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The unlearned skip target is fixed when the button first shows (it used to
+  // move with the playhead), and the button goes away once it's been used.
+  const guessTo = useRef<number | null>(null)
+  const [used, setUsed] = useState(false)
 
   useEffect(() => {
     setLearned(seriesId ? loadLearned(seriesId) : {})
@@ -90,11 +96,13 @@ export function useSkipIntro(opts: {
     jump.current = null
     autoDone.current = false
     startedAt.current = Date.now()
+    guessTo.current = null
+    setUsed(false)
     return () => {
       // Leaving the episode within a few seconds of a skip still counts it.
       if (settle.current) clearTimeout(settle.current)
       const done = jump.current
-      if (seriesId && done && done.to - done.from >= 20 && done.to - done.from <= 240) {
+      if (seriesId && done && done.to - done.from >= 30 && done.to - done.from <= 240) {
         saveLearned(seriesId, { start: Math.max(0, Math.round(done.from)), end: Math.round(done.to) })
       }
     }
@@ -121,7 +129,7 @@ export function useSkipIntro(opts: {
         jump.current = null
         if (!done) return
         const length = done.to - done.from
-        if (length >= 20 && length <= 240) {
+        if (length >= 30 && length <= 240) {
           const patch = { start: Math.max(0, Math.round(done.from)), end: Math.round(done.to) }
           saveLearned(sid, patch)
           setLearned((l) => ({ ...l, ...patch }))
@@ -131,11 +139,12 @@ export function useSkipIntro(opts: {
   }, [position, seriesId])
 
   let intro: SkipState['intro'] = null
-  if (seriesId && duration > 0) {
+  if (seriesId && duration > 0 && !used) {
     if (learned.start != null && learned.end != null) {
       if (position >= learned.start - 2 && position < learned.end - 3) intro = { to: learned.end, learned: true }
-    } else if (position > 3 && position < DEFAULT_WINDOW && duration > 600) {
-      intro = { to: position + DEFAULT_INTRO, learned: false }
+    } else if (position > 3 && duration > 600) {
+      guessTo.current ??= position < DEFAULT_WINDOW ? Math.round(position + DEFAULT_INTRO) : null
+      if (guessTo.current != null && position < Math.min(DEFAULT_WINDOW, guessTo.current - 3)) intro = { to: guessTo.current, learned: false }
     }
   }
 
@@ -153,6 +162,11 @@ export function useSkipIntro(opts: {
 
   return {
     intro,
+    skipIntro: () => {
+      if (!intro) return
+      setUsed(true)
+      seek(intro.to)
+    },
     credits,
     noteNext: () => {
       if (!seriesId || duration <= 0) return

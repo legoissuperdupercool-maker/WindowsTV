@@ -159,11 +159,17 @@ export function registerIpc(ctx: MainContext): void {
 
   ipcMain.handle(
     IPC.catalogGet,
-    (_e, args: { sourceId: string; type?: StreamType }) => {
+    (_e, args: { sourceId: string; type?: StreamType; offset?: number; limit?: number }) => {
       try {
+        // Big lists go over in pages: one huge message blocks both processes while
+        // it's copied (hundreds of ms for tens of thousands of titles).
+        const all = catalog.getChannels(args.sourceId, args.type)
+        const offset = Math.max(0, args.offset ?? 0)
+        const channels = args.limit ? all.slice(offset, offset + args.limit) : all
         return ok({
-          channels: catalog.getChannels(args.sourceId, args.type),
-          categories: catalog.getCategories(args.sourceId, args.type)
+          channels,
+          categories: offset === 0 ? catalog.getCategories(args.sourceId, args.type) : [],
+          total: all.length
         })
       } catch (e) {
         return fail(e)

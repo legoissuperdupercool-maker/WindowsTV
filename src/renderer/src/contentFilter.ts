@@ -43,7 +43,32 @@ export function shelfFilter(categories: Category[], profile: Profile | undefined
  */
 export function featurable(categories: Category[]): (c: Pick<Channel, 'name' | 'group'>) => boolean {
   const adult = new Set(categories.filter((c) => ADULT.test(c.name)).map((c) => c.id))
-  return (c) => !(c.group && adult.has(c.group)) && !ADULT.test(c.name)
+  return (c) => !(c.group && adult.has(c.group)) && !adultTitle(c)
+}
+
+// The adult test is a long regex; run it once per title.
+const adultCache = new WeakMap<object, boolean>()
+function adultTitle(c: Pick<Channel, 'name'>): boolean {
+  let v = adultCache.get(c)
+  if (v === undefined) {
+    v = ADULT.test(c.name)
+    adultCache.set(c, v)
+  }
+  return v
+}
+
+/** Newest first (by the provider's "added" date), sorted once per list. */
+const newestCache = new WeakMap<Channel[], Channel[]>()
+export function newestFirst(list: Channel[]): Channel[] {
+  let out = newestCache.get(list)
+  if (!out) {
+    out = list
+      .map((c) => [Number(c.meta?.added ?? 0) || 0, c] as const)
+      .sort((a, b) => b[0] - a[0])
+      .map((x) => x[1])
+    newestCache.set(list, out)
+  }
+  return out
 }
 
 const cache = new Map<string, { src: List; out: List }>()

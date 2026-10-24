@@ -11,7 +11,10 @@ export function FadeImg(props: React.ImgHTMLAttributes<HTMLImageElement>): JSX.E
       {...props}
       className={`fade-img ${state === 'loaded' ? 'loaded' : ''} ${props.className ?? ''}`}
       onLoad={() => setState('loaded')}
-      onError={() => setState('error')}
+      onError={(e) => {
+        setState('error')
+        props.onError?.(e)
+      }}
     />
   )
 }
