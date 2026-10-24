@@ -158,6 +158,11 @@ export function LiveTV(): JSX.Element {
             <button className="focusable ghost-btn" onClick={nextSort} title="Change the order">
               ↕ {SORT_LABELS[sort]}
             </button>
+            {settings?.multiView && (
+              <button className="focusable ghost-btn" title="Watch 2 or 4 channels at once" onClick={() => useStore.getState().openMultiView()}>
+                <Icon name="grid" size={18} /> Multi-view
+              </button>
+            )}
             <button
               className={`focusable ghost-btn ${profile?.countries?.length ? 'primary' : ''}`}
               onClick={() => setShowFilters(true)}

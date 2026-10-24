@@ -1,4 +1,4 @@
-import { BaseWindow, BrowserWindow, WebContentsView, shell } from 'electron'
+import { BaseWindow, BrowserWindow, WebContentsView, screen, shell, type Rectangle } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import type { VideoRegion, WebAppState } from '../shared/ipc'
@@ -48,6 +48,10 @@ export class WindowManager {
   private lastRegion: VideoRegion = { x: 0, y: 0, width: 0, height: 0, visible: false }
   private webView: WebContentsView | null = null
   private webHome = ''
+  /** Extra video surfaces (multi-view tiles) and where each one goes. */
+  private surfaces = new Map<BaseWindow, VideoRegion>()
+  /** Picture-in-picture: the window's size and state before it shrank. */
+  private pipFrom: { bounds: Rectangle; maximized: boolean } | null = null
 
   create(): void {
     // The video window is created first so we can hand mpv its native handle.
@@ -103,11 +107,12 @@ export class WindowManager {
     this.uiWindow.on('resize', reapply)
     this.uiWindow.on('maximize', reapply)
     this.uiWindow.on('unmaximize', reapply)
-    this.uiWindow.on('enter-full-screen', reapply)
-    this.uiWindow.on('leave-full-screen', reapply)
+    this.uiWindow.on('enter-full-screen', () => (reapply(), this.emitMode()))
+    this.uiWindow.on('leave-full-screen', () => (reapply(), this.emitMode()))
     this.uiWindow.on('restore', reapply)
     this.uiWindow.on('minimize', () => {
       if (!this.videoWindow.isDestroyed()) this.videoWindow.hide()
+      for (const w of this.surfaces.keys()) if (!w.isDestroyed()) w.hide()
     })
     this.uiWindow.on('focus', () => {
       // Clicking the UI window raises only it; other apps (e.g. a maximized
@@ -115,9 +120,12 @@ export class WindowManager {
       if (!this.videoWindow.isDestroyed() && this.lastRegion.visible) {
         this.videoWindow.showInactive()
         this.raiseVideoBehindUi()
+      } else if ([...this.surfaces.values()].some((r) => r.visible)) {
+        this.raiseVideoBehindUi()
       }
     })
     this.uiWindow.on('closed', () => {
+      for (const w of this.surfaces.keys()) if (!w.isDestroyed()) w.destroy()
       if (!this.videoWindow.isDestroyed()) this.videoWindow.destroy()
     })
 
@@ -141,11 +149,59 @@ export class WindowManager {
     this.applyRegion()
   }
 
+  /** A new native window for another mpv (multi-view). */
+  addSurface(): BaseWindow {
+    const w = new BaseWindow({
+      show: false, width: 640, height: 360, frame: false, resizable: false,
+      focusable: false, skipTaskbar: true, backgroundColor: '#000000'
+    })
+    this.surfaces.set(w, { x: 0, y: 0, width: 0, height: 0, visible: false })
+    return w
+  }
+
+  removeSurface(w: BaseWindow): void {
+    this.surfaces.delete(w)
+    if (!w.isDestroyed()) w.destroy()
+  }
+
+  surfaceId(w: BaseWindow): number {
+    const buf = w.getNativeWindowHandle()
+    return buf.length >= 8 ? Number(buf.readBigUInt64LE(0)) : buf.readUInt32LE(0)
+  }
+
+  setSurfaceRegion(w: BaseWindow, region: VideoRegion): void {
+    this.surfaces.set(w, region)
+    this.applyRegion()
+  }
+
+  private applySurfaces(): void {
+    const content = this.uiWindow.getContentBounds()
+    for (const [w, r] of this.surfaces) {
+      if (w.isDestroyed()) continue
+      if (!r.visible || this.uiWindow.isMinimized()) {
+        if (w.isVisible()) w.hide()
+        continue
+      }
+      w.setBounds({
+        x: Math.round(content.x + r.x),
+        y: Math.round(content.y + r.y),
+        width: Math.max(16, Math.round(r.width)),
+        height: Math.max(16, Math.round(r.height))
+      })
+      w.showInactive()
+    }
+  }
+
   private applyRegion(): void {
     if (this.videoWindow.isDestroyed() || this.uiWindow.isDestroyed()) return
+    this.applySurfaces()
     const region = this.lastRegion
     if (!region.visible || this.uiWindow.isMinimized()) {
       if (this.videoWindow.isVisible()) this.videoWindow.hide()
+      if ([...this.surfaces.values()].some((r) => r.visible)) {
+        this.raiseVideoBehindUi()
+        this.uiWindow.focus()
+      }
       return
     }
     const content = this.uiWindow.getContentBounds()
@@ -169,7 +225,8 @@ export class WindowManager {
    */
   private raiseVideoBehindUi(): void {
     if (this.videoWindow.isDestroyed() || this.uiWindow.isDestroyed()) return
-    this.videoWindow.moveTop()
+    for (const [w, r] of this.surfaces) if (r.visible && !w.isDestroyed()) w.moveTop()
+    if (this.lastRegion.visible) this.videoWindow.moveTop()
     this.uiWindow.moveTop()
   }
 
@@ -186,9 +243,59 @@ export class WindowManager {
         w.close()
         break
       case 'fullscreen':
+        if (this.pipFrom) this.setPip(false)
         w.setFullScreen(!w.isFullScreen())
         break
+      case 'fullscreenOff':
+        if (w.isFullScreen()) w.setFullScreen(false)
+        break
+      case 'pip':
+        this.setPip(!this.pipFrom)
+        break
+      case 'pipOff':
+        if (this.pipFrom) this.setPip(false)
+        break
     }
+  }
+
+  /**
+   * Picture-in-picture: shrink to a small always-on-top window in the bottom-right
+   * corner of the screen (and back). Both layers stay on top, video under the UI.
+   */
+  private setPip(on: boolean): void {
+    const w = this.uiWindow
+    if (on && !this.pipFrom) {
+      if (w.isFullScreen()) {
+        w.once('leave-full-screen', () => setTimeout(() => this.setPip(true), 150))
+        w.setFullScreen(false)
+        return
+      }
+      this.pipFrom = { bounds: w.getBounds(), maximized: w.isMaximized() }
+      if (w.isMaximized()) w.unmaximize()
+      const area = screen.getDisplayMatching(w.getBounds()).workArea
+      const width = Math.round(Math.min(560, area.width * 0.32))
+      const height = Math.round((width * 9) / 16)
+      w.setMinimumSize(320, 180)
+      w.setAlwaysOnTop(true, 'floating')
+      this.videoWindow.setAlwaysOnTop(true, 'floating')
+      w.setBounds({ x: area.x + area.width - width - 24, y: area.y + area.height - height - 24, width, height })
+    } else if (!on && this.pipFrom) {
+      const from = this.pipFrom
+      this.pipFrom = null
+      w.setAlwaysOnTop(false)
+      this.videoWindow.setAlwaysOnTop(false)
+      w.setMinimumSize(900, 560)
+      w.setBounds(from.bounds)
+      if (from.maximized) w.maximize()
+      w.focus()
+    }
+    this.applyRegion()
+    this.emitMode()
+  }
+
+  private emitMode(): void {
+    if (this.uiWindow.isDestroyed()) return
+    this.send('window:mode', { fullscreen: this.uiWindow.isFullScreen(), pip: Boolean(this.pipFrom) })
   }
 
   // ------------------------------------------------------------------ in-app web apps

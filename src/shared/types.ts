@@ -252,6 +252,35 @@ export interface AppSettings {
   appTiles: AppTile[]
   /** Last opened source id, for restoring context. */
   lastSourceId?: string
+  /** Settings → Multi-view: watch 2 or 4 live channels at once. */
+  multiView?: boolean
+  /** Settings → Recording: record live TV and get reminders from the Guide. */
+  recordings?: boolean
+  /** Where recordings are saved (default: Videos\\ello smartTV). */
+  recordFolder?: string
+}
+
+/** A live-TV recording (now, or scheduled from the Guide). */
+export interface Recording {
+  id: string
+  channelId: string
+  channelName: string
+  title: string
+  /** ms since 1970 */
+  start: number
+  stop: number
+  status: 'scheduled' | 'recording' | 'done' | 'failed' | 'cancelled'
+  file?: string
+  error?: string
+}
+
+/** "Tell me when it starts" from the Guide. */
+export interface Reminder {
+  id: string
+  channelId: string
+  channelName: string
+  title: string
+  start: number
 }
 
 export interface AppTile {

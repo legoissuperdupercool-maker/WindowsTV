@@ -171,3 +171,34 @@ export function VolumeMenu({ volume, muted, onClose }: { volume: number; muted: 
     </Popover>
   )
 }
+
+/** Sleep timer: stop after a while, or at the end of this episode/movie. */
+export function SleepMenu({ current, isLive, onPick, onClose }: {
+  current: number | 'end' | null
+  isLive: boolean
+  onPick: (v: number | 'end' | null) => void
+  onClose: () => void
+}): JSX.Element {
+  const options: Array<[number | 'end' | null, string]> = [
+    [null, 'Off'],
+    [15, '15 minutes'],
+    [30, '30 minutes'],
+    [45, '45 minutes'],
+    [60, '1 hour'],
+    [90, '1½ hours'],
+    [120, '2 hours'],
+    ...(isLive ? [] : ([['end', 'End of this episode or movie']] as Array<[number | 'end' | null, string]>))
+  ]
+  return (
+    <Popover onClose={onClose}>
+      <div className="pop-title">Sleep timer</div>
+      {options.map(([v, label]) => (
+        <button key={String(v)} className={`focusable pop-item ${current === v ? 'on' : ''}`} onClick={() => (onPick(v), onClose())}>
+          <span className="pop-check">{current === v && <Icon name="check" size={18} />}</span>
+          <span className="pop-text"><b>{label}</b></span>
+        </button>
+      ))}
+      <div className="pop-hint">ello stops playing and the screen goes back to Home.</div>
+    </Popover>
+  )
+}

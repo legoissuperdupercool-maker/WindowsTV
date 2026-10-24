@@ -3,7 +3,9 @@ import { useStore } from '../store'
 import { useFullscreenVideoRegion } from '../hooks/useVideoRegion'
 import { Icon } from './Icon'
 import { Initials } from './Initials'
-import { AudioMenu, SubtitleMenu, VolumeMenu } from './PlayerMenus'
+import { AudioMenu, SleepMenu, SubtitleMenu, VolumeMenu } from './PlayerMenus'
+import { useSkipIntro } from '../hooks/useSkipIntro'
+import { useRecordings } from '../hooks/useRecordings'
 import type { EpgNowNext, MediaTrack, Programme } from '@shared/types'
 
 export function PlayerOverlay(): JSX.Element {
@@ -19,8 +21,13 @@ export function PlayerOverlay(): JSX.Element {
     nowPlayingKind,
     episodeCtx,
     playEpisode,
-    playNextEpisode
+    playNextEpisode,
+    windowMode,
+    settings,
+    openMultiView
   } = useStore()
+  const { recordings } = useRecordings()
+  const recording = recordings.find((r) => r.status === 'recording' && r.channelId === playback.channelId)
   const [showControls, setShowControls] = useState(true)
   const [showStats, setShowStats] = useState(false)
   const [nowNext, setNowNext] = useState<EpgNowNext>({})
@@ -28,10 +35,14 @@ export function PlayerOverlay(): JSX.Element {
   const [notice, setNotice] = useState<string | null>(null)
   const [volumeHud, setVolumeHud] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
-  const [menu, setMenu] = useState<'audio' | 'sub' | 'volume' | null>(null)
+  const [menu, setMenu] = useState<'audio' | 'sub' | 'volume' | 'sleep' | null>(null)
+  // Sleep timer: minutes chosen (or end of title) and when it fires.
+  const [sleep, setSleep] = useState<{ choice: number | 'end'; at?: number } | null>(null)
+  const [now, setNow] = useState(Date.now())
   const menuRef = useRef(menu)
   menuRef.current = menu
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useFullscreenVideoRegion(true)
 
@@ -52,12 +63,39 @@ export function PlayerOverlay(): JSX.Element {
   const busy = playback.status === 'loading' || showBuffering
   const errored = playback.status === 'error'
   const nextEp = episodeCtx ? episodeCtx.episodes[episodeCtx.index + 1] : undefined
+  const skip = useSkipIntro({
+    seriesId: episodeCtx?.series.id,
+    episodeKey: episodeCtx ? episodeCtx.episodes[episodeCtx.index]?.id : undefined,
+    position: playback.position,
+    duration: playback.duration,
+    playing: playback.status === 'playing',
+    hasNext: Boolean(nextEp),
+    seek: (to) => void window.api.player.command({ action: 'seek', value: to })
+  })
+  const goNext = (): void => {
+    skip.noteNext()
+    setCountdown(null)
+    void playNextEpisode()
+  }
+  const pickSleep = (v: number | 'end' | null): void =>
+    setSleep(v == null ? null : { choice: v, at: typeof v === 'number' ? Date.now() + v * 60_000 : undefined })
+  useEffect(() => {
+    if (!sleep?.at) return
+    const t = setInterval(() => setNow(Date.now()), 15_000)
+    return () => clearInterval(t)
+  }, [sleep?.at])
   const close = useCallback(() => {
     stopPlayback()
     setPlayerVisible(false)
   }, [stopPlayback, setPlayerVisible])
 
   const closeMenu = useCallback(() => setMenu(null), [])
+  useEffect(() => {
+    if (sleep?.at && now >= sleep.at) {
+      setSleep(null)
+      close()
+    }
+  }, [now, sleep?.at, close])
   // A new title starts with its menus closed.
   useEffect(() => setMenu(null), [playback.channelId, playback.title])
 
@@ -124,6 +162,11 @@ export function PlayerOverlay(): JSX.Element {
       setCountdown(null)
       return
     }
+    if (sleep?.choice === 'end') {
+      setSleep(null)
+      close()
+      return
+    }
     if (nextEp) {
       setCountdown(10)
       return
@@ -185,6 +228,12 @@ export function PlayerOverlay(): JSX.Element {
           reveal()
           setMenu('audio')
           return
+        case 'f':
+          void window.api.window.control('fullscreen')
+          return
+        case 'p':
+          void window.api.window.control('pip')
+          return
         case 's':
         case 'c':
           reveal()
@@ -243,14 +292,25 @@ export function PlayerOverlay(): JSX.Element {
 
   return (
     <div
-      className={`player-root ${showControls || busy || errored ? 'show-controls' : ''} ${errored ? 'no-video' : ''}`}
+      className={`player-root ${showControls || busy || errored || menu ? 'show-controls' : 'hide-cursor'} ${errored ? 'no-video' : ''} ${windowMode.pip ? 'pip' : ''}`}
       onMouseMove={reveal}
       onClick={(e) => {
-        // Click on the empty video area toggles play/pause (not on a control).
+        // Click on the empty video area toggles play/pause (not on a control);
+        // wait a moment so a double-click (fullscreen) doesn't also pause.
         if ((e.target as HTMLElement).classList.contains('player-hit')) {
-          window.api.player.command({ action: 'toggle' })
-          reveal()
+          if (clickTimer.current) clearTimeout(clickTimer.current)
+          clickTimer.current = setTimeout(() => {
+            clickTimer.current = null
+            window.api.player.command({ action: 'toggle' })
+            reveal()
+          }, 230)
         }
+      }}
+      onDoubleClick={(e) => {
+        if (!(e.target as HTMLElement).classList.contains('player-hit')) return
+        if (clickTimer.current) clearTimeout(clickTimer.current)
+        clickTimer.current = null
+        void window.api.window.control(windowMode.pip ? 'pipOff' : 'fullscreen')
       }}
     >
       <div className="player-hit" style={{ position: 'absolute', inset: 0 }} />
@@ -271,10 +331,52 @@ export function PlayerOverlay(): JSX.Element {
             {isLive && channel?.number ? <span className="player-chno">{channel.number}</span> : null}
             {title}
             {isLive && <span className="live-pill">● LIVE</span>}
+            {recording && <span className="rec-pill">REC</span>}
           </div>
         </div>
+        {isLive && settings?.recordings && playback.channelId && (
+          <button
+            className={`focusable tbtn ${recording ? 'active' : ''}`}
+            title={recording ? 'Stop recording' : 'Record this channel (until you stop it, max 2 hours)'}
+            onClick={() => {
+              if (recording) void window.api.recordings.stop(recording.id)
+              else {
+                const end = nowNext.now?.stop
+                void window.api.recordings.now(playback.channelId!, nowNext.now?.title, end ? end + 120_000 : undefined).then((r) => {
+                  setNotice(r.ok ? (end ? 'Recording until this programme ends' : 'Recording started') : r.error ?? 'Couldn’t record')
+                  setTimeout(() => setNotice(null), 2500)
+                })
+              }
+            }}
+          >
+            <Icon name="record" />
+          </button>
+        )}
+        {isLive && settings?.multiView && playback.channelId && !windowMode.pip && (
+          <button
+            className="focusable tbtn"
+            title="Multi-view: watch this channel next to others"
+            onClick={() => openMultiView([playback.channelId!])}
+          >
+            <Icon name="grid" />
+          </button>
+        )}
         <button className="focusable tbtn" title="Stream info" onClick={() => setShowStats((v) => !v)}>
           <Icon name="info" />
+        </button>
+        <button
+          className="focusable tbtn"
+          title={windowMode.pip ? 'Back to full size (P)' : 'Picture-in-picture (P)'}
+          onClick={() => void window.api.window.control('pip')}
+        >
+          <Icon name={windowMode.pip ? 'fullscreenExit' : 'pip'} />
+        </button>
+        <button
+          className="focusable tbtn"
+          title={windowMode.fullscreen ? 'Exit fullscreen (F or Esc)' : 'Fullscreen (F or double-click)'}
+          onClick={() => void window.api.window.control('fullscreen')}
+        >
+          <Icon name={windowMode.fullscreen ? 'fullscreenExit' : 'fullscreen'} />
         </button>
       </div>
 
@@ -289,6 +391,26 @@ export function PlayerOverlay(): JSX.Element {
             <span style={{ width: `${playback.muted ? 0 : Math.min(100, playback.volume)}%` }} />
           </div>
           <span className="vol-num">{playback.muted ? 'Muted' : playback.volume}</span>
+        </div>
+      )}
+
+      {/* Skip intro / next episode: shown even while the controls are hidden. */}
+      {(skip.intro || (skip.credits && countdown == null)) && !windowMode.pip && (
+        <div className="skip-pills">
+          {skip.intro && (
+            <button
+              className="focusable skip-pill"
+              onClick={() => window.api.player.command({ action: 'seek', value: skip.intro!.to })}
+              title={skip.intro.learned ? 'Skips to where you skipped to before' : 'Skips 85 seconds. Adjust with → and ello remembers it for this series.'}
+            >
+              <Icon name="skip" size={20} /> Skip intro
+            </button>
+          )}
+          {skip.credits && nextEp && (
+            <button className="focusable skip-pill primary" onClick={goNext}>
+              <Icon name="next" size={20} /> Next episode
+            </button>
+          )}
         </div>
       )}
 
@@ -390,7 +512,7 @@ export function PlayerOverlay(): JSX.Element {
               <Icon name="next" size={26} />
             </button>
           ) : nextEp ? (
-            <button className="focusable tbtn" title={`Next episode: ${nextEp.title}`} onClick={() => void playNextEpisode()}>
+            <button className="focusable tbtn" title={`Next episode: ${nextEp.title}`} onClick={goNext}>
               <Icon name="next" size={26} />
             </button>
           ) : (
@@ -433,6 +555,19 @@ export function PlayerOverlay(): JSX.Element {
               <span>{currentLabel(playback.tracks?.sub, 'Off')}</span>
             </button>
             {menu === 'sub' && <SubtitleMenu tracks={playback.tracks?.sub ?? []} onClose={closeMenu} />}
+          </div>
+          <div className="pop-anchor">
+            <button
+              className={`focusable tbtn ${menu === 'sleep' || sleep ? 'active' : ''} ${sleep ? 'labeled' : ''}`}
+              title="Sleep timer"
+              onClick={() => setMenu(menu === 'sleep' ? null : 'sleep')}
+            >
+              <Icon name="sleep" />
+              {sleep && <span>{sleep.at ? `${Math.max(1, Math.ceil((sleep.at - now) / 60_000))}m` : 'End'}</span>}
+            </button>
+            {menu === 'sleep' && (
+              <SleepMenu current={sleep?.choice ?? null} isLive={isLive} onPick={pickSleep} onClose={closeMenu} />
+            )}
           </div>
           <button className="focusable tbtn" title="Stop" onClick={close}>
             <Icon name="stop" />

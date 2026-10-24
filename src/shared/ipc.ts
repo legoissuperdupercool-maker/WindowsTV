@@ -80,6 +80,28 @@ export const IPC = {
   vpnCheck: 'vpn:check',
   vpnState: 'vpn:state', // main -> renderer event
 
+  // Multi-view (2 or 4 live channels at once)
+  multiviewLayout: 'multiview:layout',
+  multiviewLoad: 'multiview:load',
+  multiviewClear: 'multiview:clear',
+  multiviewAudio: 'multiview:audio',
+  multiviewRegions: 'multiview:regions',
+  multiviewStop: 'multiview:stop',
+  multiviewState: 'multiview:state', // main -> renderer event
+
+  // Recording + reminders
+  recList: 'rec:list',
+  recNow: 'rec:now',
+  recSchedule: 'rec:schedule',
+  recStop: 'rec:stop',
+  recRemove: 'rec:remove',
+  recReminderAdd: 'rec:reminderAdd',
+  recReminderRemove: 'rec:reminderRemove',
+  recPickFolder: 'rec:pickFolder',
+  recOpenFolder: 'rec:openFolder',
+  recChanged: 'rec:changed', // main -> renderer event
+  reminderPlay: 'rec:reminderPlay', // main -> renderer event
+
   // Misc
   openExternal: 'app:openExternal',
   appInfo: 'app:info'

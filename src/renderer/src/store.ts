@@ -35,6 +35,15 @@ interface State {
 
   playback: PlaybackState
   playerVisible: boolean
+  /** The window is fullscreen / shrunk to picture-in-picture. */
+  windowMode: { fullscreen: boolean; pip: boolean }
+  /** The search-everything overlay is open. */
+  searchOpen: boolean
+  /** Multi-view is open (with these channels to start with). */
+  multiView: string[] | null
+  openMultiView: (channels?: string[]) => void
+  closeMultiView: () => void
+  setSearchOpen: (open: boolean) => void
   /** Ordered channel ids for zapping (prev/next) from the player. */
   playQueue: string[]
   /** What kind of content is currently playing (controls live vs VOD UI). */
@@ -162,6 +171,18 @@ export const useStore = create<State>((set, get) => ({
   loadError: null,
   playback: idlePlayback,
   playerVisible: false,
+  windowMode: { fullscreen: false, pip: false },
+  searchOpen: false,
+  multiView: null,
+  openMultiView(channels = []) {
+    if (get().playerVisible) get().stopPlayback()
+    set({ multiView: channels, searchOpen: false })
+  },
+  closeMultiView() {
+    void window.api.multiview.stop()
+    set({ multiView: null })
+  },
+  setSearchOpen: (open) => set({ searchOpen: open }),
   playQueue: [],
   nowPlayingKind: 'live',
   webApp: { open: false, url: '', title: '', canGoBack: false, loading: false },
@@ -189,6 +210,12 @@ export const useStore = create<State>((set, get) => ({
       if (playback.status !== 'idle') set({ playerVisible: true })
     })
     window.api.onWebAppState((webApp) => set({ webApp }))
+    window.api.window.onMode((windowMode) => set({ windowMode }))
+    // Clicking a Guide reminder's notification plays that channel.
+    window.api.recordings.onReminderPlay((channelId) => {
+      if (get().multiView) get().closeMultiView()
+      void get().play(channelId)
+    })
     window.api.onUpdateState((update) => set({ update }))
     void window.api.updates.getState().then((r) => r.data && set({ update: r.data }))
     window.api.onCatalogProgress((progress) => {
@@ -377,6 +404,9 @@ export const useStore = create<State>((set, get) => ({
     setTimeout(() => void get().refreshContinue(), 300)
     window.api.player.command({ action: 'stop' })
     window.api.player.setRegion({ x: 0, y: 0, width: 0, height: 0, visible: false })
+    // Leaving the player leaves picture-in-picture / fullscreen too.
+    if (get().windowMode.pip) void window.api.window.control('pipOff')
+    if (get().windowMode.fullscreen) void window.api.window.control('fullscreenOff')
     set({ playerVisible: false, playback: idlePlayback })
   },
 

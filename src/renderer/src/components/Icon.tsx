@@ -36,6 +36,14 @@ import edit from '@material-symbols/svg-400/rounded/edit-fill.svg?raw'
 import image from '@material-symbols/svg-400/rounded/image-fill.svg?raw'
 import del from '@material-symbols/svg-400/rounded/delete-fill.svg?raw'
 import thumb from '@material-symbols/svg-400/rounded/thumb_up-fill.svg?raw'
+import fullscreen from '@material-symbols/svg-400/rounded/fullscreen-fill.svg?raw'
+import fullscreenExit from '@material-symbols/svg-400/rounded/fullscreen_exit-fill.svg?raw'
+import pip from '@material-symbols/svg-400/rounded/picture_in_picture-fill.svg?raw'
+import sleep from '@material-symbols/svg-400/rounded/bedtime-fill.svg?raw'
+import skip from '@material-symbols/svg-400/rounded/fast_forward-fill.svg?raw'
+import record from '@material-symbols/svg-400/rounded/fiber_manual_record-fill.svg?raw'
+import bell from '@material-symbols/svg-400/rounded/notifications-fill.svg?raw'
+import grid from '@material-symbols/svg-400/rounded/grid_view-fill.svg?raw'
 
 const ICONS: Record<string, string> = {
   live,
@@ -72,7 +80,15 @@ const ICONS: Record<string, string> = {
   edit,
   image,
   delete: del,
-  thumb
+  thumb,
+  fullscreen,
+  fullscreenExit,
+  pip,
+  sleep,
+  skip,
+  record,
+  bell,
+  grid
 }
 
 export function Icon({ name, size = 22 }: { name: string; size?: number; stroke?: number }): JSX.Element {

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from './store'
+import { SearchOverlay } from './components/SearchOverlay'
+import { MultiViewScreen } from './components/MultiView'
 import {
   useSpatialNavigation,
   setBackHandler,
@@ -38,6 +40,7 @@ export default function App(): JSX.Element {
     profilePicker,
     setProfilePicker
   } = useStore()
+  const multiView = useStore((st) => st.multiView)
 
   useSpatialNavigation()
 
@@ -47,9 +50,9 @@ export default function App(): JSX.Element {
 
   // Toggle the transparent-window body class so mpv shows through while playing.
   useEffect(() => {
-    const playing = playerVisible && playback.status !== 'idle'
+    const playing = (playerVisible && playback.status !== 'idle') || multiView != null
     document.documentElement.classList.toggle('playing', playing)
-  }, [playerVisible, playback.status])
+  }, [playerVisible, playback.status, multiView])
 
   // Re-seed focus whenever the page changes. Opening a detail screen remembers
   // the focused card; closing it puts focus back on that card.
@@ -80,7 +83,21 @@ export default function App(): JSX.Element {
         closeWebApp()
         return true
       }
+      if (useStore.getState().multiView) {
+        useStore.getState().closeMultiView()
+        return true
+      }
       if (playerVisible) {
+        // Back/Esc first leaves picture-in-picture or fullscreen, then the player.
+        const mode = useStore.getState().windowMode
+        if (mode.pip) {
+          void window.api.window.control('pipOff')
+          return true
+        }
+        if (mode.fullscreen) {
+          void window.api.window.control('fullscreenOff')
+          return true
+        }
         stopPlayback()
         setPlayerVisible(false)
         return true
@@ -97,6 +114,23 @@ export default function App(): JSX.Element {
     })
     return () => setBackHandler(null)
   }, [playerVisible, route, navigate, stopPlayback, setPlayerVisible, webApp.open, closeWebApp, detail, closeDetail, profilePicker, setProfilePicker])
+
+  const searchOpen = useStore((st) => st.searchOpen)
+  const setSearchOpen = useStore((st) => st.setSearchOpen)
+  // "/" or Ctrl+K opens search from anywhere outside the player and text fields.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (useStore.getState().playerVisible) return
+      if (e.key === '/' || (e.ctrlKey && e.key.toLowerCase() === 'k')) {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setSearchOpen])
 
   if (!ready) {
     // Same splash as index.html, so there's no flash while settings load.
@@ -118,7 +152,7 @@ export default function App(): JSX.Element {
 
   // The full-screen player and the in-app browser bring their own top controls,
   // so the main top bar is hidden while either is active.
-  const overlayUp = playerVisible || webApp.open
+  const overlayUp = playerVisible || webApp.open || multiView != null
   const showChrome = !overlayUp && !detail && !profilePicker
 
   return (
@@ -144,6 +178,8 @@ export default function App(): JSX.Element {
       {playerVisible && !webApp.open && <PlayerOverlay />}
       {webApp.open && <WebAppView />}
       {profilePicker && !overlayUp && <ProfilePicker />}
+      {searchOpen && !overlayUp && <SearchOverlay onClose={() => setSearchOpen(false)} />}
+      {multiView && !playerVisible && <MultiViewScreen initial={multiView} />}
       <AppBackground />
       <LoadToast />
     </>

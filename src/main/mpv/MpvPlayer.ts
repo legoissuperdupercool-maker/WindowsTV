@@ -46,6 +46,9 @@ type Pending = {
  *  3. Honesty  — every failure to start is turned into a human error string, so the UI
  *                never shows a silent black screen (the classic UHF "nothing loads").
  */
+/** Several players can start in the same millisecond (multi-view). */
+let pipeCounter = 0
+
 export class MpvPlayer extends EventEmitter {
   private proc: ChildProcess | null = null
   private sock: net.Socket | null = null
@@ -80,8 +83,8 @@ export class MpvPlayer extends EventEmitter {
     // Unique per-process pipe name (Windows named pipe namespace).
     this.pipePath =
       process.platform === 'win32'
-        ? `\\\\.\\pipe\\windowstv-mpv-${process.pid}-${Date.now()}`
-        : join(tmpdir(), `windowstv-mpv-${process.pid}-${Date.now()}.sock`) // development on Linux/macOS
+        ? `\\\\.\\pipe\\windowstv-mpv-${process.pid}-${Date.now()}-${++pipeCounter}`
+        : join(tmpdir(), `windowstv-mpv-${process.pid}-${Date.now()}-${++pipeCounter}.sock`) // development on Linux/macOS
   }
 
   getState(): PlaybackState {

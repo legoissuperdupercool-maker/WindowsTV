@@ -77,7 +77,7 @@ export function TopBar(): JSX.Element {
         <span className="update-pill quiet">Updating… {update.percent ?? 0}%</span>
       )}
 
-      <button className="focusable icon-btn" title="Search channels" onClick={() => navigate('live')}>
+      <button className="focusable icon-btn" title="Search everything (/ or Ctrl+K)" onClick={() => useStore.getState().setSearchOpen(true)}>
         <Icon name="search" size={24} />
       </button>
       <button className="focusable icon-btn" title="Settings" onClick={() => navigate('settings')}>

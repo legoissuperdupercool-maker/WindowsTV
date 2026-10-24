@@ -3,7 +3,8 @@ import { useStore } from '../store'
 import { Initials } from '../components/Initials'
 import { Icon } from '../components/Icon'
 import { useProgressive } from '../hooks/useProgressive'
-import type { Channel, Programme } from '@shared/types'
+import { useRecordings } from '../hooks/useRecordings'
+import type { Channel, Programme, Reminder } from '@shared/types'
 
 const PX_PER_MIN = 6
 /** Hours of the past shown, so catch-up programmes can be replayed. */
@@ -13,7 +14,11 @@ const FUTURE_HOURS = 5
 const CH_WIDTH = 210
 
 export function Guide(): JSX.Element {
-  const { channels, currentSourceId, loadCatalog, play, playCatchup } = useStore()
+  const { channels, currentSourceId, loadCatalog, play, playCatchup, settings } = useStore()
+  const recEnabled = Boolean(settings?.recordings)
+  const { recordings, reminders } = useRecordings()
+  const [sheet, setSheet] = useState<{ c: Channel; p: Programme } | null>(null)
+  const [sheetMsg, setSheetMsg] = useState<string | null>(null)
   const [grid, setGrid] = useState<Record<string, Programme[]>>({})
   const [, force] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -82,8 +87,15 @@ export function Guide(): JSX.Element {
 
   const onProgramme = (c: Channel, p: Programme): void => {
     if (p.stop <= now && canReplay(c, p, now)) void playCatchup(c, p)
-    else void play(c.id, queue)
+    else if (recEnabled && p.start > now) {
+      setSheetMsg(null)
+      setSheet({ c, p })
+    } else void play(c.id, queue)
   }
+  const isRecording = (c: Channel, p: Programme): boolean =>
+    recordings.some((r) => r.channelId === c.id && (r.status === 'scheduled' || r.status === 'recording') && r.start < p.stop && r.stop > p.start)
+  const hasReminder = (c: Channel, p: Programme): Reminder | undefined =>
+    reminders.find((r) => r.channelId === c.id && r.start === p.start)
 
   return (
     <div className="page pad" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -138,6 +150,12 @@ export function Guide(): JSX.Element {
                             className={`focusable guide-prog ${past && !replay ? 'past' : ''} ${onAir ? 'on-air' : ''}`}
                             title={replay ? 'Watch from the start (catch-up)' : past ? 'Already aired' : undefined}
                             onClick={() => onProgramme(c, p)}
+                            onContextMenu={(e) => {
+                              if (!recEnabled || past) return
+                              e.preventDefault()
+                              setSheetMsg(null)
+                              setSheet({ c, p })
+                            }}
                             style={{
                               left,
                               width: Math.max(28, right - left - 3),
@@ -146,7 +164,9 @@ export function Guide(): JSX.Element {
                             }}
                           >
                             <div className="pt">
-                              {replay && <Icon name="history" size={14} />} {p.title}
+                              {replay && <Icon name="history" size={14} />}
+                              {recEnabled && isRecording(c, p) && <span className="rec-dot" title="Recording" />}
+                              {recEnabled && hasReminder(c, p) && <Icon name="bell" size={13} />} {p.title}
                             </div>
                             <div className="pw">
                               {new Date(p.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
@@ -164,8 +184,72 @@ export function Guide(): JSX.Element {
         </div>
         <div className="hint-line" style={{ paddingLeft: 0 }}>
           <Icon name="history" size={13} /> = watch from the start (catch-up) · Live programmes play the channel
+          {recEnabled && ' · Click a later programme (or right-click) to record it or get a reminder'}
         </div>
       </div>
+      {sheet && (
+        <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && setSheet(null)}>
+          <div className="sheet prog-sheet" role="dialog">
+            <div className="prog-when">
+              {sheet.c.name} · {new Date(sheet.p.start).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
+              {' – '}
+              {new Date(sheet.p.stop).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            </div>
+            <h2>{sheet.p.title}</h2>
+            {sheet.p.desc && <p className="prog-desc">{sheet.p.desc}</p>}
+            {sheetMsg && <div className="test-result good">{sheetMsg}</div>}
+            <div className="sheet-actions">
+              {hasReminder(sheet.c, sheet.p) ? (
+                <button
+                  className="focusable btn"
+                  onClick={() => void window.api.recordings.removeReminder(hasReminder(sheet.c, sheet.p)!.id).then(() => setSheetMsg('Reminder removed.'))}
+                >
+                  <Icon name="bell" size={18} /> Remove reminder
+                </button>
+              ) : (
+                sheet.p.start > now && (
+                  <button
+                    className="focusable btn"
+                    onClick={() =>
+                      void window.api.recordings
+                        .remind(sheet.c.id, sheet.p.title, sheet.p.start)
+                        .then((r) => setSheetMsg(r.ok ? 'You’ll get a notification a minute before it starts.' : r.error ?? 'Couldn’t set the reminder.'))
+                    }
+                  >
+                    <Icon name="bell" size={18} /> Remind me
+                  </button>
+                )
+              )}
+              {!isRecording(sheet.c, sheet.p) && (
+                <button
+                  className="focusable btn"
+                  onClick={() =>
+                    void (sheet.p.start > now
+                      ? window.api.recordings.schedule(sheet.c.id, sheet.p.title, sheet.p.start, sheet.p.stop)
+                      : window.api.recordings.now(sheet.c.id, sheet.p.title, sheet.p.stop + 120_000)
+                    ).then((r) =>
+                      setSheetMsg(
+                        r.ok
+                          ? 'Recording is set. Keep ello smartTV running (it can be minimised). Find it in Settings → Recordings.'
+                          : r.error ?? 'Couldn’t set the recording.'
+                      )
+                    )
+                  }
+                >
+                  <Icon name="record" size={18} /> {sheet.p.start > now ? 'Record' : 'Record the rest'}
+                </button>
+              )}
+              <span className="spacer" />
+              <button className="focusable btn" onClick={() => setSheet(null)}>
+                Close
+              </button>
+              <button className="focusable btn primary" onClick={() => (setSheet(null), void play(sheet.c.id, queue))}>
+                <Icon name="play" size={18} /> Watch channel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

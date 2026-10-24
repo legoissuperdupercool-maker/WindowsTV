@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ExtrasSettings } from '../components/ExtrasSettings'
 import { useStore } from '../store'
 import { Icon } from '../components/Icon'
 import { VpnCard } from '../components/VpnCard'
@@ -392,6 +393,8 @@ export function Settings(): JSX.Element {
             </div>
           )}
         </div>
+
+        <ExtrasSettings />
 
         {/* Player quality */}
         <div className="card">

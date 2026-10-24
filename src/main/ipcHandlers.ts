@@ -11,6 +11,8 @@ import { getSettings, updateSettings } from './store'
 import type { Catalog } from './services/catalog'
 import type { MpvPlayer } from './mpv/MpvPlayer'
 import { type WindowManager, launchInstalledApp } from './windows'
+import type { MultiView } from './multiview'
+import { defaultRecordFolder, type Recorder } from './recorder'
 import * as xtream from './services/xtream'
 import { probeStream } from './net/http'
 import { buildCatchupUrl } from './services/catchup'
@@ -25,6 +27,8 @@ export interface MainContext {
   progress: WatchProgress
   profiles: Profiles
   vpn: Vpn
+  multiview: MultiView
+  recorder: Recorder
 }
 
 function ok<T>(data: T): Result<T> {
@@ -433,6 +437,69 @@ export function registerIpc(ctx: MainContext): void {
 
   ipcMain.handle(IPC.playerSetRegion, (_e, region: VideoRegion) => {
     windows.setVideoRegion(region)
+    return ok(true)
+  })
+
+  // ---------------------------------------------------------------- multi-view
+  const guardAsync = async <T>(fn: () => Promise<T>): Promise<Result<T>> => {
+    try {
+      return ok(await fn())
+    } catch (e) {
+      return fail(e)
+    }
+  }
+  ipcMain.handle(IPC.multiviewLayout, (_e, n: number) =>
+    guardAsync(async () => {
+      ctx.player.stop() // the single player makes room (provider connection limits)
+      await ctx.multiview.setLayout(n)
+      return true
+    })
+  )
+  ipcMain.handle(IPC.multiviewLoad, (_e, args: { index: number; channelId: string }) =>
+    guardAsync(async () => {
+      const settings = getSettings()
+      const channel = catalog.getChannel(args.channelId)
+      if (!channel) throw new Error('This channel isn’t in your provider’s list any more.')
+      const source = settings.sources.find((s) => s.id === channel.sourceId)
+      await ctx.multiview.load(args.index, channel.url, {
+        channelId: channel.id,
+        title: channel.name,
+        userAgent: source?.userAgent || settings.userAgent
+      })
+      return true
+    })
+  )
+  ipcMain.handle(IPC.multiviewClear, (_e, index: number) => guard(() => (ctx.multiview.clear(index), true)))
+  ipcMain.handle(IPC.multiviewAudio, (_e, index: number) => guard(() => (ctx.multiview.setAudio(index), true)))
+  ipcMain.handle(IPC.multiviewRegions, (_e, regions: VideoRegion[]) => guard(() => (ctx.multiview.setRegions(regions), true)))
+  ipcMain.handle(IPC.multiviewStop, () => guardAsync(async () => (await ctx.multiview.stop(), true)))
+
+  // ---------------------------------------------------------------- recording + reminders
+  ipcMain.handle(IPC.recList, () => ok({ ...ctx.recorder.list(), folder: getSettings().recordFolder || defaultRecordFolder() }))
+  ipcMain.handle(IPC.recNow, (_e, a: { channelId: string; title?: string; stop?: number }) =>
+    guard(() => ctx.recorder.recordNow(a.channelId, a.title, a.stop))
+  )
+  ipcMain.handle(IPC.recSchedule, (_e, a: { channelId: string; title: string; start: number; stop: number }) =>
+    guard(() => ctx.recorder.schedule(a.channelId, a.title, a.start, a.stop))
+  )
+  ipcMain.handle(IPC.recStop, (_e, id: string) => guard(() => (ctx.recorder.stop(id), true)))
+  ipcMain.handle(IPC.recRemove, (_e, id: string) => guard(() => (ctx.recorder.remove(id), true)))
+  ipcMain.handle(IPC.recReminderAdd, (_e, a: { channelId: string; title: string; start: number }) =>
+    guard(() => ctx.recorder.addReminder(a.channelId, a.title, a.start))
+  )
+  ipcMain.handle(IPC.recReminderRemove, (_e, id: string) => guard(() => (ctx.recorder.removeReminder(id), true)))
+  ipcMain.handle(IPC.recPickFolder, async () => {
+    const r = await dialog.showOpenDialog(windows.uiWindow, {
+      title: 'Where should recordings be saved?',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (r.canceled || !r.filePaths[0]) return ok(null)
+    updateSettings({ recordFolder: r.filePaths[0] })
+    return ok(r.filePaths[0])
+  })
+  ipcMain.handle(IPC.recOpenFolder, async (_e, file?: string) => {
+    if (file) shell.showItemInFolder(file)
+    else await shell.openPath(getSettings().recordFolder || defaultRecordFolder())
     return ok(true)
   })
 

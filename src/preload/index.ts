@@ -8,6 +8,8 @@ import type {
   LoadProgress,
   PlaybackState,
   Programme,
+  Recording,
+  Reminder,
   Result,
   MediaDetails,
   PlayOptions,
@@ -118,9 +120,35 @@ const api = {
     probe: (channelId: string) =>
       invoke<{ ok: boolean; status?: number; reason?: string }>(IPC.playerProbe, { channelId })
   },
+  multiview: {
+    layout: (n: number) => invoke<boolean>(IPC.multiviewLayout, n),
+    load: (index: number, channelId: string) => invoke<boolean>(IPC.multiviewLoad, { index, channelId }),
+    clear: (index: number) => invoke<boolean>(IPC.multiviewClear, index),
+    audio: (index: number) => invoke<boolean>(IPC.multiviewAudio, index),
+    regions: (regions: VideoRegion[]) => invoke<boolean>(IPC.multiviewRegions, regions),
+    stop: () => invoke<boolean>(IPC.multiviewStop),
+    onState: (cb: (e: { index: number; state: PlaybackState }) => void) =>
+      subscribe<{ index: number; state: PlaybackState }>(IPC.multiviewState, cb)
+  },
+  recordings: {
+    list: () => invoke<{ recordings: Recording[]; reminders: Reminder[]; folder: string }>(IPC.recList),
+    now: (channelId: string, title?: string, stop?: number) => invoke<Recording>(IPC.recNow, { channelId, title, stop }),
+    schedule: (channelId: string, title: string, start: number, stop: number) =>
+      invoke<Recording>(IPC.recSchedule, { channelId, title, start, stop }),
+    stop: (id: string) => invoke<boolean>(IPC.recStop, id),
+    remove: (id: string) => invoke<boolean>(IPC.recRemove, id),
+    remind: (channelId: string, title: string, start: number) => invoke<Reminder>(IPC.recReminderAdd, { channelId, title, start }),
+    removeReminder: (id: string) => invoke<boolean>(IPC.recReminderRemove, id),
+    pickFolder: () => invoke<string | null>(IPC.recPickFolder),
+    openFolder: (file?: string) => invoke<boolean>(IPC.recOpenFolder, file),
+    onChange: (cb: () => void) => subscribe<null>(IPC.recChanged, () => cb()),
+    onReminderPlay: (cb: (channelId: string) => void) => subscribe<string>(IPC.reminderPlay, cb)
+  },
   window: {
-    control: (action: 'minimize' | 'maximize' | 'close' | 'fullscreen') =>
-      invoke<boolean>(IPC.windowControl, action)
+    control: (action: 'minimize' | 'maximize' | 'close' | 'fullscreen' | 'fullscreenOff' | 'pip' | 'pipOff') =>
+      invoke<boolean>(IPC.windowControl, action),
+    /** Fullscreen / picture-in-picture changes. */
+    onMode: (cb: (m: { fullscreen: boolean; pip: boolean }) => void) => subscribe<{ fullscreen: boolean; pip: boolean }>('window:mode', cb)
   },
   webapp: {
     open: (url: string, userAgent?: string) => invoke<boolean>(IPC.webappOpen, { url, userAgent }),

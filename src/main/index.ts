@@ -12,6 +12,8 @@ import { IPC } from '../shared/ipc'
 import { initUpdater } from './updater'
 import { WatchProgress } from './progress'
 import { Profiles } from './profiles'
+import { MultiView } from './multiview'
+import { Recorder, defaultRecordFolder } from './recorder'
 import { findDisplayGpu } from './mpv/displayGpu'
 import { Vpn } from './vpn'
 import { setAgentProvider } from './net/http'
@@ -106,7 +108,46 @@ app.whenReady().then(async () => {
     updater: initUpdater((state) => windows.send(IPC.updateState, state)),
     progress,
     profiles: new Profiles(progress),
-    vpn
+    vpn,
+    multiview: new MultiView(
+      windows,
+      (wid) => {
+        const settings = getSettings()
+        const p = new MpvPlayer({
+          binaryPath: mpvInfo.path || 'mpv',
+          wid,
+          userAgent: settings.userAgent,
+          cacheSeconds: Math.min(settings.cacheSeconds, 15),
+          hwdec: settings.hwdec,
+          videoOutput: settings.videoOutput,
+          deinterlace: settings.deinterlace,
+          networkTimeoutMs: settings.networkTimeoutMs,
+          httpProxy: vpn?.mpvProxy()
+        })
+        p.useAdapter(displayGpu)
+        return p
+      },
+      (index, state) => windows.send(IPC.multiviewState, { index, state })
+    ),
+    recorder: new Recorder({
+      mpvPath: () => mpvInfo.path,
+      folder: () => getSettings().recordFolder || defaultRecordFolder(),
+      resolve: (channelId) => {
+        const ch = catalog.getChannel(channelId)
+        if (!ch) return null
+        const s = getSettings()
+        const source = s.sources.find((x) => x.id === ch.sourceId)
+        return { url: ch.url, name: ch.name, userAgent: source?.userAgent || s.userAgent }
+      },
+      httpProxy: () => vpn?.mpvProxy(),
+      onChange: () => windows.send(IPC.recChanged, null),
+      onReminderClick: (channelId) => {
+        if (windows.uiWindow.isMinimized()) windows.uiWindow.restore()
+        windows.uiWindow.show()
+        windows.uiWindow.focus()
+        windows.send(IPC.reminderPlay, channelId)
+      }
+    })
   } as unknown as MainContext
 
   registerIpc(ctx)
@@ -194,6 +235,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', async () => {
   progress.flush()
   vpn?.stop()
+  void (ctx as MainContext | undefined)?.multiview?.stop()
+  ;(ctx as MainContext | undefined)?.recorder?.shutdown()
   try {
     await player?.quit()
   } catch {
