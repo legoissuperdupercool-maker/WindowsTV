@@ -24,6 +24,7 @@ import sys
 import threading
 import traceback
 from contextlib import AsyncExitStack
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -530,7 +531,20 @@ async def run_command(msg: dict) -> None:
         handler = COMMANDS[msg["cmd"]]
         emit({"id": rid, "ok": True, "data": await handler(msg)})
     except Exception as e:  # report every failure to the app instead of dying
-        emit({"id": rid, "ok": False, "error": friendly(e), "detail": traceback.format_exc(limit=3)})
+        detail = traceback.format_exc()
+        error = friendly(e)
+        if type(e).__name__ not in ("AppleError", "RuntimeError", "TimeoutError"):
+            # Something ello didn't expect: keep the details (code locations and the
+            # error only, never passwords) so the cause can be found.
+            error = f"{error} ({type(e).__name__}). Details saved to %APPDATA%\\ello-sideloader\\last-error.txt"
+            try:
+                base = Path(os.environ.get("APPDATA") or Path.home() / ".config") / "ello-sideloader"
+                base.mkdir(parents=True, exist_ok=True)
+                (base / "last-error.txt").write_text(
+                    f"{datetime.now().isoformat()} {msg.get('cmd')}\n{detail}", encoding="utf-8")
+            except OSError:
+                pass
+        emit({"id": rid, "ok": False, "error": error, "detail": detail})
 
 
 def main() -> None:
