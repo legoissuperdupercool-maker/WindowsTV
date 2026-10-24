@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { filterForProfile } from './contentFilter'
 import type { UpdateState, WebAppState } from '@shared/ipc'
 import type {
+  LicenseState,
   PlayOptions,
   Programme,
   SeriesEpisode,
@@ -44,6 +45,14 @@ interface State {
   openMultiView: (channels?: string[]) => void
   closeMultiView: () => void
   setSearchOpen: (open: boolean) => void
+  /** ello Premium (licence key). */
+  license: LicenseState
+  refreshLicense: () => Promise<void>
+  /** The Premium sheet is open; the string says which feature asked for it. */
+  premiumSheet: string | null
+  /** True when Premium is unlocked; otherwise opens the Premium sheet. */
+  requirePremium: (feature: string) => boolean
+  setPremiumSheet: (feature: string | null) => void
   /** Ordered channel ids for zapping (prev/next) from the player. */
   playQueue: string[]
   /** What kind of content is currently playing (controls live vs VOD UI). */
@@ -212,6 +221,18 @@ export const useStore = create<State>((set, get) => ({
     set({ multiView: null })
   },
   setSearchOpen: (open) => set({ searchOpen: open }),
+  license: { premium: false },
+  async refreshLicense() {
+    const r = await window.api.license.get()
+    set({ license: r.data ?? { premium: false } })
+  },
+  premiumSheet: null,
+  requirePremium(feature) {
+    if (get().license.premium) return true
+    set({ premiumSheet: feature })
+    return false
+  },
+  setPremiumSheet: (feature) => set({ premiumSheet: feature }),
   playQueue: [],
   nowPlayingKind: 'live',
   webApp: { open: false, url: '', title: '', canGoBack: false, loading: false },
@@ -224,7 +245,7 @@ export const useStore = create<State>((set, get) => ({
   profilePicker: false,
 
   async init() {
-    await get().loadProfiles()
+    await Promise.all([get().loadProfiles(), get().refreshLicense()])
     set({ profilePicker: get().profiles.length > 1 })
     const res = await window.api.settings.get()
     const settings = res.data ?? null

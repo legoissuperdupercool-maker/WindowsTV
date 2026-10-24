@@ -7,7 +7,8 @@ import type { Vpn } from './vpn'
 import { dialog } from 'electron'
 import { readFileSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
-import { getSettings, updateSettings } from './store'
+import { getSettings, store, updateSettings } from './store'
+import { checkLicense } from './license'
 import type { Catalog } from './services/catalog'
 import type { MpvPlayer } from './mpv/MpvPlayer'
 import { type WindowManager, launchInstalledApp } from './windows'
@@ -45,6 +46,16 @@ export function registerIpc(ctx: MainContext): void {
 
   // ---------------------------------------------------------------- settings
   ipcMain.handle(IPC.settingsGet, () => ok(getSettings()))
+
+  // ------------------------------------------------------------ ello Premium
+  ipcMain.handle(IPC.licenseGet, () => ok(checkLicense(getSettings().licenseKey)))
+  ipcMain.handle(IPC.licenseSet, (_e, key: string) => {
+    const state = checkLicense(key)
+    // Only a valid key is saved; an empty one removes the licence.
+    if (state.premium) updateSettings({ licenseKey: key.trim() })
+    else if (!key.trim()) store.delete('licenseKey')
+    return ok(state)
+  })
 
   ipcMain.handle(IPC.settingsUpdate, async (_e, partial) => {
     try {

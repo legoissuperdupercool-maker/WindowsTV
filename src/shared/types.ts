@@ -270,6 +270,15 @@ export interface AppSettings {
   recordings?: boolean
   /** Where recordings are saved (default: Videos\\ello smartTV). */
   recordFolder?: string
+  /** ello Premium licence key. */
+  licenseKey?: string
+}
+
+/** ello Premium: unlocked by a valid licence key. */
+export interface LicenseState {
+  premium: boolean
+  /** Name on the licence. */
+  name?: string
 }
 
 /** A live-TV recording (now, or scheduled from the Guide). */

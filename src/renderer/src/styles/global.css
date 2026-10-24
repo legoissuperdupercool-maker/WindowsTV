@@ -3386,3 +3386,112 @@ html:not(.playing) body {
 .pe-avatar.focusable.is-focused {
   outline-color: transparent;
 }
+
+/* ello Premium */
+.premium-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: linear-gradient(120deg, rgba(255, 196, 64, 0.14), rgba(255, 255, 255, 0.03) 60%), var(--surface);
+}
+.premium-card > .msi {
+  color: #ffc440;
+  flex: 0 0 auto;
+}
+.premium-card-text {
+  flex: 1;
+}
+.premium-card-text h3 {
+  margin: 0 0 4px;
+}
+.premium-card-text p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.premium-sheet {
+  max-width: 560px;
+}
+.premium-head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 18px;
+  color: #ffc440;
+}
+.premium-head h2 {
+  margin: 0 0 4px;
+  color: var(--text);
+}
+.premium-head p {
+  margin: 0;
+  color: var(--text-dim);
+}
+.premium-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  display: grid;
+  gap: 14px;
+}
+.premium-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.premium-list li > :first-child {
+  color: #ffc440;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+.premium-list b {
+  display: block;
+  font-size: 15px;
+}
+.premium-list small {
+  display: block;
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-top: 2px;
+  line-height: 1.45;
+}
+.premium-error {
+  color: #ff8a80;
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+.premium-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+  color: #1a1200;
+  background: #ffc440;
+}
+
+.guide-top {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.guide-days {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.guide-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.guide-day.on {
+  background: var(--text);
+  color: var(--bg, #000);
+}

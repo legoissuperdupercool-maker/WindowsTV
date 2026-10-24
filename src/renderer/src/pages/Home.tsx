@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../store'
-import { lookOf } from '../theme'
+import { useLook } from '../hooks/useLook'
 import { ADULT, featurable, newestFirst, shelfFilter } from '../contentFilter'
 import { type SeedInfo } from '../recommend'
 import { useRecommendations } from '../hooks/useRecommendations'
@@ -26,6 +26,7 @@ import { getFocused } from '../hooks/useSpatialNavigation'
 import type { AppTile, Category, Channel, EpgNowNext, ListItem, MediaDetails, Programme, WatchItem } from '@shared/types'
 
 export function Home(): JSX.Element {
+  const look = useLook()
   const { settings, navigate, channels, play, openWebApp, currentSourceId, loadCatalog, openDetail, fetchList, continueItems, resumeItem } = useStore(
     useShallow((s) => ({
       settings: s.settings,
@@ -355,7 +356,7 @@ export function Home(): JSX.Element {
   return (
     <div className="page nf-page">
       <Billboard items={billboard} fallback={welcome} />
-      {lookOf(settings?.uiTheme) === 'wonder' && <Collections />}
+      {look === 'wonder' && <Collections />}
 
       <div className="nf-rows">
         {hasSources && !vod.length && <SkeletonRows rows={3} />}

@@ -6,7 +6,7 @@ import { Initials } from './Initials'
 import { AudioMenu, SleepMenu, SubtitleMenu, VolumeMenu } from './PlayerMenus'
 import { useSkipIntro } from '../hooks/useSkipIntro'
 import { useRecordings } from '../hooks/useRecordings'
-import { lookOf } from '../theme'
+import { useLook } from '../hooks/useLook'
 import type { EpgNowNext, MediaTrack, Programme } from '@shared/types'
 
 export function PlayerOverlay(): JSX.Element {
@@ -64,6 +64,7 @@ export function PlayerOverlay(): JSX.Element {
   const busy = playback.status === 'loading' || showBuffering
   const errored = playback.status === 'error'
   const nextEp = episodeCtx ? episodeCtx.episodes[episodeCtx.index + 1] : undefined
+  const look = useLook()
   const skip = useSkipIntro({
     seriesId: episodeCtx?.series.id,
     episodeKey: episodeCtx ? episodeCtx.episodes[episodeCtx.index]?.id : undefined,
@@ -295,7 +296,7 @@ export function PlayerOverlay(): JSX.Element {
 
   return (
     <div
-      className={`player-root look-${lookOf(settings?.uiTheme)} ${playback.paused ? 'paused' : ''} ${showControls || busy || errored || menu ? 'show-controls' : 'hide-cursor'} ${errored ? 'no-video' : ''} ${windowMode.pip ? 'pip' : ''}`}
+      className={`player-root look-${look} ${playback.paused ? 'paused' : ''} ${showControls || busy || errored || menu ? 'show-controls' : 'hide-cursor'} ${errored ? 'no-video' : ''} ${windowMode.pip ? 'pip' : ''}`}
       onMouseMove={reveal}
       onClick={(e) => {
         // Click on the empty video area toggles play/pause (not on a control);

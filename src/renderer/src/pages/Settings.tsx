@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ExtrasSettings } from '../components/ExtrasSettings'
 import { AppearanceSettings } from '../components/AppearanceSettings'
+import { PremiumCard } from '../components/PremiumCard'
 import { VodFilterSheet } from '../components/VodFilter'
 import { activeProfile, useStore } from '../store'
 import { Icon } from '../components/Icon'
@@ -99,6 +100,7 @@ export function Settings(): JSX.Element {
       <div className="settings-wrap">
         <h1 className="section-title">Settings</h1>
 
+        <PremiumCard />
         {/* About & updates */}
         <AppearanceSettings />
         <VodFilterCard />

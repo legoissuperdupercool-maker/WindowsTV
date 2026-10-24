@@ -11,6 +11,23 @@ const PX_PER_MIN = 6
 /** Hours of the past shown, so catch-up programmes can be replayed. */
 const PAST_HOURS = 3
 const FUTURE_HOURS = 5
+/** ello Premium: days you can pick (yesterday for catch-up, today, 6 more). */
+const FIRST_DAY = -1
+const LAST_DAY = 6
+
+function dayStart(offset: number): number {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + offset)
+  return d.getTime()
+}
+
+function dayLabel(offset: number): string {
+  if (offset === -1) return 'Yesterday'
+  if (offset === 0) return 'Today'
+  if (offset === 1) return 'Tomorrow'
+  return new Date(dayStart(offset)).toLocaleDateString([], { weekday: 'short', day: 'numeric' })
+}
 /** Must match .guide-ch width in CSS. */
 const CH_WIDTH = 210
 
@@ -23,18 +40,29 @@ export function Guide(): JSX.Element {
   const [grid, setGrid] = useState<Record<string, Programme[]>>({})
   const [, force] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const premium = useStore((s) => s.license.premium)
+  const requirePremium = useStore((s) => s.requirePremium)
+  // Free: a few hours back to a few hours ahead. Premium: a day picker, today
+  // running on into tomorrow morning and other days shown whole.
+  const [day, setDay] = useState(0)
+  const pickDay = (d: number): void => {
+    if (d === day || (d !== 0 && !requirePremium('The full TV guide'))) return
+    setGrid({})
+    setDay(d)
+  }
 
   useEffect(() => {
     void loadCatalog('live', false)
   }, [loadCatalog, currentSourceId])
 
   // Window: a few hours back (catch-up) to a few hours ahead, on half hours.
-  const from = useMemo(() => {
+  const { from, to } = useMemo(() => {
+    if (day !== 0) return { from: dayStart(day), to: dayStart(day + 1) + 3600_000 }
     const d = new Date(Date.now() - PAST_HOURS * 3600_000)
     d.setMinutes(d.getMinutes() < 30 ? 0 : 30, 0, 0)
-    return d.getTime()
-  }, [])
-  const to = from + (PAST_HOURS + FUTURE_HOURS) * 3600_000
+    const start = d.getTime()
+    return { from: start, to: premium ? dayStart(1) + 6 * 3600_000 : start + (PAST_HOURS + FUTURE_HOURS) * 3600_000 }
+  }, [day, premium])
   const widthPx = (to - from) / 60_000 * PX_PER_MIN
 
   // The guide leaves out adult channels (they stay in Live TV under their own category).
@@ -52,19 +80,19 @@ export function Guide(): JSX.Element {
     void window.api.epg
       .grid(currentSourceId, missing.map((c) => ({ id: c.id, epgChannelId: c.epgChannelId, name: c.name })), from, to)
       .then((r) => r.data && setGrid((g) => ({ ...g, ...r.data })))
-  }, [currentSourceId, rows.length, from])
+  }, [currentSourceId, rows.length, from, to])
 
   // Start scrolled to "now" (past programmes are to the left), and publish the
   // scroll offset as --sx so titles of already-running programmes stay visible.
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    el.scrollLeft = Math.max(0, ((Date.now() - from) / 60_000) * PX_PER_MIN - 120)
+    el.scrollLeft = day === 0 ? Math.max(0, ((Date.now() - from) / 60_000) * PX_PER_MIN - 120) : 0
     const sync = (): void => el.style.setProperty('--sx', `${el.scrollLeft}px`)
     sync()
     el.addEventListener('scroll', sync, { passive: true })
     return () => el.removeEventListener('scroll', sync)
-  }, [rows.length > 0])
+  }, [rows.length > 0, day])
 
   // Tick the now-line every minute.
   useEffect(() => {
@@ -111,7 +139,16 @@ export function Guide(): JSX.Element {
 
   return (
     <div className="page pad" style={{ display: 'flex', flexDirection: 'column' }}>
-      <h1 className="section-title">TV Guide</h1>
+      <div className="guide-top">
+        <h1 className="section-title">TV Guide</h1>
+        <div className="guide-days">
+          {Array.from({ length: LAST_DAY - FIRST_DAY + 1 }, (_, i) => FIRST_DAY + i).map((d) => (
+            <button key={d} className={`focusable chip guide-day ${d === day ? 'on' : ''}`} onClick={() => pickDay(d)}>
+              {d !== 0 && !premium && <Icon name="lock" size={13} />} {dayLabel(d)}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="guide-wrap">
         <div className="guide-scroll" ref={scrollRef}>
           <div style={{ width: CH_WIDTH + widthPx, position: 'relative' }}>
@@ -148,7 +185,7 @@ export function Guide(): JSX.Element {
                   </div>
                   <div className="guide-progs" style={{ width: widthPx }}>
                     {progs.length === 0 ? (
-                      <div style={{ padding: '10px 14px', color: 'var(--text-faint)', fontSize: 12 }}>No guide data</div>
+                      <div style={{ padding: '10px 14px', color: 'var(--text-faint)', fontSize: 12 }}>{day === 0 ? 'No guide data' : 'No guide data for this day yet'}</div>
                     ) : (
                       progs.map((p) => {
                         const left = Math.max(0, ((p.start - from) / 60_000) * PX_PER_MIN)

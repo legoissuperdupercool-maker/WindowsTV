@@ -28,6 +28,15 @@ export const LOOKS: Array<{ id: Look; name: string; blurb: string; color: string
   { id: 'classic', name: 'Classic', blurb: 'The original rounded tiles and cards.', color: '#4c8dff' }
 ]
 
+/** Looks that come with ello Premium. */
+export const PREMIUM_LOOKS: ReadonlySet<Look> = new Set<Look>(['premium', 'wonder', 'glass'])
+
+/** The look in use: a Premium look falls back to Theater without Premium. */
+export function effectiveLook(value: string | undefined, premium: boolean): Look {
+  const look = lookOf(value)
+  return !premium && PREMIUM_LOOKS.has(look) ? 'theater' : look
+}
+
 /** The saved setting as a look ('cinema' was the old name for Theater). */
 export function lookOf(value?: string): Look {
   return LOOKS.some((l) => l.id === value) ? (value as Look) : 'theater'

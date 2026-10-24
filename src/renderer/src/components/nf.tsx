@@ -6,7 +6,7 @@ import { FadeImg } from './FadeImg'
 import { Initials } from './Initials'
 import { ScrollRow } from './ScrollRow'
 import { getFocused } from '../hooks/useSpatialNavigation'
-import { lookOf } from '../theme'
+import { useLook } from '../hooks/useLook'
 import { useArtwork } from '../hooks/useArtwork'
 import type { Channel, MediaDetails, Programme, WatchItem } from '@shared/types'
 
@@ -255,7 +255,8 @@ export function PosterCard({ c, onOpen, wide: allowWide = true }: { c: Channel; 
   // every store update (hundreds of cards are on screen while the catalogue loads).
   const play = useStore((s) => s.play)
   const toggleMyList = useStore((s) => s.toggleMyList)
-  const wideLook = useStore((s) => lookOf(s.settings?.uiTheme) !== 'theater' && lookOf(s.settings?.uiTheme) !== 'classic')
+  const look = useLook()
+  const wideLook = look !== 'theater' && look !== 'classic'
   const inList = useStore((s) => Boolean(activeProfile(s)?.myList.some((x) => x.key === c.id)))
   const title = cleanTitle(c.name)
   const year = metaStr(c, 'year')

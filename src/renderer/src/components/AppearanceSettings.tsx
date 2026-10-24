@@ -1,13 +1,17 @@
 import { activeProfile, useStore } from '../store'
-import { ACCENTS, LOOKS, lookOf, swatchBackground, type Look } from '../theme'
+import { ACCENTS, LOOKS, PREMIUM_LOOKS, swatchBackground, type Look } from '../theme'
+import { useLook } from '../hooks/useLook'
+import { Icon } from './Icon'
 import { Logo } from './Logo'
 
 /** Settings → Look: the app's style, the start-up animation and the profile's colour. */
 export function AppearanceSettings(): JSX.Element | null {
   const { settings, refreshSettings, saveProfile } = useStore()
   const me = useStore(activeProfile)
+  const look = useLook()
+  const premium = useStore((s) => s.license.premium)
+  const requirePremium = useStore((s) => s.requirePremium)
   if (!settings) return null
-  const look = lookOf(settings.uiTheme)
   const update = async (partial: { uiTheme?: Look; intro?: boolean }): Promise<void> => {
     await window.api.settings.update(partial)
     await refreshSettings()
@@ -17,7 +21,7 @@ export function AppearanceSettings(): JSX.Element | null {
       <h3>Look</h3>
       <div className="look-options five">
         {LOOKS.map((l) => (
-          <button key={l.id} className={`focusable look-option ${look === l.id ? 'on' : ''}`} onClick={() => void update({ uiTheme: l.id })}>
+          <button key={l.id} className={`focusable look-option ${look === l.id ? 'on' : ''}`} onClick={() => (!PREMIUM_LOOKS.has(l.id) || requirePremium(`The ${l.name} style`)) && void update({ uiTheme: l.id })}>
             <span className={`look-preview lp-${l.id}`}>
               <span className="lp-logo">
                 <Logo look={l.id} height={l.id === 'theater' ? 16 : 14} />
@@ -26,7 +30,14 @@ export function AppearanceSettings(): JSX.Element | null {
               <i className="lp-row" />
               <i className="lp-row" />
             </span>
-            <b>{l.name}</b>
+            <b>
+              {l.name}
+              {PREMIUM_LOOKS.has(l.id) && !premium && (
+                <span className="premium-badge" title="ello Premium">
+                  <Icon name="lock" size={13} /> Premium
+                </span>
+              )}
+            </b>
             <small>{l.blurb}</small>
           </button>
         ))}

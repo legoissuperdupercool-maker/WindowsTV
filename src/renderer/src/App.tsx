@@ -26,8 +26,10 @@ import { LoadToast } from './components/LoadToast'
 import { ProfilePicker } from './components/ProfilePicker'
 import { AppBackground } from './components/AppBackground'
 import { Intro } from './components/Intro'
+import { PremiumSheet } from './components/PremiumSheet'
 import { Logo } from './components/Logo'
-import { LOOKS, lookOf } from './theme'
+import { LOOKS } from './theme'
+import { useLook } from './hooks/useLook'
 import { useGlassTilt } from './hooks/useGlassTilt'
 
 export default function App(): JSX.Element {
@@ -50,7 +52,7 @@ export default function App(): JSX.Element {
   const settings = useStore((st) => st.settings)
   // Look classes on <html>: theme-cinema for every look built on the shared
   // screens (Theater, Premium, Wonder, Glass), plus theme-<look> for its design.
-  const look = lookOf(settings?.uiTheme)
+  const look = useLook()
   useEffect(() => {
     const root = document.documentElement.classList
     root.toggle('theme-cinema', look !== 'classic')
@@ -62,6 +64,7 @@ export default function App(): JSX.Element {
   const [intro, setIntro] = useState<'pending' | 'playing' | 'done'>('pending')
   useEffect(() => {
     void window.api.settings.get().then((r) => setIntro(r.data?.intro === false ? 'done' : 'playing'))
+    void useStore.getState().refreshLicense()
   }, [])
   useEffect(() => {
     const replay = (): void => setIntro('playing')
@@ -109,6 +112,10 @@ export default function App(): JSX.Element {
   // Global back behaviour: close player → return home → (root).
   useEffect(() => {
     setBackHandler(() => {
+      if (useStore.getState().premiumSheet != null) {
+        useStore.getState().setPremiumSheet(null)
+        return true
+      }
       if (profilePicker) {
         setProfilePicker(false)
         return true
@@ -222,6 +229,7 @@ export default function App(): JSX.Element {
       {profilePicker && !overlayUp && <ProfilePicker />}
       {searchOpen && !overlayUp && <SearchOverlay onClose={() => setSearchOpen(false)} />}
       {multiView && !playerVisible && <MultiViewScreen initial={multiView} />}
+      {!overlayUp && <PremiumSheet />}
       <AppBackground />
       <LoadToast />
       {intro === 'playing' && <Intro look={look} onDone={() => setIntro('done')} />}

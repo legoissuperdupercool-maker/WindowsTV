@@ -1,13 +1,14 @@
 import { useEffect } from 'react'
 import { activeProfile, useStore } from '../store'
 import { backgroundCss, imageBackgroundCss } from '../backgrounds'
-import { applyAccent, lookOf } from '../theme'
+import { applyAccent } from '../theme'
+import { useLook } from '../hooks/useLook'
 
 /** Applies the active profile's background to the app (not while video plays). */
 export function AppBackground(): null {
   const bg = useStore((s) => activeProfile(s)?.background ?? 'default')
   const accent = useStore((s) => activeProfile(s)?.accent)
-  const look = lookOf(useStore((s) => s.settings?.uiTheme))
+  const look = useLook()
   useEffect(() => applyAccent(accent, look), [accent, look])
   useEffect(() => {
     let cancelled = false

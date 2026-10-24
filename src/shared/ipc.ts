@@ -4,6 +4,8 @@ export const IPC = {
   // Settings / sources
   settingsGet: 'settings:get',
   settingsUpdate: 'settings:update',
+  licenseGet: 'license:get',
+  licenseSet: 'license:set',
   sourcesSave: 'sources:save',
   sourcesRemove: 'sources:remove',
   sourceTest: 'sources:test',

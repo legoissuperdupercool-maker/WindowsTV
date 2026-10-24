@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type PlayerCommand, type UpdateState, type VideoRegion, type WebAppState } from '../shared/ipc'
 import type {
   AppSettings,
+  LicenseState,
   Category,
   Channel,
   EpgNowNext,
@@ -42,6 +43,10 @@ const api = {
   settings: {
     get: () => invoke<AppSettings>(IPC.settingsGet),
     update: (partial: Partial<AppSettings>) => invoke<AppSettings>(IPC.settingsUpdate, partial)
+  },
+  license: {
+    get: () => invoke<LicenseState>(IPC.licenseGet),
+    set: (key: string) => invoke<LicenseState>(IPC.licenseSet, key)
   },
   sources: {
     save: (source: Source) => invoke<AppSettings>(IPC.sourcesSave, source),

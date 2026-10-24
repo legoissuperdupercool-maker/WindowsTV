@@ -14,6 +14,8 @@ import back from '@material-symbols/svg-400/rounded/arrow_back-fill.svg?raw'
 import prev from '@material-symbols/svg-400/rounded/skip_previous-fill.svg?raw'
 import next from '@material-symbols/svg-400/rounded/skip_next-fill.svg?raw'
 import star from '@material-symbols/svg-400/rounded/star-fill.svg?raw'
+import lock from '@material-symbols/svg-400/rounded/lock-fill.svg?raw'
+import premium from '@material-symbols/svg-400/rounded/workspace_premium-fill.svg?raw'
 import search from '@material-symbols/svg-400/rounded/search-fill.svg?raw'
 import refresh from '@material-symbols/svg-400/rounded/refresh-fill.svg?raw'
 import minimize from '@material-symbols/svg-400/rounded/remove-fill.svg?raw'
@@ -62,6 +64,8 @@ const ICONS: Record<string, string> = {
   prev,
   next,
   star,
+  lock,
+  premium,
   search,
   refresh,
   minimize,

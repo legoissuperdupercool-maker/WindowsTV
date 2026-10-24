@@ -3,7 +3,8 @@ import { activeProfile, useStore, type RouteName } from '../store'
 import { Icon } from './Icon'
 import { Avatar } from './Avatar'
 import { Logo } from './Logo'
-import { lookOf, type Look } from '../theme'
+import { type Look } from '../theme'
+import { useLook } from '../hooks/useLook'
 
 const CLASSIC_TABS: Array<{ route: RouteName; label: string }> = [
   { route: 'home', label: 'Home' },
@@ -24,7 +25,7 @@ const TABS: Array<{ route: RouteName; label: string; icon: string }> = [
 
 /** The logo for the current look. */
 export function Wordmark(): JSX.Element {
-  const look = lookOf(useStore((s) => s.settings?.uiTheme))
+  const look = useLook()
   if (look !== 'classic') return <Logo look={look} height={32} />
   return (
     <span className="wordmark">
@@ -46,7 +47,7 @@ function Clock(): JSX.Element {
 }
 
 export function TopBar(): JSX.Element {
-  const look = lookOf(useStore((s) => s.settings?.uiTheme))
+  const look = useLook()
   if (look === 'theater') return <SideBar />
   if (look === 'classic') return <ClassicTopBar />
   return <TopNav look={look} />
