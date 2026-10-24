@@ -414,21 +414,43 @@ class SignIn:
     def _json_2fa_headers(self) -> dict[str, str]:
         return {**self._2fa_headers(), "Content-Type": "application/json", "Accept": "application/json"}
 
+    def _trusted_phone_id(self) -> int:
+        """The id of the Apple ID's first trusted phone number. Apple's answer varies in
+        shape, so search it; when nothing is found, the first number (id 1) is the usual one."""
+        try:
+            r = http("GET", "https://gsa.apple.com/auth", self._json_2fa_headers())
+            info = json.loads(r.data or b"{}")
+        except (AppleError, ValueError):
+            return 1
+
+        def find(node):
+            if isinstance(node, dict):
+                for key in ("trustedPhoneNumbers", "trustedPhoneNumber"):
+                    value = node.get(key)
+                    if isinstance(value, list) and value and isinstance(value[0], dict) and "id" in value[0]:
+                        return value[0]["id"]
+                    if isinstance(value, dict) and "id" in value:
+                        return value["id"]
+                for value in node.values():
+                    found = find(value)
+                    if found is not None:
+                        return found
+            elif isinstance(node, list):
+                for value in node:
+                    found = find(value)
+                    if found is not None:
+                        return found
+            return None
+
+        found = find(info)
+        if found is None:
+            _log_failure("2fa phones", r)
+        return found if isinstance(found, int) else 1
+
     def request_sms(self) -> None:
         """Text a code to the Apple ID's trusted phone number."""
         if self._phone_id is None:
-            r = http("GET", "https://gsa.apple.com/auth", self._json_2fa_headers())
-            phones = []
-            try:
-                info = json.loads(r.data or b"{}")
-                phones = info.get("trustedPhoneNumbers") or info.get("phoneNumberVerification", {}).get("trustedPhoneNumbers") or []
-            except ValueError:
-                pass
-            if not phones:
-                _log_failure("2fa phones", r)
-                raise AppleError("Apple didn't share a phone number for this Apple ID. Add one at account.apple.com "
-                                 "(Sign-In and Security → Two-Factor Authentication), then try again.")
-            self._phone_id = phones[0].get("id", 1)
+            self._phone_id = self._trusted_phone_id()
         r = http("PUT", "https://gsa.apple.com/auth/verify/phone", self._json_2fa_headers(),
                  json.dumps({"phoneNumber": {"id": self._phone_id}, "mode": "sms"}).encode())
         if r.status >= 400:
