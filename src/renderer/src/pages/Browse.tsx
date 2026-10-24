@@ -4,7 +4,8 @@ import { CatalogStatus } from '../components/CatalogStatus'
 import { useProgressive } from '../hooks/useProgressive'
 import { Billboard, PosterCard, Row, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
 import { cleanTitle } from '../recommend'
-import { featurable } from '../contentFilter'
+import { shelfFilter } from '../contentFilter'
+import { VodFilterSheet } from '../components/VodFilter'
 import type { Channel, ListItem } from '@shared/types'
 
 const newest = (a: Channel, b: Channel): number => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)
@@ -29,7 +30,10 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
   const list = useMemo(() => channels.filter((c) => c.type === type), [channels, type])
   const sorted = useMemo(() => [...list].sort(newest), [list])
   // What the page features: everything except adult titles (those only show when their genre is picked).
-  const shelf = useMemo(() => sorted.filter(featurable(categories)), [sorted, categories])
+  const me = useStore(activeProfile)
+  const [filtering, setFiltering] = useState(false)
+  const hiddenCount = (me?.vodHiddenCountries?.length ?? 0) + (me?.vodHiddenCategories?.length ?? 0)
+  const shelf = useMemo(() => sorted.filter(shelfFilter(categories, me)), [sorted, categories, me])
 
   const groupRows = (items: Channel[]): Array<{ id: string; title: string; items: Channel[]; total: number }> => {
     const byGroup = new Map<string, Channel[]>()
@@ -95,11 +99,15 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
         ))}
       </select>
       <input className="nf-filter" placeholder={`Search ${label.toLowerCase()}…`} value={query} onChange={(e) => setQuery(e.target.value)} />
+      <button className="focusable nf-filter-btn" onClick={() => setFiltering(true)} title="Choose which countries and categories show">
+        Filter {hiddenCount > 0 && <b>{hiddenCount}</b>}
+      </button>
       {(genre || q) && (
         <button className="focusable nf-clear" onClick={() => (setGenre(''), setQuery(''))}>
           Clear
         </button>
       )}
+      {filtering && <VodFilterSheet onClose={() => setFiltering(false)} />}
     </div>
   )
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ExtrasSettings } from '../components/ExtrasSettings'
 import { AppearanceSettings } from '../components/AppearanceSettings'
-import { useStore } from '../store'
+import { VodFilterSheet } from '../components/VodFilter'
+import { activeProfile, useStore } from '../store'
 import { Icon } from '../components/Icon'
 import { VpnCard } from '../components/VpnCard'
 import type { AppTile, Source, SourceKind } from '@shared/types'
@@ -100,6 +101,7 @@ export function Settings(): JSX.Element {
 
         {/* About & updates */}
         <AppearanceSettings />
+        <VodFilterCard />
 
         <div className="card">
           <h3>About &amp; updates</h3>
@@ -502,4 +504,25 @@ function updateText(u: UpdateState | null): string {
     default:
       return 'Updates install automatically.'
   }
+}
+
+/** Settings → Movies & series: what shows on Home, the rows and recommendations. */
+function VodFilterCard(): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const me = useStore(activeProfile)
+  const hidden = (me?.vodHiddenCountries?.length ?? 0) + (me?.vodHiddenCategories?.length ?? 0)
+  return (
+    <div className="card">
+      <h3>Movies &amp; series</h3>
+      <p className="hint" style={{ marginBottom: 14 }}>
+        Leave out countries, languages or categories you don’t watch. They won’t show on Home, the Movies and Series pages
+        or in recommendations; search still finds them.
+        {hidden > 0 && ` ${hidden} hidden for ${me?.name}.`}
+      </p>
+      <button className="focusable btn" onClick={() => setOpen(true)}>
+        <Icon name="settings" size={18} /> Choose what shows
+      </button>
+      {open && <VodFilterSheet onClose={() => setOpen(false)} />}
+    </div>
+  )
 }

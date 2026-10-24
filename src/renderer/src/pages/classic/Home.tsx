@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../../store'
-import { ADULT, featurable } from '../../contentFilter'
+import { ADULT, featurable, shelfFilter } from '../../contentFilter'
 import { recommend, type SeedInfo } from '../../recommend'
 import { Icon } from '../../components/Icon'
 import { ScrollRow } from '../../components/ScrollRow'
@@ -28,7 +28,8 @@ export function ClassicHome(): JSX.Element {
   const myListItems = useMemo(() => (fullList ?? []).filter((i) => i.sourceId === currentSourceId), [fullList, currentSourceId])
   const [vodLists, setVodLists] = useState<{ channels: Channel[]; categories: Category[] }>({ channels: [], categories: [] })
   // Adult titles are never featured on Home.
-  const vod = useMemo(() => vodLists.channels.filter(featurable(vodLists.categories)), [vodLists])
+  const me = useStore(activeProfile)
+  const vod = useMemo(() => vodLists.channels.filter(shelfFilter(vodLists.categories, me)), [vodLists, me])
   useEffect(() => {
     if (!currentSourceId) return
     void Promise.all([fetchList('movie'), fetchList('series')]).then(([m, s]) =>

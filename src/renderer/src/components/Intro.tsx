@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { LogoLetters } from './Logo'
 import { LOGO_VIEWBOX } from './logoPaths'
 
@@ -23,7 +23,26 @@ export function Intro({ onDone }: { look?: string; onDone: () => void }): JSX.El
     done.current = true
     onDone()
   }
+  // Start only once the window is on screen and painting, so the opening isn't
+  // played to a window that's still appearing.
+  const [run, setRun] = useState(false)
   useEffect(() => {
+    let raf = 0
+    const go = (): void => {
+      raf = requestAnimationFrame(() => (raf = requestAnimationFrame(() => setRun(true))))
+    }
+    if (document.visibilityState === 'visible') go()
+    const onVis = (): void => {
+      if (document.visibilityState === 'visible') go()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
+  useEffect(() => {
+    if (!run) return
     const t = setTimeout(finish, LENGTH)
     const skip = (e: KeyboardEvent): void => {
       e.preventDefault()
@@ -34,10 +53,10 @@ export function Intro({ onDone }: { look?: string; onDone: () => void }): JSX.El
       clearTimeout(t)
       window.removeEventListener('keydown', skip, true)
     }
-  }, [])
+  }, [run])
   const [, , vw, vh] = LOGO_VIEWBOX.split(' ').map(Number)
   return (
-    <div className="intro" onClick={finish} style={{ ['--len' as string]: `${LENGTH}ms` }}>
+    <div className={`intro ${run ? 'run' : ''}`} onClick={finish} style={{ ['--len' as string]: `${LENGTH}ms` }}>
       <svg className="in-scene" viewBox="0 0 1672 941" preserveAspectRatio="xMidYMid slice" aria-hidden>
         <defs>
           <radialGradient id={`${id}-planet`} gradientUnits="userSpaceOnUse" cx="836" cy="980" r="760">

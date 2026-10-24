@@ -103,7 +103,9 @@ interface State {
   /** The provider's whole list (before profile filters), if loaded. */
   rawList: (type: StreamType) => { channels: Channel[]; categories: Category[] } | undefined
   /** Countries / hidden categories & channels / sort order for Live TV. */
-  setChannelPrefs: (prefs: Pick<Profile, 'countries' | 'hiddenCategories' | 'hiddenChannels' | 'channelSort'>) => Promise<void>
+  setChannelPrefs: (
+    prefs: Partial<Pick<Profile, 'countries' | 'hiddenCategories' | 'hiddenChannels' | 'channelSort' | 'vodHiddenCountries' | 'vodHiddenCategories'>>
+  ) => Promise<void>
 }
 
 /** The active profile (or undefined before profiles load). */

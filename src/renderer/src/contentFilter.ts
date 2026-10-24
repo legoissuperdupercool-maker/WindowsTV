@@ -1,5 +1,5 @@
 import type { Category, Channel, Profile } from '@shared/types'
-import { OTHER, countryOfCategory, countryOfChannel } from './country'
+import { OTHER, countryOfCategory, countryOfChannel, countryOfVod } from './country'
 
 /** Titles or categories that look like adult content. */
 export const ADULT =
@@ -10,6 +10,32 @@ export const KIDS =
   /\b(kids?|children|child|family|famil\w*|cartoons?|animation|animated|anime ?kids|junior|jr|disney|nick(elodeon|jr)?|pixar|dreamworks|cbeebies|baby ?tv|kinder|kinderen|enfants?|ni[ñn]os|bambini|kika|ketnet)\b/i
 
 type List = { channels: Channel[]; categories: Category[] }
+
+/**
+ * Movies & series on Home, rows and recommendations: not adult, and not in a
+ * country/language or category the profile chose to leave out. Search ignores this.
+ */
+export function shelfFilter(categories: Category[], profile: Profile | undefined): (c: Pick<Channel, 'name' | 'group'>) => boolean {
+  const notAdult = featurable(categories)
+  const countries = new Set(profile?.vodHiddenCountries ?? [])
+  const cats = new Set(profile?.vodHiddenCategories ?? [])
+  if (!countries.size && !cats.size) return notAdult
+  const names = new Map(categories.map((c) => [c.id, c.name]))
+  const catCountry = new Map<string, string | undefined>()
+  return (c) => {
+    if (!notAdult(c)) return false
+    if (c.group && cats.has(c.group)) return false
+    if (!countries.size) return true
+    const key = c.group ?? ''
+    let code = catCountry.get(key)
+    if (!catCountry.has(key)) {
+      code = c.group ? countryOfVod(names.get(c.group), '') : undefined
+      catCountry.set(key, code)
+    }
+    code = code ?? countryOfChannel(c.name)
+    return !(code && countries.has(code))
+  }
+}
 
 /**
  * Adult titles are never featured (Home, billboards, Top 10, "New" and genre rows),

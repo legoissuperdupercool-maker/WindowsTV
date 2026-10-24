@@ -94,6 +94,10 @@ export interface Profile {
   hiddenCategories?: string[]
   hiddenChannels?: string[]
   channelSort?: ChannelSort
+  /** Movies & series: countries/languages and categories left out of Home, rows and
+   *  recommendations (search still finds them). */
+  vodHiddenCountries?: string[]
+  vodHiddenCategories?: string[]
 }
 
 export type ChannelSort = 'provider' | 'name' | 'number'

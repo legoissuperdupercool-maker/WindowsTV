@@ -90,6 +90,8 @@ export class Profiles {
         countries: stringList(input.countries) ?? existing.countries,
         hiddenCategories: stringList(input.hiddenCategories) ?? existing.hiddenCategories,
         hiddenChannels: stringList(input.hiddenChannels) ?? existing.hiddenChannels,
+        vodHiddenCountries: stringList(input.vodHiddenCountries) ?? existing.vodHiddenCountries,
+        vodHiddenCategories: stringList(input.vodHiddenCategories) ?? existing.vodHiddenCategories,
         channelSort: SORTS.includes(input.channelSort as ChannelSort) ? input.channelSort : existing.channelSort
       })
     } else {

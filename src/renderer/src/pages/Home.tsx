@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../store'
 import { lookOf } from '../theme'
-import { ADULT, featurable } from '../contentFilter'
+import { ADULT, featurable, shelfFilter } from '../contentFilter'
 import { recommend, type SeedInfo } from '../recommend'
 import { Icon } from '../components/Icon'
 import { Billboard, ChannelCard, Collections, ContinueCard, PosterCard, Row, SkeletonRows, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
@@ -29,7 +29,8 @@ export function Home(): JSX.Element {
   const myListItems = useMemo(() => (fullList ?? []).filter((i) => i.sourceId === currentSourceId), [fullList, currentSourceId])
   const [vodLists, setVodLists] = useState<{ channels: Channel[]; categories: Category[] }>({ channels: [], categories: [] })
   // Adult titles are never featured on Home.
-  const vod = useMemo(() => vodLists.channels.filter(featurable(vodLists.categories)), [vodLists])
+  const me = useStore(activeProfile)
+  const vod = useMemo(() => vodLists.channels.filter(shelfFilter(vodLists.categories, me)), [vodLists, me])
   // Re-read when the live list arrives too: on a fresh start the movie and
   // series lists may not be ready the first time.
   const liveCount = channels.length

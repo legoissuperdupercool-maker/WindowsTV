@@ -26,6 +26,7 @@ import { LoadToast } from './components/LoadToast'
 import { ProfilePicker } from './components/ProfilePicker'
 import { AppBackground } from './components/AppBackground'
 import { Intro } from './components/Intro'
+import { Logo } from './components/Logo'
 import { LOOKS, lookOf } from './theme'
 import { useGlassTilt } from './hooks/useGlassTilt'
 
@@ -60,8 +61,8 @@ export default function App(): JSX.Element {
   // Logo animation at start (and from Settings → Look → "Play intro").
   const [intro, setIntro] = useState<'pending' | 'playing' | 'done'>('pending')
   useEffect(() => {
-    if (intro === 'pending' && settings) setIntro(settings.intro === false ? 'done' : 'playing')
-  }, [settings, intro])
+    void window.api.settings.get().then((r) => setIntro(r.data?.intro === false ? 'done' : 'playing'))
+  }, [])
   useEffect(() => {
     const replay = (): void => setIntro('playing')
     window.addEventListener('ello:intro', replay)
@@ -72,9 +73,14 @@ export default function App(): JSX.Element {
 
   useSpatialNavigation()
 
+  // Nothing else starts until the intro has played: loading profiles and the
+  // catalogue at the same time made the animation stutter or miss its start.
+  const initStarted = useRef(false)
   useEffect(() => {
+    if (intro !== 'done' || initStarted.current) return
+    initStarted.current = true
     void init()
-  }, [init])
+  }, [intro, init])
 
   // Toggle the transparent-window body class so mpv shows through while playing.
   useEffect(() => {
@@ -161,20 +167,22 @@ export default function App(): JSX.Element {
   }, [setSearchOpen])
 
   if (!ready) {
-    // Same splash as index.html, so there's no flash while settings load.
+    // Start-up: black, then the intro; the catalogue loads after it. If loading
+    // takes longer than the intro, the logo stays with a loading bar.
     return (
-      <div className="splash">
-        <img src="./icon.png" alt="" />
-        <div className="name">
-          <b>
-            ello<span style={{ color: '#4c8dff' }}>.</span>
-          </b>{' '}
-          <span>smartTV</span>
-        </div>
-        <div className="bar">
-          <i />
-        </div>
-      </div>
+      <>
+        {intro === 'playing' ? (
+          <Intro look={look} onDone={() => setIntro('done')} />
+        ) : intro === 'done' ? (
+          <div className="splash">
+            <Logo height={64} />
+            <div className="bar">
+              <i />
+            </div>
+          </div>
+        ) : null}
+        <WindowControls />
+      </>
     )
   }
 
@@ -192,6 +200,7 @@ export default function App(): JSX.Element {
           movie or the player) but are display:none while the player / in-app
           browser / a detail screen is up — hidden elements aren't painted, so
           the transparent window still shows the mpv video behind it. */}
+      {(intro === 'done' || initStarted.current) && (
       <div style={{ display: showChrome ? 'contents' : 'none' }}>
         <TopBar />
         {route === 'home' && (cinema ? <Home /> : <ClassicHome />)}
@@ -202,6 +211,7 @@ export default function App(): JSX.Element {
         {route === 'settings' && <Settings />}
         {route === 'mylist' && <MyList />}
       </div>
+      )}
       {detail && (
         <div style={{ display: overlayUp ? 'none' : 'contents' }}>
           {cinema ? <Details /> : <ClassicDetails />}

@@ -12,7 +12,7 @@ export const COUNTRY_NAMES: Record<string, string> = {
   BA: 'Bosnia', SI: 'Slovenia', MK: 'North Macedonia', BG: 'Bulgaria', HU: 'Hungary',
   CZ: 'Czechia', SK: 'Slovakia', AT: 'Austria', CH: 'Switzerland', SE: 'Sweden', NO: 'Norway',
   DK: 'Denmark', FI: 'Finland', IE: 'Ireland', IS: 'Iceland', RU: 'Russia', UA: 'Ukraine',
-  AR: 'Arabic', MA: 'Morocco', DZ: 'Algeria', TN: 'Tunisia', EG: 'Egypt', IN: 'India',
+  FA: 'Persian', AR: 'Arabic', MA: 'Morocco', DZ: 'Algeria', TN: 'Tunisia', EG: 'Egypt', IN: 'India',
   PK: 'Pakistan', BD: 'Bangladesh', AF: 'Afghanistan', IR: 'Iran', IL: 'Israel', KU: 'Kurdish',
   AU: 'Australia', NZ: 'New Zealand', BR: 'Brazil', MX: 'Mexico', LA: 'Latin America',
   CO: 'Colombia', CL: 'Chile', PE: 'Peru', CN: 'China', JP: 'Japan', KR: 'Korea',
@@ -37,7 +37,13 @@ const BY_NAME: Record<string, string> = (() => {
   Object.assign(out, {
     holland: 'NL', nederland: 'NL', england: 'UK', 'united kingdom': 'UK', usa: 'US', deutschland: 'DE',
     arab: 'AR', arabia: 'AR', turkiye: 'TR', türkiye: 'TR', belgie: 'BE', belgië: 'BE', espana: 'ES',
-    españa: 'ES', italia: 'IT', latino: 'LA'
+    españa: 'ES', italia: 'IT', latino: 'LA',
+    // Languages providers name their movie and series categories after.
+    persian: 'FA', farsi: 'FA', iranian: 'IR', hindi: 'IN', tamil: 'IN', telugu: 'IN', punjabi: 'IN', malayalam: 'IN',
+    bollywood: 'IN', urdu: 'PK', turkish: 'TR', arabic: 'AR', dutch: 'NL', german: 'DE', french: 'FR', spanish: 'ES',
+    italian: 'IT', polish: 'PL', russian: 'RU', portuguese: 'PT', greek: 'GR', albanian: 'AL', romanian: 'RO',
+    kurdish: 'KU', afghan: 'AF', pakistani: 'PK', indian: 'IN', korean: 'KR', chinese: 'CN', japanese: 'JP',
+    filipino: 'PH', swedish: 'SE', danish: 'DK', norwegian: 'NO', finnish: 'FI', hungarian: 'HU', czech: 'CZ'
   })
   return out
 })()
@@ -78,8 +84,29 @@ export const countryOfChannel = (name: string): string | undefined => detect(nam
 
 export function countryFlag(c: string): string {
   const iso = c === 'UK' ? 'GB' : c
-  if (iso.length !== 2 || !COUNTRY_NAMES[c] || ['AR', 'LA', 'EX', 'KU'].includes(c)) return '🌐'
+  if (iso.length !== 2 || !COUNTRY_NAMES[c] || ['AR', 'LA', 'EX', 'KU', 'FA'].includes(c)) return '🌐'
   return String.fromCodePoint(...[...iso].map((ch) => 127397 + ch.charCodeAt(0)))
 }
 
 export const countryLabel = (c: string): string => (c === OTHER ? 'Other / no country' : COUNTRY_NAMES[c] ?? c)
+
+/**
+ * Movies & series: the country or language of a title, from its category
+ * ("FA | Drama", "Persian Movies", "Movies | Hindi") or its own prefix ("FA - Title").
+ */
+export function countryOfVod(categoryName: string | undefined, title: string): string | undefined {
+  if (categoryName) {
+    const stripped = categoryName.replace(/^\s*(vod|movies?|films?|series|tv\s*shows?)\s*[-|:•▶►/]\s*/i, '')
+    const c = countryOfCategory(categoryName) ?? countryOfCategory(stripped) ?? languageWord(categoryName)
+    if (c) return c
+  }
+  return countryOfChannel(title)
+}
+
+/** "Best of Persian Cinema" → FA: a known language/country word anywhere in the name. */
+function languageWord(name: string): string | undefined {
+  for (const w of name.toLowerCase().split(/[^a-zà-ÿ]+/)) {
+    if (w.length > 3 && BY_NAME[w]) return BY_NAME[w]
+  }
+  return undefined
+}
