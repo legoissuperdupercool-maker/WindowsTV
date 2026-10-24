@@ -2944,3 +2944,13 @@ html:not(.playing) body {
   color: var(--text-dim);
   margin-top: 2px;
 }
+
+.prog-sheet .btn {
+  white-space: nowrap;
+}
+.sc-logo .logo-ph {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+  border-radius: 50%;
+}

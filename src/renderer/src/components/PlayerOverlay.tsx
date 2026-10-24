@@ -77,8 +77,10 @@ export function PlayerOverlay(): JSX.Element {
     setCountdown(null)
     void playNextEpisode()
   }
-  const pickSleep = (v: number | 'end' | null): void =>
+  const pickSleep = (v: number | 'end' | null): void => {
+    setNow(Date.now())
     setSleep(v == null ? null : { choice: v, at: typeof v === 'number' ? Date.now() + v * 60_000 : undefined })
+  }
   useEffect(() => {
     if (!sleep?.at) return
     const t = setInterval(() => setNow(Date.now()), 15_000)

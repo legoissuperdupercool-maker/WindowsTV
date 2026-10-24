@@ -1,6 +1,6 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
-import { writeFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { WindowManager } from './windows'
 import { MpvPlayer } from './mpv/MpvPlayer'
@@ -159,6 +159,27 @@ app.whenReady().then(async () => {
   if (mpvInfo.path) {
     player.start().catch(() => {
       /* state carries the reason */
+    })
+  }
+
+  // Development: run a list of UI steps and save screenshots (ELLO_UI_STEPS=steps.json).
+  const stepsFile = process.env['ELLO_UI_STEPS']
+  if (stepsFile) {
+    windows.uiWindow.webContents.once('did-finish-load', async () => {
+      const steps = JSON.parse(readFileSync(stepsFile, 'utf8')) as Array<{ js?: string; wait?: number; shot?: string; main?: string }>
+      const wc = windows.uiWindow.webContents
+      for (const [n, st] of steps.entries()) {
+        appendFileSync(`${stepsFile}.log`, `${new Date().toISOString()} ${n} ${st.shot ?? st.main ?? (st.js ?? '').slice(0, 60)}\n`)
+        try {
+          if (st.main === 'fullscreen' || st.main === 'pip' || st.main === 'pipOff') windows.control(st.main)
+          if (st.js) await Promise.race([wc.executeJavaScript(st.js), new Promise((r) => setTimeout(r, 4000))])
+        } catch (e) {
+          console.log('[steps] error', e)
+        }
+        await new Promise((r) => setTimeout(r, st.wait ?? 800))
+        if (st.shot) writeFileSync(join(dirname(stepsFile), `${st.shot}.png`), (await wc.capturePage()).toPNG())
+      }
+      app.exit(0)
     })
   }
 

@@ -82,6 +82,7 @@ export function useSkipIntro(opts: {
   const jump = useRef<{ from: number; to: number; at: number } | null>(null)
   const autoDone = useRef(false)
   const startedAt = useRef(Date.now())
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setLearned(seriesId ? loadLearned(seriesId) : {})
@@ -89,6 +90,14 @@ export function useSkipIntro(opts: {
     jump.current = null
     autoDone.current = false
     startedAt.current = Date.now()
+    return () => {
+      // Leaving the episode within a few seconds of a skip still counts it.
+      if (settle.current) clearTimeout(settle.current)
+      const done = jump.current
+      if (seriesId && done && done.to - done.from >= 20 && done.to - done.from <= 240) {
+        saveLearned(seriesId, { start: Math.max(0, Math.round(done.from)), end: Math.round(done.to) })
+      }
+    }
   }, [seriesId, episodeKey])
 
   // Learn the intro from forward jumps early in the episode. Several jumps close
@@ -100,20 +109,24 @@ export function useSkipIntro(opts: {
     // The resume jump right after an episode opens isn't a skip.
     if (prev == null || Date.now() - startedAt.current < 5000) return
     const delta = position - prev
-    const now = Date.now()
     if (delta > 5 && prev < 900) {
+      const now = Date.now()
       const j = jump.current
       jump.current = j && now - j.at < 8000 ? { from: j.from, to: position, at: now } : { from: prev, to: position, at: now }
-    }
-    const j = jump.current
-    if (j && now - j.at > 8000) {
-      jump.current = null
-      const length = j.to - j.from
-      if (length >= 20 && length <= 240) {
-        const patch = { start: Math.max(0, Math.round(j.from)), end: Math.round(j.to) }
-        saveLearned(seriesId, patch)
-        setLearned((l) => ({ ...l, ...patch }))
-      }
+      // Remember the skip once no more jumps follow for a few seconds.
+      if (settle.current) clearTimeout(settle.current)
+      const sid = seriesId
+      settle.current = setTimeout(() => {
+        const done = jump.current
+        jump.current = null
+        if (!done) return
+        const length = done.to - done.from
+        if (length >= 20 && length <= 240) {
+          const patch = { start: Math.max(0, Math.round(done.from)), end: Math.round(done.to) }
+          saveLearned(sid, patch)
+          setLearned((l) => ({ ...l, ...patch }))
+        }
+      }, 8000)
     }
   }, [position, seriesId])
 

@@ -37,6 +37,8 @@ function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
 }
 
 const api = {
+  /** Scripted UI test run (ELLO_UI_STEPS): exposes the store to the test steps. */
+  testMode: Boolean(process.env['ELLO_UI_STEPS']),
   settings: {
     get: () => invoke<AppSettings>(IPC.settingsGet),
     update: (partial: Partial<AppSettings>) => invoke<AppSettings>(IPC.settingsUpdate, partial)

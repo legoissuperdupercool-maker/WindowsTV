@@ -26,6 +26,7 @@ export class MultiView {
   /** Make sure there are `n` tiles (2 or 4). */
   async setLayout(n: number): Promise<void> {
     n = n >= 4 ? 4 : 2
+    const starts: Promise<void>[] = []
     while (this.cells.length > n) await this.dropCell(this.cells.length - 1)
     while (this.cells.length < n) {
       const win = this.windows.addSurface()
@@ -33,8 +34,10 @@ export class MultiView {
       const index = this.cells.length
       player.on('state', (s: PlaybackState) => this.send(this.cells.findIndex((c) => c.player === player), s))
       this.cells.push({ win, player })
-      void player.start().then(() => player.setMuted(index !== this.audio)).catch(() => undefined)
+      starts.push(player.start().then(() => player.setMuted(index !== this.audio)).catch(() => undefined))
     }
+    // Tiles only take channels once their mpv is up.
+    await Promise.all(starts)
   }
 
   async load(index: number, url: string, opts: { channelId: string; title: string; userAgent?: string }): Promise<void> {

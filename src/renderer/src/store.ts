@@ -527,3 +527,6 @@ export const useStore = create<State>((set, get) => ({
     set({ webApp: { open: false, url: '', title: '', canGoBack: false, loading: false } })
   }
 }))
+
+// Scripted UI tests (ELLO_UI_STEPS) drive the app through the store.
+if (window.api?.testMode) (window as unknown as { __store: typeof useStore }).__store = useStore

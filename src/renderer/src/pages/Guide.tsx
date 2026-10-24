@@ -92,8 +92,15 @@ export function Guide(): JSX.Element {
       setSheet({ c, p })
     } else void play(c.id, queue)
   }
+  // A recording covers a programme when it overlaps most of it (recordings start a
+  // minute early and run two minutes late, so neighbours only touch).
   const isRecording = (c: Channel, p: Programme): boolean =>
-    recordings.some((r) => r.channelId === c.id && (r.status === 'scheduled' || r.status === 'recording') && r.start < p.stop && r.stop > p.start)
+    recordings.some(
+      (r) =>
+        r.channelId === c.id &&
+        (r.status === 'scheduled' || r.status === 'recording') &&
+        Math.min(r.stop, p.stop) - Math.max(r.start, p.start) > (p.stop - p.start) / 2
+    )
   const hasReminder = (c: Channel, p: Programme): Reminder | undefined =>
     reminders.find((r) => r.channelId === c.id && r.start === p.start)
 
