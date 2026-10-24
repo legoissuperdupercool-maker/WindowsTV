@@ -413,15 +413,8 @@ function AccountPage({
             <Icon name="lock" size={18} /> Your password goes only from this PC to Apple (gsa.apple.com).
           </li>
           <li>
-            <Icon name="person" size={18} /> Codes not arriving? Install{' '}
-            <a href="https://secure-appldnld.apple.com/windows/061-91601-20200323-974a39d0-41fc-4761-b571-318b7d9205ed/iCloudSetup.exe" target="_blank" rel="noreferrer">
-              iCloud for Windows 7.21 from Apple
-            </a>{' '}
-            (not the Microsoft Store version). ello then signs in through Apple’s own iCloud, which Apple trusts more.
-          </li>
-          <li>
-            <Icon name="shield" size={18} /> The login check Apple requires (“anisette”) is made on this PC with Apple’s own
-            code, unless you set an anisette server below.
+            <Icon name="shield" size={18} /> Apple’s required login check (“anisette”) comes from a Mac anisette service by
+            default: it gets no Apple ID, password or code. You can change this below.
           </li>
         </ul>
       </div>

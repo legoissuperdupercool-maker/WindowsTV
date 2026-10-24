@@ -128,6 +128,7 @@ class V3Machine:
         self._http = http  # urllib3.PoolManager
         self._ssl = ssl_context
         self._servers = servers
+        self._info_cache: dict[str, tuple[float, str, str]] = {}
         self.server = ""
         self.client_info = ""
         self.user_agent = ""
@@ -227,10 +228,15 @@ class V3Machine:
             ws.close()
 
     def _headers_from(self, server: str) -> dict[str, str]:
-        info = self._json("GET", f"{server}/v3/client_info")
-        if not isinstance(info, dict) or not isinstance(info.get("client_info"), str) or not isinstance(info.get("user_agent"), str):
-            raise Unavailable("client_info wasn't in the expected form")
-        self.client_info, self.user_agent = info["client_info"], info["user_agent"]
+        cached = self._info_cache.get(server)
+        if cached and time.monotonic() - cached[0] < 900:
+            self.client_info, self.user_agent = cached[1], cached[2]
+        else:
+            info = self._json("GET", f"{server}/v3/client_info")
+            if not isinstance(info, dict) or not isinstance(info.get("client_info"), str) or not isinstance(info.get("user_agent"), str):
+                raise Unavailable("client_info wasn't in the expected form")
+            self.client_info, self.user_agent = info["client_info"], info["user_agent"]
+            self._info_cache[server] = (time.monotonic(), self.client_info, self.user_agent)
         for attempt in range(2):
             if self._adi is None or self.server != server:
                 if self.server != server:

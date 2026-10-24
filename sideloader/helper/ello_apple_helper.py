@@ -467,7 +467,7 @@ async def cmd_install(msg: dict) -> dict:
         progress("Getting a signing certificate from Apple…")
         signing = await asyncio.to_thread(
             apple_dev.prepare, session, machine, conn.udid, dev.get("name") or "Device", tv,
-            info["bundleId"] or "com.ello.app", info["name"])
+            info["bundleId"] or "com.ello.app", info["name"], progress)
         signed = apple_dev.cached_dir() / f"{signing.bundle_id}.ipa"
         await asyncio.to_thread(sign_ipa, ipa, signed, signing.bundle_id, signing.profile, signing.entitlements,
                                 signing.cert_pem, signing.key_pem, progress)

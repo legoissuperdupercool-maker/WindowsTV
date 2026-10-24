@@ -11,6 +11,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import time
+from datetime import datetime, timezone
+
 from apple_account import AppleError, Machine, Session, _log_failure, data_dir, http, load_secret, new_request_id, save_secret
 
 BASE = "https://developerservices2.apple.com/services/QH65B2/"
@@ -33,6 +36,11 @@ class DevServices:
         self.s = session
         self.m = machine
 
+    def _machine_headers(self, started: float) -> dict[str, str]:
+        h = self.m.headers()
+        _log_call("(machine data)", 200, time.monotonic() - started)
+        return h
+
     def call(self, path: str, params: dict[str, Any] | None = None, team: str | None = None, tv: bool = False) -> dict:
         body: dict[str, Any] = {"clientId": CLIENT_ID, "protocolVersion": "QH65B2", "requestId": new_request_id()}
         if team:
@@ -50,9 +58,11 @@ class DevServices:
             "X-Xcode-Version": "11.2 (11B41)",
             "X-Apple-I-Identity-Id": self.s.adsid,
             "X-Apple-GS-Token": self.s.token,
-            **self.m.headers(),
+            **self._machine_headers(started := time.monotonic()),
         }
-        r = http("POST", f"{BASE}{path}?clientId={CLIENT_ID}", headers, plistlib.dumps(body))
+        started = time.monotonic()
+        r = http("POST", f"{BASE}{path}?clientId={CLIENT_ID}", headers, plistlib.dumps(body), timeout=30)
+        _log_call(path, r.status, time.monotonic() - started)
         try:
             res = plistlib.loads(r.data)
         except Exception as e:
@@ -175,16 +185,31 @@ def profile_plist(profile: bytes) -> dict:
     return plistlib.loads(profile[start:end + len(b"</plist>")])
 
 
+def _log_call(path: str, status: int, seconds: float) -> None:
+    """Each developer-service request and how long it took (no tokens), for troubleshooting."""
+    try:
+        with open(data_dir() / "last-apple-dev.txt", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now(timezone.utc).isoformat()} {path} HTTP {status} {seconds:.1f}s\n")
+    except OSError:
+        pass
+
+
 def prepare(session: Session, machine: Machine, udid: str, device_name: str, tv: bool,
-            base_bundle_id: str, app_name: str) -> Signing:
+            base_bundle_id: str, app_name: str, progress=lambda text: None) -> Signing:
     """Everything needed to sign one app for one device with this Apple ID."""
+    (data_dir() / "last-apple-dev.txt").unlink(missing_ok=True)
     dev = DevServices(session, machine)
+    progress("Finding your developer team…")
     team = dev.team()
+    progress("Registering this device with Apple…")
     dev.register_device(team, udid, device_name, tv)
+    progress("Getting a signing certificate from Apple…")
     cert, key = dev.certificate(team)
     # Each Apple ID needs its own unique bundle ID.
     bundle_id = f"{base_bundle_id}.{team}".lower().replace("_", "-")
+    progress("Registering the app with Apple…")
     app_id = dev.app_id(team, bundle_id, "".join(ch for ch in app_name if ch.isalnum() or ch == " ") or "ello", tv)
+    progress("Getting the 7-day profile from Apple…")
     prof = dev.profile(team, app_id, tv)
     ents = profile_plist(prof).get("Entitlements", {})
     keep = {k: v for k, v in ents.items() if k in (

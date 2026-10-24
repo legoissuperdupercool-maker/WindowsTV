@@ -490,12 +490,14 @@ def _log_2fa(step: str, r: urllib3.BaseHTTPResponse) -> None:
         pass
 
 
-def http(method: str, url: str, headers: dict[str, str], body: bytes | None = None) -> urllib3.BaseHTTPResponse:
+def http(method: str, url: str, headers: dict[str, str], body: bytes | None = None, timeout: float | None = None) -> urllib3.BaseHTTPResponse:
     if "gsa.apple.com" in url:
         # GrandSlam answers reused (keep-alive) connections with errors; other clients open a
         # new connection per request (see AltSign PR 52, xtool), so do the same.
         headers = {**headers, "Connection": "close"}
     try:
+        if timeout:
+            return _http.request(method, url, headers=headers, body=body, timeout=urllib3.Timeout(connect=15, read=timeout))
         return _http.request(method, url, headers=headers, body=body)
     except urllib3.exceptions.HTTPError as e:
         raise AppleError("Couldn't reach Apple. Check this PC's internet connection.") from e
