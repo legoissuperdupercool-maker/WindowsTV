@@ -220,6 +220,16 @@ def _log_failure(step: str, r: urllib3.BaseHTTPResponse) -> None:
         pass
 
 
+def _log_2fa(step: str, r: urllib3.BaseHTTPResponse) -> None:
+    """Apple's answers during the two-factor step (phone list, text request), for troubleshooting.
+    Apple only shows the last digits of phone numbers here; no codes or tokens are written."""
+    try:
+        with open(data_dir() / "last-apple-2fa.txt", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now(timezone.utc).isoformat()} {step} HTTP {r.status}\n{r.data[:3000].decode('utf-8', 'replace')}\n\n")
+    except Exception:
+        pass
+
+
 def http(method: str, url: str, headers: dict[str, str], body: bytes | None = None) -> urllib3.BaseHTTPResponse:
     try:
         return _http.request(method, url, headers=headers, body=body)
@@ -326,6 +336,7 @@ class SignIn:
         self._phone_id: int | None = None
         self._mac_2fa = False
         self._idms_session: dict[str, str] = {}
+        self._sms_device_id: str | None = None
 
     def _cpd(self) -> dict:
         h = self.m.headers()
@@ -459,18 +470,33 @@ class SignIn:
                         return found
             return None
 
+        _log_2fa("auth", r)
         found = find(info)
         if found is None:
-            _log_failure("2fa phones", r)
+            # Older ("hsa") Apple IDs list the phone under trustedDevices, and texting goes
+            # through that device's own endpoint (4-digit codes).
+            for dev in info.get("trustedDevices") or []:
+                if isinstance(dev, dict) and "id" in dev and (dev.get("type") == "sms" or dev.get("device") is False):
+                    self._sms_device_id = str(dev["id"])
+                    break
         return found if isinstance(found, int) else 1
 
     def request_sms(self) -> None:
         """Text a code to the Apple ID's trusted phone number."""
         if self._phone_id is None or not self._idms_session:
             self._phone_id = self._trusted_phone_id()
+        if self._sms_device_id:
+            r = http("PUT", f"https://gsa.apple.com/auth/verify/device/{self._sms_device_id}/securitycode", self._json_2fa_headers())
+            self._keep_session(r)
+            _log_2fa("sms device", r)
+            if r.status >= 400:
+                _log_failure("2fa sms device", r)
+                raise AppleError(f"Apple didn't send a text message (HTTP {r.status}): {_snippet(r)}")
+            return
         body = json.dumps({"phoneNumber": {"id": self._phone_id}, "mode": "sms"}).encode()
         r = http("PUT", "https://gsa.apple.com/auth/verify/phone/", self._json_2fa_headers(), body)
         self._keep_session(r)
+        _log_2fa("sms", r)
         if r.status == 403:
             # The code endpoints belong to Xcode's sign-in; some accounts are refused unless the
             # request also looks like Xcode on a Mac. Try that once.
@@ -495,6 +521,11 @@ class SignIn:
             except Exception:
                 ec = 0 if r.status == 200 else -1
             if ec != 0:
+                raise AppleError("That code isn't right. Check it and try again.")
+        elif self._sms_device_id:
+            r = http("POST", f"https://gsa.apple.com/auth/verify/device/{self._sms_device_id}/securitycode",
+                     self._json_2fa_headers(), json.dumps({"code": code}).encode())
+            if r.status not in (200, 204):
                 raise AppleError("That code isn't right. Check it and try again.")
         else:
             r = http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode", self._json_2fa_headers(), json.dumps(
@@ -539,6 +570,7 @@ def new_request_id() -> str:
 
 def sign_in(apple_id: str, password: str, ask_code: Callable[[str], str]) -> Session:
     """Full sign-in; `ask_code(mode)` returns the two-factor code the person typed."""
+    (data_dir() / "last-apple-2fa.txt").unlink(missing_ok=True)
     machine = Machine()
     s = SignIn(machine, apple_id, password)
     try:

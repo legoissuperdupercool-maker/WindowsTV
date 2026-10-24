@@ -164,7 +164,7 @@ export function CodePrompt(): JSX.Element | null {
         <p className="lead small">
           {mode === 'device'
             ? 'Apple sent a 6-digit code to the devices signed in with this Apple ID. Allow it there, then type the code here.'
-            : 'Apple sent a 6-digit code by text message to the phone number of this Apple ID.'}
+            : 'Apple sent a code (4 or 6 digits) by text message to the phone number of this Apple ID.'}
         </p>
         <button className="btn ghost small" onClick={() => { void window.api.sendCode('sms'); setMode(null) }}>
           {mode === 'device' ? 'No code? Text me a code instead' : 'No text? Send it again'}
@@ -177,13 +177,13 @@ export function CodePrompt(): JSX.Element | null {
           placeholder="••••••"
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-          onKeyDown={(e) => e.key === 'Enter' && code.length === 6 && send()}
+          onKeyDown={(e) => e.key === 'Enter' && code.length >= 4 && send()}
         />
         <div className="row-buttons">
           <button className="btn ghost" onClick={() => { void window.api.sendCode(''); setMode(null) }}>
             Cancel
           </button>
-          <button className="btn primary" disabled={code.length !== 6} onClick={send}>
+          <button className="btn primary" disabled={code.length < 4} onClick={send}>
             Continue
           </button>
         </div>
