@@ -36,8 +36,6 @@ GSA = "https://gsa.apple.com/grandslam/GsService2"
 # Apple's sign-in server now answers 503 to clients that say they are Xcode
 # ("com.apple.dt.Xcode/…"); iCloud for Windows is accepted (checked Oct 2026).
 CLIENT_INFO = "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit.Win/1.0 (com.apple.iCloud/7.21)>"
-# Xcode on a Mac: only used for the two-factor code requests if Apple refuses the above.
-MAC_CLIENT_INFO = "<MacBookPro15,1> <Mac OS X;10.15.2;19C57> <com.apple.AuthKit/1 (com.apple.dt.Xcode/3594.4.19)>"
 XCODE_APP = "com.apple.gs.xcode.auth"
 
 
@@ -231,6 +229,10 @@ def _log_2fa(step: str, r: urllib3.BaseHTTPResponse) -> None:
 
 
 def http(method: str, url: str, headers: dict[str, str], body: bytes | None = None) -> urllib3.BaseHTTPResponse:
+    if "gsa.apple.com" in url:
+        # GrandSlam answers reused (keep-alive) connections with errors; other clients open a
+        # new connection per request (see AltSign PR 52, xtool), so do the same.
+        headers = {**headers, "Connection": "close"}
     try:
         return _http.request(method, url, headers=headers, body=body)
     except urllib3.exceptions.HTTPError as e:
@@ -334,7 +336,7 @@ class SignIn:
         self.password = password
         self._spd: dict | None = None
         self._phone_id: int | None = None
-        self._mac_2fa = False
+        self._sms_route: str | None = None
         self._idms_session: dict[str, str] = {}
         self._sms_device_id: str | None = None
 
@@ -404,15 +406,17 @@ class SignIn:
     def _2fa_headers(self) -> dict[str, str]:
         assert self._spd
         identity = base64.b64encode(f"{self._spd['adsid']}:{self._spd['GsIdmsToken']}".encode()).decode()
+        # As current Xcode sends them (same as xtool and isideload).
         return {
-            "Content-Type": "text/x-xml-plist",
-            "User-Agent": "Xcode",
-            "Accept": "text/x-xml-plist",
+            "Content-Type": "application/x-plist",
+            "User-Agent": "akd/1.0 CFNetwork/808.1.4",
+            "Accept": "application/x-buddyml",
             "Accept-Language": "en-us",
             "X-Apple-Identity-Token": identity,
             "X-Apple-App-Info": XCODE_APP,
-            "X-Xcode-Version": "11.2 (11B41)",
+            "X-Xcode-Version": "26.5 (17F42)",
             **self.m.headers(),
+            **self._idms_session,
         }
 
     def _request_code(self, mode: str) -> None:
@@ -428,12 +432,8 @@ class SignIn:
         raise NeedsCode(mode)
 
     def _json_2fa_headers(self) -> dict[str, str]:
-        h = {**self._2fa_headers(), "Content-Type": "application/json", "Accept": "application/json"}
-        if self._mac_2fa:
-            h["X-MMe-Client-Info"] = MAC_CLIENT_INFO
-        # Apple's two-factor pages tie requests together with these; send back what it gave us.
-        h.update(self._idms_session)
-        return h
+        # Apple's two-factor pages tie requests together with scnt / session id (in _2fa_headers).
+        return {**self._2fa_headers(), "Content-Type": "application/json", "Accept": "application/json"}
 
     def _keep_session(self, r: urllib3.BaseHTTPResponse) -> None:
         for name in ("scnt", "X-Apple-ID-Session-Id"):
@@ -485,31 +485,38 @@ class SignIn:
         """Text a code to the Apple ID's trusted phone number."""
         if self._phone_id is None or not self._idms_session:
             self._phone_id = self._trusted_phone_id()
+        if not self._sms_device_id:
+            # xtool's way (what Xcode does): a plist POST to the phone "put" page.
+            r = http("POST", "https://gsa.apple.com/auth/verify/phone/put?mode=sms", self._2fa_headers(),
+                     plistlib.dumps({"serverInfo": {"phoneNumber.id": str(self._phone_id)}}))
+            self._keep_session(r)
+            _log_2fa("sms put", r)
+            if r.status < 400 and b"<alert" not in r.data[:4000]:
+                self._sms_route = "put"
+                return
+            # isideload's way: JSON PUT.
+            r = http("PUT", "https://gsa.apple.com/auth/verify/phone", self._json_2fa_headers(),
+                     json.dumps({"phoneNumber": {"id": self._phone_id}, "mode": "sms"}).encode())
+            self._keep_session(r)
+            _log_2fa("sms json", r)
+            if r.status < 400:
+                self._sms_route = "json"
+                return
+            if r.status == 423:
+                raise AppleError("Apple has sent too many codes to this number. Wait a while, then try again.")
+            _log_failure("2fa sms", r)
         if self._sms_device_id:
+            # Older Apple IDs: the phone is listed as a trusted device (iloader #787).
             r = http("PUT", f"https://gsa.apple.com/auth/verify/device/{self._sms_device_id}/securitycode", self._json_2fa_headers())
             self._keep_session(r)
             _log_2fa("sms device", r)
-            if r.status >= 400:
-                _log_failure("2fa sms device", r)
-                raise AppleError(f"Apple didn't send a text message (HTTP {r.status}): {_snippet(r)}")
-            return
-        body = json.dumps({"phoneNumber": {"id": self._phone_id}, "mode": "sms"}).encode()
-        r = http("PUT", "https://gsa.apple.com/auth/verify/phone/", self._json_2fa_headers(), body)
-        self._keep_session(r)
-        _log_2fa("sms", r)
-        if r.status == 403:
-            # The code endpoints belong to Xcode's sign-in; some accounts are refused unless the
-            # request also looks like Xcode on a Mac. Try that once.
-            _log_failure("2fa sms (windows client)", r)
-            r = http("PUT", "https://gsa.apple.com/auth/verify/phone/", {**self._json_2fa_headers(), "X-MMe-Client-Info": MAC_CLIENT_INFO}, body)
             if r.status < 400:
-                self._mac_2fa = True
-        if r.status >= 400:
-            _log_failure("2fa sms", r)
-            if r.status == 423:
-                raise AppleError("Apple has sent too many codes to this number. Wait a while, then try again.")
-            raise AppleError(f"Apple didn't send a text message (HTTP {r.status}): {_snippet(r)}. "
-                             "Check that this Apple ID has a trusted phone number at account.apple.com.")
+                self._sms_route = "device"
+                return
+            _log_failure("2fa sms device", r)
+        raise AppleError("Apple won't text a code to this Apple ID from here. Sign in again and wait for the "
+                         "“Allow” pop-up on an iPhone, iPad or Mac that uses this Apple ID, or get a code there "
+                         "under Settings → your name → Sign-In & Security → Get Verification Code.")
 
     def submit_code(self, mode: str, code: str) -> None:
         code = "".join(ch for ch in code if ch.isdigit())
@@ -522,10 +529,19 @@ class SignIn:
                 ec = 0 if r.status == 200 else -1
             if ec != 0:
                 raise AppleError("That code isn't right. Check it and try again.")
-        elif self._sms_device_id:
+        elif self._sms_route == "device":
             r = http("POST", f"https://gsa.apple.com/auth/verify/device/{self._sms_device_id}/securitycode",
                      self._json_2fa_headers(), json.dumps({"code": code}).encode())
             if r.status not in (200, 204):
+                raise AppleError("That code isn't right. Check it and try again.")
+        elif self._sms_route == "put":
+            r = http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode?referrer=/auth/verify/phone/put",
+                     self._2fa_headers(), plistlib.dumps({
+                         "securityCode.code": code,
+                         "serverInfo": {"mode": "sms", "phoneNumber.id": str(self._phone_id)},
+                     }))
+            _log_2fa("sms code", r)
+            if r.status >= 400 or b"-21669" in r.data:
                 raise AppleError("That code isn't right. Check it and try again.")
         else:
             r = http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode", self._json_2fa_headers(), json.dumps(
