@@ -51,7 +51,9 @@ class AppleError(RuntimeError):
 
 
 # Apple refusing the machine data rather than the password: worth retrying with another source.
-MACHINE_REFUSED = (-80046, -80045, -7005)
+# MACHINE_FAILED: the machine-data source itself didn't work (iCloud not answering, server down).
+MACHINE_FAILED = -1
+MACHINE_REFUSED = (-80046, -80045, -7005, MACHINE_FAILED)
 
 
 class NeedsCode(Exception):
@@ -233,12 +235,12 @@ class ICloudMachine:
 
         try:
             out = subprocess.run([str(self._python32), "-I", str(self._script)], capture_output=True, text=True,
-                                 timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                                 timeout=20, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             data = json.loads((out.stdout or "").strip().splitlines()[-1])
         except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as e:
-            raise AppleError(f"iCloud for Windows didn't answer ({type(e).__name__}).") from e
+            raise AppleError(f"iCloud for Windows didn't answer ({type(e).__name__}).", MACHINE_FAILED) from e
         if "error" in data:
-            raise AppleError(f"iCloud for Windows: {data['error']}")
+            raise AppleError(f"iCloud for Windows: {data['error']}", MACHINE_FAILED)
         return data
 
     def headers(self) -> dict[str, str]:
@@ -276,9 +278,9 @@ class RemoteMachine:
             r = _http.request("GET", self.url, headers={"Accept": "application/json"}, timeout=urllib3.Timeout(connect=10, read=20))
             data = json.loads(r.data.decode("utf-8"))
         except Exception as e:
-            raise AppleError(f"The anisette server didn't answer ({type(e).__name__}). Check the address.") from e
+            raise AppleError(f"The anisette server didn't answer ({type(e).__name__}). Check the address.", MACHINE_FAILED) from e
         if r.status != 200 or not isinstance(data, dict) or not data.get("X-Apple-I-MD") or not data.get("X-Apple-I-MD-M"):
-            raise AppleError(f"The anisette server gave no machine data (HTTP {r.status}). Use an address that serves anisette v1 JSON.")
+            raise AppleError(f"The anisette server gave no machine data (HTTP {r.status}). Use an address that serves anisette v1 JSON.", MACHINE_FAILED)
         h = {str(k): str(v) for k, v in data.items() if isinstance(v, (str, int))}
         # Servers often report a Mac identity, which Apple now refuses: always say Windows.
         h["X-MMe-Client-Info"] = self._client_info
