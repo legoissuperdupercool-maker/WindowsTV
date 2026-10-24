@@ -173,7 +173,8 @@ export async function getVod(
           plot: str(r.plot),
           // Some panels include these in the list; used for recommendations.
           genre: str(r.genre),
-          year: str(r.year) ?? str(r.releasedate)?.match(/\d{4}/)?.[0]
+          year: str(r.year) ?? str(r.releasedate)?.match(/\d{4}/)?.[0],
+          backdrop: firstStr(r.backdrop_path)
         }
       }
       return channel
@@ -213,6 +214,7 @@ export async function getSeries(
           genre: str(r.genre),
           cast: str(r.cast),
           director: str(r.director),
+          backdrop: firstStr(r.backdrop_path),
           year: (str(r.releaseDate) ?? str(r.release_date) ?? str(r.year))?.match(/\d{4}/)?.[0],
           added: str(r.last_modified)
         }
@@ -332,4 +334,9 @@ export async function reachable(source: Source, userAgent: string): Promise<bool
   } catch {
     return false
   }
+}
+
+/** Panels send backdrop_path as a string or a list of URLs. */
+function firstStr(v: unknown): string | undefined {
+  return Array.isArray(v) ? str(v.find((x) => typeof x === 'string' && x.trim())) : str(v)
 }

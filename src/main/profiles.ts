@@ -84,6 +84,7 @@ export class Profiles {
         emoji: input.emoji === undefined ? existing.emoji : input.emoji || undefined,
         background: input.background ?? existing.background,
         kids: input.kids ?? existing.kids,
+        accent: typeof input.accent === 'string' && input.accent.length < 24 ? input.accent : existing.accent,
         hideAdult: input.hideAdult ?? existing.hideAdult,
         countries: stringList(input.countries) ?? existing.countries,
         hiddenCategories: stringList(input.hiddenCategories) ?? existing.hiddenCategories,

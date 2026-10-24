@@ -78,6 +78,8 @@ export interface Profile {
   kids?: boolean
   /** Hide adult categories and titles (always on for kids profiles). */
   hideAdult?: boolean
+  /** Accent colour id (see renderer/theme.ts) or #rrggbb. */
+  accent?: string
   /** Background preset id, or `image:<file>` for a picture the person chose. */
   background: string
   /** Live channels starred by this person (stored here while another profile is active). */

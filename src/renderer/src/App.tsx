@@ -13,8 +13,7 @@ import { TopBar } from './components/TopBar'
 import { Home } from './pages/Home'
 import { LiveTV } from './pages/LiveTV'
 import { Guide } from './pages/Guide'
-import { Movies } from './pages/Movies'
-import { Series } from './pages/Series'
+import { Movies, MyList, Series } from './pages/Browse'
 import { Settings } from './pages/Settings'
 import { Details } from './pages/Details'
 import { PlayerOverlay } from './components/PlayerOverlay'
@@ -153,7 +152,8 @@ export default function App(): JSX.Element {
   // The full-screen player and the in-app browser bring their own top controls,
   // so the main top bar is hidden while either is active.
   const overlayUp = playerVisible || webApp.open || multiView != null
-  const showChrome = !overlayUp && !detail && !profilePicker
+  // The detail window opens over the page (Netflix style), so the page stays.
+  const showChrome = !overlayUp && !profilePicker
 
   return (
     <>
@@ -169,6 +169,7 @@ export default function App(): JSX.Element {
         {route === 'movies' && <Movies />}
         {route === 'series' && <Series />}
         {route === 'settings' && <Settings />}
+        {route === 'mylist' && <MyList />}
       </div>
       {detail && (
         <div style={{ display: overlayUp ? 'none' : 'contents' }}>

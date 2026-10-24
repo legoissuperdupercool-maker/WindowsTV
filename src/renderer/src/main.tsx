@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 // Google Sans Flex (the Google TV typeface), bundled so it works offline.
 import '@fontsource-variable/google-sans-flex'
 import './styles/global.css'
+import './styles/netflix.css'
 import App from './App'
 
 createRoot(document.getElementById('root')!).render(

@@ -18,9 +18,15 @@ export function setBackHandler(fn: BackHandler | null): void {
   backHandler = fn
 }
 
+/** An open pop-up window (marked data-modal) keeps the focus inside it. */
+function scope(): ParentNode {
+  const modals = document.querySelectorAll<HTMLElement>('[data-modal]')
+  return modals[modals.length - 1] ?? document
+}
+
 function focusables(): HTMLElement[] {
   return Array.from(
-    document.querySelectorAll<HTMLElement>('.focusable')
+    scope().querySelectorAll<HTMLElement>('.focusable')
   ).filter((el) => el.offsetParent !== null && !el.hasAttribute('data-disabled'))
 }
 
@@ -35,7 +41,7 @@ function setFocus(el: HTMLElement | null): void {
 
 export function focusFirst(): void {
   // A screen can mark its main action (e.g. "Play") as the default focus.
-  const preferred = document.querySelector<HTMLElement>('.focusable[data-autofocus]')
+  const preferred = scope().querySelector<HTMLElement>('.focusable[data-autofocus]')
   if (preferred && preferred.offsetParent !== null) {
     setFocus(preferred)
     return

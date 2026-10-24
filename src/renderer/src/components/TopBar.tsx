@@ -5,10 +5,11 @@ import { Avatar } from './Avatar'
 
 const TABS: Array<{ route: RouteName; label: string }> = [
   { route: 'home', label: 'Home' },
-  { route: 'live', label: 'Live TV' },
-  { route: 'guide', label: 'Guide' },
+  { route: 'series', label: 'Series' },
   { route: 'movies', label: 'Movies' },
-  { route: 'series', label: 'Series' }
+  { route: 'live', label: 'Live TV' },
+  { route: 'guide', label: 'TV Guide' },
+  { route: 'mylist', label: 'My List' }
 ]
 
 export function Wordmark(): JSX.Element {
@@ -36,8 +37,23 @@ export function TopBar(): JSX.Element {
   const me = useStore(activeProfile)
   const sources = settings?.sources ?? []
 
+  // See-through over the billboard; solid once the page scrolls.
+  const [solid, setSolid] = useState(false)
+  useEffect(() => {
+    const onScroll = (e: Event): void => {
+      const t = e.target as HTMLElement
+      if (t?.classList?.contains('page')) setSolid(t.scrollTop > 24)
+    }
+    document.addEventListener('scroll', onScroll, true)
+    return () => document.removeEventListener('scroll', onScroll, true)
+  }, [])
+  useEffect(() => {
+    const page = document.querySelector<HTMLElement>('.page')
+    setSolid(Boolean(page && page.scrollTop > 24))
+  }, [route])
+
   return (
-    <div className="topbar">
+    <div className={`topbar nf-topbar ${solid ? 'solid' : ''}`}>
       <Wordmark />
 
       <nav className="tabs">

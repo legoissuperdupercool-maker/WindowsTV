@@ -32,7 +32,7 @@ function parseAttrs(line: string): Record<string, string> {
 export function parseM3u(text: string, source: Source): M3uResult {
   const lines = text.split(/\r?\n/)
   const channels: Channel[] = []
-  const groupSet = new Map<string, string>()
+  const groupSet = new Map<string, { name: string; type: Channel['type'] }>()
   let epgUrl: string | undefined
 
   let pending: Partial<Channel> | null = null
@@ -80,13 +80,14 @@ export function parseM3u(text: string, source: Source): M3uResult {
     const providerId = `${idBase}-${seq}`
     seq++
 
+    const type = guessType(url, pendingGroup)
+    // Categories are per list (live / movies / series), like Xtream's.
     let groupId: string | undefined
     if (pendingGroup) {
-      groupId = `${source.id}:live:${slug(pendingGroup)}`
-      if (!groupSet.has(groupId)) groupSet.set(groupId, pendingGroup)
+      groupId = `${source.id}:${type}:${slug(pendingGroup)}`
+      if (!groupSet.has(groupId)) groupSet.set(groupId, { name: pendingGroup, type })
     }
 
-    const type = guessType(url, pendingGroup)
     channels.push({
       id: `${source.id}:${type}:${providerId}`,
       sourceId: source.id,
@@ -105,10 +106,10 @@ export function parseM3u(text: string, source: Source): M3uResult {
     pendingGroup = undefined
   }
 
-  const categories: Category[] = [...groupSet.entries()].map(([id, name]) => ({
+  const categories: Category[] = [...groupSet.entries()].map(([id, g]) => ({
     id,
-    name,
-    type: 'live',
+    name: g.name,
+    type: g.type,
     sourceId: source.id
   }))
 

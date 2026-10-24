@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { Avatar } from './Avatar'
 import { Icon } from './Icon'
 import { BACKGROUNDS, PROFILE_COLORS, PROFILE_EMOJIS, backgroundCss } from '../backgrounds'
+import { ACCENTS } from '../theme'
 import type { Profile } from '@shared/types'
 
 /** Netflix-style "Who's watching?" screen, with profile management. */
@@ -55,6 +56,7 @@ function ProfileEditor({ profile, onClose }: { profile: Profile | null; onClose:
   const { saveProfile, deleteProfile, pickBackground, profiles } = useStore()
   const [name, setName] = useState(profile?.name ?? '')
   const [color, setColor] = useState(profile?.color ?? PROFILE_COLORS[profiles.length % PROFILE_COLORS.length])
+  const [accent, setAccent] = useState(profile?.accent ?? 'blue')
   const [emoji, setEmoji] = useState(profile?.emoji ?? '')
   const [background, setBackground] = useState(profile?.background ?? 'default')
   const [kids, setKids] = useState(profile?.kids ?? false)
@@ -76,7 +78,7 @@ function ProfileEditor({ profile, onClose }: { profile: Profile | null; onClose:
   const save = async (): Promise<void> => {
     if (!name.trim()) return setError('Give the profile a name.')
     const bg = background === 'image' ? live?.background ?? 'default' : background
-    const err = await saveProfile({ id: profile?.id, name, color, emoji, background: bg, kids, hideAdult: kids || hideAdult })
+    const err = await saveProfile({ id: profile?.id, name, color, emoji, accent, background: bg, kids, hideAdult: kids || hideAdult })
     if (err) setError(err)
     else onClose()
   }
@@ -125,7 +127,20 @@ function ProfileEditor({ profile, onClose }: { profile: Profile | null; onClose:
           </button>
         </div>
 
-        <div className="field-label">Colour</div>
+        <div className="field-label">Theme colour</div>
+        <div className="swatches accents">
+          {ACCENTS.map((a) => (
+            <button
+              key={a.id}
+              className={`focusable swatch accent ${a.id === accent ? 'on' : ''}`}
+              style={{ background: a.color }}
+              title={a.name}
+              onClick={() => setAccent(a.id)}
+            />
+          ))}
+        </div>
+
+        <div className="field-label">Avatar colour</div>
         <div className="swatches">
           {PROFILE_COLORS.map((c) => (
             <button

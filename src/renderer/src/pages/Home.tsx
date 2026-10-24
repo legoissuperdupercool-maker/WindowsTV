@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../store'
 import { recommend, type SeedInfo } from '../recommend'
 import { Icon } from '../components/Icon'
-import { ScrollRow } from '../components/ScrollRow'
+import { Billboard, ChannelCard, ContinueCard, PosterCard, Row, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
 import { Initials } from '../components/Initials'
 import { detectBrand } from '../components/brands'
 import { FadeImg } from '../components/FadeImg'
@@ -27,6 +27,9 @@ export function Home(): JSX.Element {
   const myListItems = useMemo(() => (fullList ?? []).filter((i) => i.sourceId === currentSourceId), [fullList, currentSourceId])
   const [vodLists, setVodLists] = useState<{ channels: Channel[]; categories: Category[] }>({ channels: [], categories: [] })
   const vod = vodLists.channels
+  // Re-read when the live list arrives too: on a fresh start the movie and
+  // series lists may not be ready the first time.
+  const liveCount = channels.length
   useEffect(() => {
     if (!currentSourceId) return
     void Promise.all([fetchList('movie'), fetchList('series')]).then(([m, s]) =>
@@ -35,7 +38,7 @@ export function Home(): JSX.Element {
         categories: [...cachedCategories(currentSourceId, 'movie'), ...cachedCategories(currentSourceId, 'series')]
       })
     )
-  }, [currentSourceId, fetchList])
+  }, [currentSourceId, fetchList, liveCount > 0])
   const [history, setHistory] = useState<WatchItem[]>([])
   useEffect(() => {
     void window.api.progress.history(currentSourceId).then((r) => setHistory(r.data ?? []))
@@ -88,7 +91,6 @@ export function Home(): JSX.Element {
   )
   const live = useMemo(() => channels.filter((c) => c.type === 'live').slice(0, 18), [channels])
   const featured = recents[0] ?? live[0]
-  const onNow = live.filter((c) => c.id !== featured?.id).slice(0, 3)
 
   // EPG now/next for everything shown on the home screen.
   const [nn, setNn] = useState<Record<string, EpgNowNext>>({})
@@ -118,117 +120,151 @@ export function Home(): JSX.Element {
     else navigate(tile.target as RouteName)
   }
 
-  const featuredNow = featured ? nn[featured.id]?.now : undefined
-
-  // Newest movies (by "added" date) with backdrop artwork for the carousel.
-  const [movieSlides, setMovieSlides] = useState<MovieSlide[]>([])
+  // Billboard: titles for you first, then the newest, with real artwork where
+  // the provider has it (movie info is fetched for the first few).
+  const [billboard, setBillboard] = useState<BillboardItem[]>([])
   useEffect(() => {
+    if (!vod.length) return
     let cancelled = false
+    const newest = (type: string): Channel[] =>
+      vod.filter((c) => c.type === type).sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0))
+    const picks = dedupe([...recs.forYou.slice(0, 2), ...newest('movie').slice(0, 6), ...newest('series').slice(0, 3)])
     void (async () => {
-      const movies = await fetchList('movie')
-      const newest = [...movies]
-        .sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0))
-        .slice(0, 8)
-      const infos = await Promise.all(
-        newest.map(async (c) => ({ channel: c, info: (await window.api.vod.info(c.sourceId, c.providerId)).data }))
-      )
-      if (!cancelled) setMovieSlides(infos.filter((x): x is MovieSlide => Boolean(x.info?.backdrop)).slice(0, 5))
+      const items: BillboardItem[] = []
+      for (const c of picks) {
+        const info = c.type === 'movie' ? (await window.api.vod.info(c.sourceId, c.providerId)).data : null
+        const art = info?.backdrop || metaStr(c, 'backdrop') || info?.poster || c.logo
+        if (art) items.push({ channel: c, info, kicker: recs.forYou.includes(c) ? 'Picked for you' : c.type === 'series' ? 'New episodes' : 'New on ello' })
+        if (items.length >= 6) break
+      }
+      // Real wide artwork first.
+      items.sort((a, b) => Number(Boolean(b.info?.backdrop || metaStr(b.channel, 'backdrop'))) - Number(Boolean(a.info?.backdrop || metaStr(a.channel, 'backdrop'))))
+      if (!cancelled) setBillboard(items)
     })()
     return () => {
       cancelled = true
     }
-  }, [currentSourceId, fetchList])
+  }, [vod.length, recs.forYou.length, currentSourceId])
 
-  const liveHero = (
-    <section className="hero" style={{ ['--hero' as string]: heroColor(featured?.name ?? 'ello') }}>
-      <div className="hero-main">
-        {featured ? (
-          <>
-            <span className="hero-kicker">
-              <span className="live-dot" /> {featured.type === 'live' ? 'Live now' : 'Continue watching'}
-            </span>
-            <h1 className="hero-title">{featured.name}</h1>
-            {featuredNow ? (
-              <div className="hero-prog">
-                <div className="hero-prog-title">{featuredNow.title}</div>
-                <div className="hero-prog-row">
-                  <span>{fmt(featuredNow.start)}</span>
-                  <div className="hero-bar">
-                    <span style={{ width: `${progress(featuredNow)}%` }} />
-                  </div>
-                  <span>{fmt(featuredNow.stop)}</span>
-                </div>
-              </div>
-            ) : (
-              <p className="hero-meta">Pick up where you left off.</p>
-            )}
-            <div className="hero-actions">
-              <button className="focusable btn on-color" onClick={() => void play(featured.id)}>
-                <Icon name="play" size={22} /> Watch
-              </button>
-              <button className="focusable btn on-color" onClick={() => navigate('guide')}>
-                <Icon name="guide" size={20} /> Guide
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <span className="hero-kicker">Welcome</span>
-            <h1 className="hero-title">ello smartTV</h1>
-            <p className="hero-meta">
-              {hasSources
-                ? 'Your channels are loading…'
-                : 'Add your IPTV provider (Xtream login or M3U playlist) to start watching.'}
-            </p>
-            <div className="hero-actions">
-              <button className="focusable btn on-color" onClick={() => navigate('settings')}>
-                <Icon name={hasSources ? 'settings' : 'add'} size={20} />
-                {hasSources ? 'Manage sources' : 'Add a source'}
-              </button>
-            </div>
-          </>
-        )}
+  const newestMovies = useMemo(
+    () => vod.filter((c) => c.type === 'movie').sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)),
+    [vod]
+  )
+  const newestSeries = useMemo(
+    () => vod.filter((c) => c.type === 'series').sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)),
+    [vod]
+  )
+  // The provider's biggest categories become genre rows.
+  const genreRows = useMemo(() => {
+    const byGroup = new Map<string, Channel[]>()
+    for (const c of vod) if (c.group) (byGroup.get(c.group) ?? byGroup.set(c.group, []).get(c.group)!).push(c)
+    const names = new Map(vodLists.categories.map((c) => [c.id, cleanCategory(c.name)]))
+    const pick = (type: string, n: number): Array<{ id: string; title: string; items: Channel[] }> =>
+      [...byGroup.entries()]
+        .filter(([id, list]) => list[0]?.type === type && names.has(id) && list.length >= 6)
+        .sort((a, b) => b[1].length - a[1].length)
+        .slice(0, n)
+        .map(([id, list]) => ({
+          id,
+          title: names.get(id)!,
+          items: [...list].sort((a, b) => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)).slice(0, 30)
+        }))
+    return [...pick('movie', 4), ...pick('series', 3)]
+  }, [vod, vodLists.categories])
+  const favorites = settings?.favorites ?? []
+  const welcome = (
+    <>
+      <div className="nf-bb-kicker">Welcome</div>
+      <h1 className="nf-bb-title">ello smartTV</h1>
+      <p className="nf-bb-plot">
+        {hasSources ? 'Your movies, series and channels are loading…' : 'Add your IPTV provider (Xtream login or M3U playlist) to start watching.'}
+      </p>
+      <div className="nf-bb-actions">
+        <button className="focusable nf-btn play" onClick={() => navigate('settings')}>
+          <Icon name={hasSources ? 'settings' : 'add'} size={22} /> {hasSources ? 'Manage sources' : 'Add a source'}
+        </button>
       </div>
-
-      {onNow.length > 0 && (
-        <div className="hero-side">
-          <div className="hero-side-title">On now</div>
-          {onNow.map((c) => {
-            const p = nn[c.id]?.now
-            return (
-              <button key={c.id} className="focusable on-now" onClick={() => void play(c.id, live.map((l) => l.id))}>
-                {c.logo ? <img className="on-now-logo" src={c.logo} loading="lazy" /> : <Initials name={c.name} className="on-now-logo" />}
-                <div className="on-now-text">
-                  <div className="on-now-ch">{c.name}</div>
-                  <div className="on-now-prog">{p ? p.title : 'Live'}</div>
-                  {p && (
-                    <div className="hero-bar thin">
-                      <span style={{ width: `${progress(p)}%` }} />
-                    </div>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </section>
+    </>
   )
 
   return (
-    <div className="page">
-      {/* ---- hero: newest movies with real artwork, plus the live slide ---- */}
-      <HeroCarousel
-        slides={[
-          ...movieSlides.map((m) => ({ key: m.channel.id, node: <MovieHero item={m} onPlay={() => void play(m.channel.id)} onInfo={() => openDetail(m.channel)} /> })),
-          { key: 'live', node: liveHero }
-        ]}
-      />
+    <div className="page nf-page">
+      <Billboard items={billboard} fallback={welcome} />
 
-      {/* ---- row 1: apps ---- */}
-      <div className="rail">
-        <div className="rail-title">Your apps</div>
-        <ScrollRow className="rail-track">
+      <div className="nf-rows">
+        {continueItems.length > 0 && (
+          <Row title="Continue watching">
+            {continueItems.map((it) => (
+              <ContinueCard key={it.key} it={it} onOpen={() => void resumeItem(it)} />
+            ))}
+          </Row>
+        )}
+
+        {newestMovies.length >= 10 && (
+          <Row title="Top 10 new movies" className="top10" onMore={() => navigate('movies')}>
+            {newestMovies.slice(0, 10).map((c, n) => (
+              <Top10Card key={c.id} c={c} n={n + 1} onOpen={openDetail} />
+            ))}
+          </Row>
+        )}
+
+        {myList.length > 0 && (
+          <Row title="My List" onMore={() => navigate('mylist')}>
+            {myList.map((c) => (
+              <PosterCard key={c.id} c={c} onOpen={openDetail} />
+            ))}
+          </Row>
+        )}
+
+        {live.length > 0 && (
+          <Row title="Live now" onMore={() => navigate('live')}>
+            {live.map((c) => (
+              <ChannelCard key={c.id} c={c} now={nn[c.id]?.now} favorite={favorites.includes(c.id)} onPlay={() => void play(c.id, live.map((r) => r.id))} />
+            ))}
+          </Row>
+        )}
+
+        {recs.forYou.length > 0 && (
+          <Row title="Recommended for you">
+            {recs.forYou.map((c) => (
+              <PosterCard key={c.id} c={c} onOpen={openDetail} />
+            ))}
+          </Row>
+        )}
+
+        {newestSeries.length > 0 && (
+          <Row title="New series" onMore={() => navigate('series')}>
+            {newestSeries.slice(0, 30).map((c) => (
+              <PosterCard key={c.id} c={c} onOpen={openDetail} />
+            ))}
+          </Row>
+        )}
+
+        {recs.because && (
+          <Row title={`Because you watched ${recs.because.title}`}>
+            {recs.because.items.map((c) => (
+              <PosterCard key={c.id} c={c} onOpen={openDetail} />
+            ))}
+          </Row>
+        )}
+
+        {genreRows.map((g) => (
+          <Row key={g.id} title={g.title} onMore={() => navigate(g.items[0]?.type === 'series' ? 'series' : 'movies')}>
+            {g.items.map((c) => (
+              <PosterCard key={c.id} c={c} onOpen={openDetail} />
+            ))}
+          </Row>
+        ))}
+
+        {recents.length > 0 && (
+          <Row title="Recently watched channels">
+            {recents.map((c) => (
+              <ChannelCard key={c.id} c={c} now={nn[c.id]?.now} favorite={favorites.includes(c.id)} onPlay={() => void play(c.id, recents.map((r) => r.id))} />
+            ))}
+          </Row>
+        )}
+
+        <Row title="Your apps">
           {apps.map((tile) => (
             <AppCard key={tile.id} tile={tile} onClick={() => onTile(tile)} />
           ))}
@@ -236,120 +272,9 @@ export function Home(): JSX.Element {
             <Icon name="add" size={30} />
             <span>Add app</span>
           </button>
-        </ScrollRow>
+        </Row>
       </div>
-
-      {/* ---- continue watching ---- */}
-      {continueItems.length > 0 && (
-        <div className="rail">
-          <div className="rail-title">Continue watching</div>
-          <ScrollRow className="rail-track">
-            {continueItems.map((it) => (
-              <button key={it.key} className="focusable media-card" onClick={() => void resumeItem(it)}>
-                <div className="art cover">
-                  <Initials name={it.title} />
-                  {it.poster && <FadeImg src={it.poster} alt="" className="cover-img" />}
-                </div>
-                <div className="epg-progress flush">
-                  <span style={{ width: `${Math.min(100, (it.position / Math.max(1, it.duration)) * 100)}%` }} />
-                </div>
-                <div className="body">
-                  <div className="title">{it.title}</div>
-                  <div className="sub">{it.subtitle ?? `${Math.max(1, Math.round((it.duration - it.position) / 60))} min left`}</div>
-                </div>
-              </button>
-            ))}
-          </ScrollRow>
-        </div>
-      )}
-
-      {myList.length > 0 && <PosterRail title="My List" items={myList} onOpen={openDetail} />}
-      {recs.forYou.length > 0 && <PosterRail title="Recommended for you" items={recs.forYou} onOpen={openDetail} />}
-
-      {/* ---- row 2: live channels ---- */}
-      {live.length > 0 && (
-        <MediaRail
-          title="Live now"
-          count={channels.filter((c) => c.type === 'live').length}
-          items={live}
-          nn={nn}
-          onPlay={(id) => void play(id, live.map((r) => r.id))}
-        />
-      )}
-
-      {recs.because && (
-        <PosterRail title={`Because you watched ${recs.because.title}`} items={recs.because.items} onOpen={openDetail} />
-      )}
-
-      {recents.length > 0 && (
-        <MediaRail
-          title="Recently watched"
-          items={recents}
-          nn={nn}
-          onPlay={(id) => void play(id, recents.map((r) => r.id))}
-        />
-      )}
     </div>
-  )
-}
-
-interface MovieSlide {
-  channel: Channel
-  info: MediaDetails
-}
-
-/** Rotating hero: crossfades every 9 s, pauses while something in it is focused. */
-function HeroCarousel({ slides }: { slides: Array<{ key: string; node: JSX.Element }> }): JSX.Element {
-  const [i, setI] = useState(0)
-  const ref = useRef<HTMLDivElement>(null)
-  const index = slides.length ? i % slides.length : 0
-  useEffect(() => {
-    if (slides.length < 2) return
-    const t = setInterval(() => {
-      const f = getFocused()
-      if (f && ref.current?.contains(f)) return
-      setI((n) => n + 1)
-    }, 9000)
-    return () => clearInterval(t)
-  }, [slides.length])
-  return (
-    <div className="hero-carousel" ref={ref}>
-      <div key={slides[index]?.key} className="hero-slide">
-        {slides[index]?.node}
-      </div>
-      {slides.length > 1 && (
-        <div className="hero-dots">
-          {slides.map((s, n) => (
-            <button key={s.key} className={`hero-dot ${n === index ? 'on' : ''}`} onClick={() => setI(n)} aria-label={`Slide ${n + 1}`} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function MovieHero({ item, onPlay, onInfo }: { item: MovieSlide; onPlay: () => void; onInfo: () => void }): JSX.Element {
-  const { info, channel } = item
-  const meta = [info.year, info.rating ? `★ ${info.rating}` : undefined, info.genre].filter(Boolean).join('  ·  ')
-  return (
-    <section className="hero art-hero">
-      <FadeImg src={info.backdrop} alt="" className="hero-backdrop" />
-      <div className="hero-shade" />
-      <div className="hero-main">
-        <span className="hero-kicker">New movie</span>
-        <h1 className="hero-title">{info.title || channel.name}</h1>
-        {meta && <div className="hero-artmeta">{meta}</div>}
-        {info.plot && <p className="hero-plot">{info.plot}</p>}
-        <div className="hero-actions">
-          <button className="focusable btn primary" onClick={onPlay}>
-            <Icon name="play" size={22} /> Play
-          </button>
-          <button className="focusable btn on-color" onClick={onInfo}>
-            <Icon name="info" size={20} /> More info
-          </button>
-        </div>
-      </div>
-    </section>
   )
 }
 
@@ -371,64 +296,8 @@ function AppCard({ tile, onClick }: { tile: AppTile; onClick: () => void }): JSX
   )
 }
 
-function MediaRail({
-  title,
-  items,
-  nn,
-  onPlay,
-  count
-}: {
-  title: string
-  items: Channel[]
-  nn: Record<string, EpgNowNext>
-  onPlay: (id: string) => void
-  count?: number
-}): JSX.Element {
-  const favorites = useStore((s) => s.settings?.favorites ?? [])
-  return (
-    <div className="rail">
-      <div className="rail-title">
-        {title} {count ? <span className="count">{count} channels</span> : null}
-      </div>
-      <ScrollRow className="rail-track">
-        {items.map((c) => {
-          const now = nn[c.id]?.now
-          return (
-            <button key={c.id} className="focusable media-card" onClick={() => onPlay(c.id)}>
-              <div className="art">
-                {c.logo ? <FadeImg src={c.logo} alt="" /> : <Initials name={c.name} />}
-                {c.number ? <span className="chno">{c.number}</span> : null}
-                {favorites.includes(c.id) && (
-                  <span className="fav-pin">
-                    <Icon name="star" size={16} />
-                  </span>
-                )}
-              </div>
-              <div className="body">
-                <div className="title">{c.name}</div>
-                <div className="sub">{now ? now.title : 'Live channel'}</div>
-                {now && (
-                  <div className="epg-progress">
-                    <span style={{ width: `${progress(now)}%` }} />
-                  </div>
-                )}
-              </div>
-            </button>
-          )
-        })}
-      </ScrollRow>
-    </div>
-  )
-}
-
 // --------------------------------------------------------------------- helpers
 
-function fmt(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
-function progress(p: Programme): number {
-  return Math.max(0, Math.min(100, ((Date.now() - p.start) / (p.stop - p.start)) * 100))
-}
 function dedupe(items: Channel[]): Channel[] {
   const seen = new Set<string>()
   return items.filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)))
@@ -449,33 +318,6 @@ function deriveNowNext(progs: Programme[], at: number): EpgNowNext {
     }
   }
   return { now, next }
-}
-
-/** A bright hero colour picked from the featured channel's name. */
-function heroColor(seed: string): string {
-  let h = 0
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
-  return ['#1a73e8', '#c5221f', '#137333', '#8430ce', '#d56e0c', '#007b83'][h % 6]
-}
-
-/** A row of movie / series posters (My List, recommendations). */
-function PosterRail({ title, items, onOpen }: { title: string; items: Channel[]; onOpen: (c: Channel) => void }): JSX.Element {
-  return (
-    <div className="rail">
-      <div className="rail-title">{title}</div>
-      <ScrollRow className="rail-track posters">
-        {items.map((c) => (
-          <button key={c.id} className="focusable poster-card" onClick={() => onOpen(c)}>
-            <div className="art">
-              <span className="ph-txt">{c.name.replace(/^[A-Z]{2,3}\s*[-|:]\s*/, '').slice(0, 2).toUpperCase()}</span>
-              {c.logo && <FadeImg src={c.logo} alt="" className="poster-img" />}
-            </div>
-            <div className="cap">{c.name}</div>
-          </button>
-        ))}
-      </ScrollRow>
-    </div>
-  )
 }
 
 /** A saved title that's no longer in the provider's list still opens its detail screen. */

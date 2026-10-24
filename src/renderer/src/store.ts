@@ -16,7 +16,7 @@ import type {
   Profile
 } from '@shared/types'
 
-export type RouteName = 'home' | 'live' | 'movies' | 'series' | 'guide' | 'settings'
+export type RouteName = 'home' | 'live' | 'movies' | 'series' | 'guide' | 'settings' | 'mylist'
 
 interface State {
   ready: boolean
