@@ -46,7 +46,9 @@ export function focusFirst(): void {
     setFocus(preferred)
     return
   }
-  const els = focusables()
+  // Start in the page, not in the side menu (unless the page has nothing to focus).
+  const all = focusables()
+  const els = all.filter((el) => !el.closest('.sidebar'))
   if (!els.length) {
     setFocus(null)
     return
@@ -70,6 +72,8 @@ function move(dir: 'up' | 'down' | 'left' | 'right'): void {
   if (!els.length) return
   if (!current || !document.contains(current) || !els.includes(current)) {
     focusFirst()
+    // Nothing on the page yet (e.g. still loading): go to the side menu.
+    if (!current) setFocus(document.querySelector<HTMLElement>('.sidebar .sb-item.active') ?? els[0])
     return
   }
   const from = rectCenter(current)

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../../store'
+import { ADULT, featurable } from '../../contentFilter'
 import { recommend, type SeedInfo } from '../../recommend'
 import { Icon } from '../../components/Icon'
 import { ScrollRow } from '../../components/ScrollRow'
@@ -26,7 +27,8 @@ export function ClassicHome(): JSX.Element {
   const fullList = useStore((s) => activeProfile(s)?.myList)
   const myListItems = useMemo(() => (fullList ?? []).filter((i) => i.sourceId === currentSourceId), [fullList, currentSourceId])
   const [vodLists, setVodLists] = useState<{ channels: Channel[]; categories: Category[] }>({ channels: [], categories: [] })
-  const vod = vodLists.channels
+  // Adult titles are never featured on Home.
+  const vod = useMemo(() => vodLists.channels.filter(featurable(vodLists.categories)), [vodLists])
   useEffect(() => {
     if (!currentSourceId) return
     void Promise.all([fetchList('movie'), fetchList('series')]).then(([m, s]) =>
@@ -71,22 +73,32 @@ export function ClassicHome(): JSX.Element {
   )
   const myList = useMemo(() => {
     const byId = new Map(vod.map((c) => [c.id, c]))
-    return myListItems.map((i) => byId.get(i.key) ?? listItemChannel(i))
-  }, [vod, myListItems])
+    const ok = featurable(vodLists.categories)
+    return myListItems.map((i) => byId.get(i.key) ?? listItemChannel(i)).filter(ok)
+  }, [vod, myListItems, vodLists.categories])
 
   // Built-in sections (Live TV, Guide…) live in the top tabs, so the apps row
   // only shows real apps.
   const apps = (settings?.appTiles ?? []).filter((t) => t.kind !== 'section')
 
+  const homeChannels = useMemo(
+    () => (currentSourceId ? channels.filter(featurable(cachedCategories(currentSourceId, 'live'))) : channels),
+    [channels, currentSourceId]
+  )
+  const continueShown = useMemo(() => {
+    const ok = featurable(vodLists.categories)
+    const adultIds = new Set(vodLists.channels.filter((c) => !ok(c)).map((c) => c.id))
+    return continueItems.filter((it) => !ADULT.test(it.title) && !(it.channelId && adultIds.has(it.channelId)))
+  }, [continueItems, vodLists])
   const recents = useMemo(
     () =>
       (settings?.recents ?? [])
-        .map((id) => channels.find((c) => c.id === id))
+        .map((id) => homeChannels.find((c) => c.id === id))
         .filter((c): c is Channel => Boolean(c))
         .slice(0, 12),
-    [settings?.recents, channels]
+    [settings?.recents, homeChannels]
   )
-  const live = useMemo(() => channels.filter((c) => c.type === 'live').slice(0, 18), [channels])
+  const live = useMemo(() => homeChannels.filter((c) => c.type === 'live').slice(0, 18), [homeChannels])
   const featured = recents[0] ?? live[0]
   const onNow = live.filter((c) => c.id !== featured?.id).slice(0, 3)
 
@@ -240,11 +252,11 @@ export function ClassicHome(): JSX.Element {
       </div>
 
       {/* ---- continue watching ---- */}
-      {continueItems.length > 0 && (
+      {continueShown.length > 0 && (
         <div className="rail">
           <div className="rail-title">Continue watching</div>
           <ScrollRow className="rail-track">
-            {continueItems.map((it) => (
+            {continueShown.map((it) => (
               <button key={it.key} className="focusable media-card" onClick={() => void resumeItem(it)}>
                 <div className="art cover">
                   <Initials name={it.title} />

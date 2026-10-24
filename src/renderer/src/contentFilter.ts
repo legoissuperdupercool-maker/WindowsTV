@@ -11,6 +11,15 @@ export const KIDS =
 
 type List = { channels: Channel[]; categories: Category[] }
 
+/**
+ * Adult titles are never featured (Home, billboards, Top 10, "New" and genre rows),
+ * whatever the profile allows; they stay reachable by picking their category.
+ */
+export function featurable(categories: Category[]): (c: Pick<Channel, 'name' | 'group'>) => boolean {
+  const adult = new Set(categories.filter((c) => ADULT.test(c.name)).map((c) => c.id))
+  return (c) => !(c.group && adult.has(c.group)) && !ADULT.test(c.name)
+}
+
 const cache = new Map<string, { src: List; out: List }>()
 
 /**

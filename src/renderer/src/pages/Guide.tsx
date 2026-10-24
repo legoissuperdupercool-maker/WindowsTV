@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { featurable } from '../contentFilter'
 import { useStore } from '../store'
 import { Initials } from '../components/Initials'
 import { Icon } from '../components/Icon'
@@ -14,7 +15,7 @@ const FUTURE_HOURS = 5
 const CH_WIDTH = 210
 
 export function Guide(): JSX.Element {
-  const { channels, currentSourceId, loadCatalog, play, playCatchup, settings } = useStore()
+  const { channels, categories, currentSourceId, loadCatalog, play, playCatchup, settings } = useStore()
   const recEnabled = Boolean(settings?.recordings)
   const { recordings, reminders } = useRecordings()
   const [sheet, setSheet] = useState<{ c: Channel; p: Programme } | null>(null)
@@ -36,7 +37,11 @@ export function Guide(): JSX.Element {
   const to = from + (PAST_HOURS + FUTURE_HOURS) * 3600_000
   const widthPx = (to - from) / 60_000 * PX_PER_MIN
 
-  const live = useMemo(() => channels.filter((c) => c.type === 'live'), [channels])
+  // The guide leaves out adult channels (they stay in Live TV under their own category).
+  const live = useMemo(() => {
+    const ok = featurable(categories)
+    return channels.filter((c) => c.type === 'live' && ok(c))
+  }, [channels, categories])
   // Rows load a page at a time as you scroll down (big providers have thousands).
   const { visible: rows, sentinelRef } = useProgressive(live, 40)
 

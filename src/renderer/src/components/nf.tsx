@@ -122,7 +122,7 @@ export function Billboard({ items, fallback }: { items: BillboardItem[]; fallbac
       {items.length > 1 && (
         <div className="nf-bb-dots">
           {items.map((it, n) => (
-            <button key={it.channel.id} className={`nf-dot ${n === index ? 'on' : ''}`} onClick={() => setI(n)} aria-label={`Title ${n + 1}`} />
+            <button key={n === index ? `${it.channel.id}-${i}` : it.channel.id} className={`nf-dot ${n === index ? 'on' : ''}`} onClick={() => setI(n)} aria-label={`Title ${n + 1}`} />
           ))}
         </div>
       )}
@@ -131,6 +131,24 @@ export function Billboard({ items, fallback }: { items: BillboardItem[]; fallbac
 }
 
 // --------------------------------------------------------------------- rows
+
+/** Shimmering rows while the catalogue loads. */
+export function SkeletonRows({ rows = 2 }: { rows?: number }): JSX.Element {
+  return (
+    <>
+      {Array.from({ length: rows }, (_, r) => (
+        <div key={r} className="nf-skel-row" aria-hidden>
+          <div className="nf-skel-title" />
+          <div className="nf-skel-track">
+            {Array.from({ length: 9 }, (_, i) => (
+              <div key={i} className="nf-skel-card" style={{ animationDelay: `${i * 0.06}s` }} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
 
 export function Row({ title, onMore, children, className = '' }: { title: string; onMore?: () => void; children: ReactNode; className?: string }): JSX.Element {
   return (

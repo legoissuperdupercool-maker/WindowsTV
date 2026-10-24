@@ -38,8 +38,10 @@
   transition: background 0.35s var(--ease), box-shadow 0.35s var(--ease);
 }
 .topbar.nf-topbar.solid {
-  background: rgba(11, 11, 13, 0.97);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  background: rgba(14, 14, 17, 0.72);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 .nf-topbar .wordmark {
   margin-right: 34px;
@@ -98,7 +100,15 @@
   display: none;
 }
 .page.nf-page {
+  position: relative; /* the Movies/Series header scrolls away with the billboard */
   padding: 0 0 70px;
+  animation: nf-page-in 0.38s var(--ease);
+}
+@keyframes nf-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 .page.nf-page.padded {
   padding: 92px var(--nf-pad) 70px;
@@ -299,8 +309,29 @@
   transition: width 0.3s var(--ease), background 0.3s;
 }
 .nf-dot.on {
-  width: 28px;
+  width: 34px;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.35);
+}
+/* The active dot fills up until the next title (10 s), and holds while you're in the billboard. */
+.nf-dot.on::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: var(--accent);
+  transform-origin: left center;
+  animation: nf-dot-fill 10s linear forwards;
+}
+.nf-billboard:hover .nf-dot.on::after,
+.nf-billboard:focus-within .nf-dot.on::after {
+  animation-play-state: paused;
+}
+@keyframes nf-dot-fill {
+  from {
+    transform: scaleX(0);
+  }
 }
 @keyframes nf-fade {
   from {
@@ -417,8 +448,10 @@
 .nf-poster {
   position: relative;
   aspect-ratio: 2 / 3;
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), 0 6px 18px rgba(0, 0, 0, 0.35);
+  transition: box-shadow 0.3s var(--ease);
   background: linear-gradient(160deg, hsl(var(--h, 220) 45% 32%), hsl(var(--h, 220) 50% 14%));
   display: grid;
   place-items: center;
@@ -471,8 +504,19 @@
   pointer-events: auto;
   transition-delay: 0.15s;
 }
+.nf-card:hover .nf-poster {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 22px 48px rgba(0, 0, 0, 0.65);
+}
 .nf-card:has(.is-focused) .nf-poster {
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow: 0 0 0 3px var(--accent), 0 22px 48px rgba(0, 0, 0, 0.65);
+}
+.nf-poster::after {
+  /* a soft sheen across the artwork */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.08), transparent 38%);
+  pointer-events: none;
 }
 .nf-pop-actions {
   display: flex;
@@ -1011,4 +1055,191 @@
 }
 .bg-swatch {
   width: 100%;
+}
+
+/* ------------------------------------------------------------------ loading placeholders */
+.nf-skel-row {
+  padding: 0 var(--nf-pad);
+  margin-bottom: 34px;
+}
+.nf-skel-title {
+  width: 190px;
+  height: 18px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+}
+.nf-skel-track {
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+}
+.nf-skel-card {
+  flex: 0 0 var(--card-w);
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
+}
+.nf-skel-title,
+.nf-skel-card {
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.05) 30%, rgba(255, 255, 255, 0.11) 50%, rgba(255, 255, 255, 0.05) 70%);
+  background-size: 300% 100%;
+  animation: nf-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes nf-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* ------------------------------------------------------------------ sidebar (Cinema look) */
+:root.theme-cinema {
+  --sb-w: 84px;
+  --nf-pad: calc(var(--sb-w) + clamp(18px, 2.6vw, 44px));
+}
+.theme-cinema .page.nf-page.padded {
+  padding-top: 56px;
+}
+/* Other screens (Live TV, Guide, Settings…) make room for the side menu. */
+.theme-cinema .page:not(.nf-page) {
+  margin-left: var(--sb-w);
+  padding-top: 52px;
+}
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 40; /* under the title window (45) */
+  width: var(--sb-w);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 26px 14px 22px;
+  -webkit-app-region: no-drag;
+  transition: width 0.32s var(--ease);
+}
+.sidebar::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 240px;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.3) 45%, transparent);
+  transition: width 0.4s var(--ease), background 0.4s var(--ease);
+}
+.sidebar:hover,
+.sidebar:focus-within,
+.sidebar:has(.is-focused) {
+  width: 264px;
+}
+.sidebar:hover::before,
+.sidebar:focus-within::before,
+.sidebar:has(.is-focused)::before {
+  width: 100vw;
+  background: linear-gradient(90deg, rgba(4, 4, 6, 0.96) 0, rgba(4, 4, 6, 0.88) 250px, rgba(4, 4, 6, 0.5) 560px, transparent 900px);
+}
+.sb-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.sb-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.58);
+  white-space: nowrap;
+  overflow: hidden;
+  outline: none !important;
+  transition: color 0.2s, background 0.2s;
+}
+.sb-icon {
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+}
+.sb-label {
+  font-size: 18px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.22s, transform 0.3s var(--ease);
+  text-align: left;
+}
+.sb-label small {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+}
+.sidebar:hover .sb-label,
+.sidebar:focus-within .sb-label,
+.sidebar:has(.is-focused) .sb-label {
+  opacity: 1;
+  transform: none;
+}
+.sb-item:hover,
+.sb-item.is-focused {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.sb-item.is-focused {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.sb-item.active {
+  color: #fff;
+}
+.sb-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+.sb-profile {
+  height: 58px;
+  padding: 0 11px;
+  margin-bottom: 8px;
+}
+.sb-profile .sb-icon {
+  flex-basis: 34px;
+}
+.win-strip {
+  position: fixed;
+  top: 0;
+  left: var(--sb-w);
+  right: 0;
+  height: 44px;
+  z-index: 44;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 10px 0 0;
+  -webkit-app-region: drag;
+  pointer-events: none;
+}
+.win-strip > * {
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+.win-strip .clock {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+  margin-right: 4px;
 }

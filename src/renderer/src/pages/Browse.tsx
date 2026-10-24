@@ -4,6 +4,7 @@ import { CatalogStatus } from '../components/CatalogStatus'
 import { useProgressive } from '../hooks/useProgressive'
 import { Billboard, PosterCard, Row, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
 import { cleanTitle } from '../recommend'
+import { featurable } from '../contentFilter'
 import type { Channel, ListItem } from '@shared/types'
 
 const newest = (a: Channel, b: Channel): number => Number(b.meta?.added ?? 0) - Number(a.meta?.added ?? 0)
@@ -27,26 +28,30 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
 
   const list = useMemo(() => channels.filter((c) => c.type === type), [channels, type])
   const sorted = useMemo(() => [...list].sort(newest), [list])
+  // What the page features: everything except adult titles (those only show when their genre is picked).
+  const shelf = useMemo(() => sorted.filter(featurable(categories)), [sorted, categories])
 
-  const rows = useMemo(() => {
+  const groupRows = (items: Channel[]): Array<{ id: string; title: string; items: Channel[]; total: number }> => {
     const byGroup = new Map<string, Channel[]>()
-    for (const c of sorted) if (c.group) (byGroup.get(c.group) ?? byGroup.set(c.group, []).get(c.group)!).push(c)
+    for (const c of items) if (c.group) (byGroup.get(c.group) ?? byGroup.set(c.group, []).get(c.group)!).push(c)
     return categories
       .filter((cat) => (byGroup.get(cat.id)?.length ?? 0) > 0)
       .map((cat) => ({ id: cat.id, title: cleanCategory(cat.name), items: byGroup.get(cat.id)!.slice(0, 30), total: byGroup.get(cat.id)!.length }))
       .sort((a, b) => b.total - a.total)
-  }, [sorted, categories])
+  }
+  const rows = useMemo(() => groupRows(shelf), [shelf, categories])
+  const genres = useMemo(() => groupRows(sorted), [sorted, categories])
   const [rowCount, setRowCount] = useState(8)
   useEffect(() => setRowCount(8), [type, currentSourceId])
 
   // Billboard: the newest with artwork (movie info for the first few).
   const [billboard, setBillboard] = useState<BillboardItem[]>([])
   useEffect(() => {
-    if (!sorted.length) return
+    if (!shelf.length) return
     let cancelled = false
     void (async () => {
       const items: BillboardItem[] = []
-      for (const c of sorted.slice(0, 10)) {
+      for (const c of shelf.slice(0, 10)) {
         const info = type === 'movie' ? (await window.api.vod.info(c.sourceId, c.providerId)).data : null
         if (info?.backdrop || metaStr(c, 'backdrop') || info?.poster || c.logo) items.push({ channel: c, info, kicker: `New ${type === 'movie' ? 'film' : 'series'}` })
         if (items.length >= 5) break
@@ -57,7 +62,7 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [sorted.length, type, currentSourceId])
+  }, [shelf.length, type, currentSourceId])
 
   const q = deferredQuery.trim().toLowerCase()
   const gridItems = useMemo(
@@ -83,7 +88,7 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
       <h1>{label}</h1>
       <select className="nf-genre" value={genre} onChange={(e) => setGenre(e.target.value)}>
         <option value="">Genres</option>
-        {rows.map((r) => (
+        {genres.map((r) => (
           <option key={r.id} value={r.id}>
             {r.title} ({r.total})
           </option>
@@ -111,7 +116,7 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
       <div className="page nf-page padded">
         {header}
         <div className="nf-grid-title">
-          {genre ? rows.find((r) => r.id === genre)?.title : `Results for “${deferredQuery.trim()}”`} · {gridItems.length}
+          {genre ? genres.find((r) => r.id === genre)?.title : `Results for “${deferredQuery.trim()}”`} · {gridItems.length}
         </div>
         <div className="nf-grid">
           {visible.map((c) => (
@@ -134,13 +139,13 @@ function BrowsePage({ type }: { type: 'movie' | 'series' }): JSX.Element {
       <div className="nf-browse-float">{header}</div>
       <div className="nf-rows">
         <Row title={`New ${label.toLowerCase()}`}>
-          {sorted.slice(0, 30).map((c) => (
+          {shelf.slice(0, 30).map((c) => (
             <PosterCard key={c.id} c={c} onOpen={openDetail} />
           ))}
         </Row>
-        {sorted.length >= 10 && (
+        {shelf.length >= 10 && (
           <Row title={`Top 10 ${label.toLowerCase()} this week`} className="top10">
-            {sorted.slice(0, 10).map((c, n) => (
+            {shelf.slice(0, 10).map((c, n) => (
               <Top10Card key={c.id} c={c} n={n + 1} onOpen={openDetail} />
             ))}
           </Row>

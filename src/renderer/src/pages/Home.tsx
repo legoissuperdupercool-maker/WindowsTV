@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { activeProfile, cachedCategories, useStore, type RouteName } from '../store'
+import { ADULT, featurable } from '../contentFilter'
 import { recommend, type SeedInfo } from '../recommend'
 import { Icon } from '../components/Icon'
-import { Billboard, ChannelCard, ContinueCard, PosterCard, Row, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
+import { Billboard, ChannelCard, ContinueCard, PosterCard, Row, SkeletonRows, Top10Card, cleanCategory, metaStr, type BillboardItem } from '../components/nf'
 import { Initials } from '../components/Initials'
 import { detectBrand } from '../components/brands'
 import { FadeImg } from '../components/FadeImg'
@@ -26,7 +27,8 @@ export function Home(): JSX.Element {
   const fullList = useStore((s) => activeProfile(s)?.myList)
   const myListItems = useMemo(() => (fullList ?? []).filter((i) => i.sourceId === currentSourceId), [fullList, currentSourceId])
   const [vodLists, setVodLists] = useState<{ channels: Channel[]; categories: Category[] }>({ channels: [], categories: [] })
-  const vod = vodLists.channels
+  // Adult titles are never featured on Home.
+  const vod = useMemo(() => vodLists.channels.filter(featurable(vodLists.categories)), [vodLists])
   // Re-read when the live list arrives too: on a fresh start the movie and
   // series lists may not be ready the first time.
   const liveCount = channels.length
@@ -74,22 +76,32 @@ export function Home(): JSX.Element {
   )
   const myList = useMemo(() => {
     const byId = new Map(vod.map((c) => [c.id, c]))
-    return myListItems.map((i) => byId.get(i.key) ?? listItemChannel(i))
-  }, [vod, myListItems])
+    const ok = featurable(vodLists.categories)
+    return myListItems.map((i) => byId.get(i.key) ?? listItemChannel(i)).filter(ok)
+  }, [vod, myListItems, vodLists.categories])
 
   // Built-in sections (Live TV, Guide…) live in the top tabs, so the apps row
   // only shows real apps.
   const apps = (settings?.appTiles ?? []).filter((t) => t.kind !== 'section')
 
+  const homeChannels = useMemo(
+    () => (currentSourceId ? channels.filter(featurable(cachedCategories(currentSourceId, 'live'))) : channels),
+    [channels, currentSourceId]
+  )
+  const continueShown = useMemo(() => {
+    const ok = featurable(vodLists.categories)
+    const adultIds = new Set(vodLists.channels.filter((c) => !ok(c)).map((c) => c.id))
+    return continueItems.filter((it) => !ADULT.test(it.title) && !(it.channelId && adultIds.has(it.channelId)))
+  }, [continueItems, vodLists])
   const recents = useMemo(
     () =>
       (settings?.recents ?? [])
-        .map((id) => channels.find((c) => c.id === id))
+        .map((id) => homeChannels.find((c) => c.id === id))
         .filter((c): c is Channel => Boolean(c))
         .slice(0, 12),
-    [settings?.recents, channels]
+    [settings?.recents, homeChannels]
   )
-  const live = useMemo(() => channels.filter((c) => c.type === 'live').slice(0, 18), [channels])
+  const live = useMemo(() => homeChannels.filter((c) => c.type === 'live').slice(0, 18), [homeChannels])
   const featured = recents[0] ?? live[0]
 
   // EPG now/next for everything shown on the home screen.
@@ -192,9 +204,10 @@ export function Home(): JSX.Element {
       <Billboard items={billboard} fallback={welcome} />
 
       <div className="nf-rows">
-        {continueItems.length > 0 && (
+        {hasSources && !vod.length && <SkeletonRows rows={3} />}
+        {continueShown.length > 0 && (
           <Row title="Continue watching">
-            {continueItems.map((it) => (
+            {continueShown.map((it) => (
               <ContinueCard key={it.key} it={it} onOpen={() => void resumeItem(it)} />
             ))}
           </Row>

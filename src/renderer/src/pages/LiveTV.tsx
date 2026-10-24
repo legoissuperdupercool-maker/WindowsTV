@@ -6,6 +6,7 @@ import { Initials } from '../components/Initials'
 import { FadeImg } from '../components/FadeImg'
 import { getFocused } from '../hooks/useSpatialNavigation'
 import { useProgressive } from '../hooks/useProgressive'
+import { featurable } from '../contentFilter'
 import { Icon } from '../components/Icon'
 import type { Channel, ChannelSort, EpgNowNext, Programme } from '@shared/types'
 
@@ -45,15 +46,18 @@ export function LiveTV(): JSX.Element {
   // Search runs on a deferred copy of the query so typing never stutters.
   const deferredQuery = useDeferredValue(query)
   const favSet = useMemo(() => new Set(favorites), [favorites])
+  // "All channels" leaves out adult channels; they show when their category is picked or searched for.
+  const notAdult = useMemo(() => featurable(categories), [categories])
   const filtered = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase()
     return channels.filter((c) => {
+      if (cat === ALL && !q && !notAdult(c)) return false
       if (cat === FAV && !favSet.has(c.id)) return false
       if (cat !== ALL && cat !== FAV && c.group !== cat) return false
       if (q && !c.name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [channels, cat, deferredQuery, favSet])
+  }, [channels, cat, deferredQuery, favSet, notAdult])
 
   // Category counts in a single pass (was: one full scan per category).
   const groupCounts = useMemo(() => {
