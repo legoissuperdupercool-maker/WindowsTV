@@ -1,6 +1,6 @@
 {
   "name": "ello-sideloader",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "description": "ello Sideloader — puts ello smartTV on your Apple TV, iPhone and iPad with your own free Apple ID.",
   "main": "./out/main/index.js",
   "author": "legoissuperdupercool-maker",

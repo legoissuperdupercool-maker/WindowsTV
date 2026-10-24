@@ -33,9 +33,14 @@ import certifi
 import urllib3
 
 GSA = "https://gsa.apple.com/grandslam/GsService2"
-# Apple's sign-in server now answers 503 to clients that say they are Xcode
-# ("com.apple.dt.Xcode/…"); iCloud for Windows is accepted (checked Oct 2026).
-CLIENT_INFO = "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit.Win/1.0 (com.apple.iCloud/7.21)>"
+# Since September 2026 Apple's sign-in server answers 503 to anything naming com.apple.dt.Xcode,
+# and since mid-October it refuses a Mac identity at the password step (-80045/-80046) while a
+# Windows one works. Its two-factor pages, though, sometimes refuse Windows (bare 403) and take
+# a Mac. (SideStore/SideSign PR 8, Sank6/iCloud-Keychain-for-Linux issue 15.)
+WIN_CLIENT_INFO = "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
+MAC_CLIENT_INFO = "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
+AKD_USER_AGENT = "akd/1.0 CFNetwork/808.1.4"
+CLIENT_INFO = WIN_CLIENT_INFO
 XCODE_APP = "com.apple.gs.xcode.auth"
 
 
@@ -154,6 +159,12 @@ class Machine:
         _guard_provisioning()
         libs = _resource("anisette-libs.bin")
         prov = data_dir() / "machine.bin"
+        # Machine data made before Apple's October 2026 change was tied to the identity it now
+        # refuses: start once with a fresh one.
+        fresh = data_dir() / "machine-reset-2026-10.txt"
+        if not fresh.exists():
+            prov.unlink(missing_ok=True)
+            fresh.write_text("machine data reset for Apple's October 2026 sign-in change\n", encoding="utf-8")
         files = [str(libs)] + ([str(prov)] if prov.exists() else [])
         try:
             self.ani = Anisette.load(*files)
@@ -188,8 +199,9 @@ class ICloudMachine:
     make the machine id and one-time password, so Apple gets the real thing instead of an
     imitation. Used when iCloud for Windows 7.x (from apple.com) is installed."""
 
-    # What AltServer sends along with iCloud's values.
-    CLIENT_INFO = "<MacBookPro15,1> <Mac OS X;10.15.2;19C57> <com.apple.AuthKit/1 (com.apple.dt.Xcode/3594.4.19)>"
+    # Apple now refuses the Mac/Xcode identity AltServer used to send; iCloud's values go with
+    # the Windows one, which is what this PC really is.
+    CLIENT_INFO = WIN_CLIENT_INFO
 
     def __init__(self, python32: Path, script: Path) -> None:
         self._python32 = python32
@@ -268,8 +280,8 @@ class RemoteMachine:
         if r.status != 200 or not isinstance(data, dict) or not data.get("X-Apple-I-MD") or not data.get("X-Apple-I-MD-M"):
             raise AppleError(f"The anisette server gave no machine data (HTTP {r.status}). Use an address that serves anisette v1 JSON.")
         h = {str(k): str(v) for k, v in data.items() if isinstance(v, (str, int))}
-        self._client_info = h.get("X-MMe-Client-Info") or CLIENT_INFO
-        h.setdefault("X-MMe-Client-Info", self._client_info)
+        # Servers often report a Mac identity, which Apple now refuses: always say Windows.
+        h["X-MMe-Client-Info"] = self._client_info
         h.setdefault("X-Apple-I-Client-Time", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
         h.setdefault("X-Apple-I-TimeZone", "UTC")
         h.setdefault("X-Apple-Locale", "en_US")
@@ -544,6 +556,7 @@ class SignIn:
         self._sms_route: str | None = None
         self._idms_session: dict[str, str] = {}
         self._sms_device_id: str | None = None
+        self._auth_client = WIN_CLIENT_INFO
 
     def _cpd(self) -> dict:
         h = self.m.headers()
@@ -559,18 +572,27 @@ class SignIn:
         }
 
     def _gsa(self, request: dict) -> dict:
+        import time
+
         body = plistlib.dumps({"Header": {"Version": "1.0.1"}, "Request": request})
-        r = http("POST", GSA, {
+        headers = {
             "Content-Type": "text/x-xml-plist",
             "Accept": "*/*",
-            "User-Agent": "akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0",
-            "X-MMe-Client-Info": self.m.client_info,
-        }, body)
-        try:
-            return plistlib.loads(r.data)["Response"]
-        except Exception as e:
-            _log_failure("gsa " + str(request.get("o")), r)
-            raise AppleError(f"Apple's sign-in server answered HTTP {r.status} at step “{request.get('o')}”: {_snippet(r)}") from e
+            "User-Agent": AKD_USER_AGENT,
+            "X-MMe-Client-Info": WIN_CLIENT_INFO,
+        }
+        # Busy (429/503, sometimes an HTML page instead of a plist): wait and try again, twice.
+        for wait in (2, 5, None):
+            r = http("POST", GSA, headers, body)
+            try:
+                return plistlib.loads(r.data)["Response"]
+            except Exception as e:
+                if wait and r.status in (429, 503):
+                    time.sleep(wait)
+                    continue
+                _log_failure("gsa " + str(request.get("o")), r)
+                raise AppleError(f"Apple's sign-in server answered HTTP {r.status} at step “{request.get('o')}”: {_snippet(r)}") from e
+        raise AppleError("Apple's sign-in server is busy. Try again in a few minutes.")
 
     def login(self) -> None:
         """SRP sign-in. Raises NeedsCode when Apple wants a two-factor code."""
@@ -629,13 +651,24 @@ class SignIn:
             "X-Xcode-Version": "26.5 (17F42)",
             **self.m.headers(),
             **self._idms_session,
+            "X-MMe-Client-Info": self._auth_client,
         }
+
+    def _auth_http(self, method: str, url: str, headers: dict[str, str], body: bytes | None = None) -> urllib3.BaseHTTPResponse:
+        """A request to Apple's two-factor pages: Windows first; when they refuse it (403, or
+        433/500/503), once more as a Mac, and keep using the Mac after that."""
+        r = http(method, url, headers, body)
+        if r.status in (403, 433, 500, 503) and self._auth_client == WIN_CLIENT_INFO:
+            _log_2fa(f"{url.split('gsa.apple.com')[-1]} refused as Windows, trying as Mac", r)
+            self._auth_client = MAC_CLIENT_INFO
+            r = http(method, url, {**headers, "X-MMe-Client-Info": MAC_CLIENT_INFO}, body)
+        return r
 
     def _request_code(self, mode: str) -> None:
         """Ask Apple to deliver a code. When it won't, still ask for one: a code from
         Settings → Sign-In & Security → Get Verification Code on a trusted device works too."""
         if mode == "device":
-            r = http("GET", "https://gsa.apple.com/auth/verify/trusteddevice", self._2fa_headers())
+            r = self._auth_http("GET", "https://gsa.apple.com/auth/verify/trusteddevice", self._2fa_headers())
             self._keep_session(r)
             _log_2fa("trusteddevice", r)
             if r.status < 400:
@@ -661,7 +694,7 @@ class SignIn:
         """The id of the Apple ID's first trusted phone number. Apple's answer varies in
         shape, so search it; when nothing is found, the first number (id 1) is the usual one."""
         try:
-            r = http("GET", "https://gsa.apple.com/auth", self._json_2fa_headers())
+            r = self._auth_http("GET", "https://gsa.apple.com/auth", self._json_2fa_headers())
             self._keep_session(r)
             info = json.loads(r.data or b"{}")
         except (AppleError, ValueError):
@@ -703,7 +736,7 @@ class SignIn:
             self._phone_id = self._trusted_phone_id()
         if not self._sms_device_id:
             # xtool's way (what Xcode does): a plist POST to the phone "put" page.
-            r = http("POST", "https://gsa.apple.com/auth/verify/phone/put?mode=sms", self._2fa_headers(),
+            r = self._auth_http("POST", "https://gsa.apple.com/auth/verify/phone/put?mode=sms", self._2fa_headers(),
                      plistlib.dumps({"serverInfo": {"phoneNumber.id": str(self._phone_id)}}))
             self._keep_session(r)
             _log_2fa("sms put", r)
@@ -711,7 +744,7 @@ class SignIn:
                 self._sms_route = "put"
                 return
             # isideload's way: JSON PUT.
-            r = http("PUT", "https://gsa.apple.com/auth/verify/phone", self._json_2fa_headers(),
+            r = self._auth_http("PUT", "https://gsa.apple.com/auth/verify/phone", self._json_2fa_headers(),
                      json.dumps({"phoneNumber": {"id": self._phone_id}, "mode": "sms"}).encode())
             self._keep_session(r)
             _log_2fa("sms json", r)
@@ -723,7 +756,7 @@ class SignIn:
             _log_failure("2fa sms", r)
         if self._sms_device_id:
             # Older Apple IDs: the phone is listed as a trusted device (iloader #787).
-            r = http("PUT", f"https://gsa.apple.com/auth/verify/device/{self._sms_device_id}/securitycode", self._json_2fa_headers())
+            r = self._auth_http("PUT", f"https://gsa.apple.com/auth/verify/device/{self._sms_device_id}/securitycode", self._json_2fa_headers())
             self._keep_session(r)
             _log_2fa("sms device", r)
             if r.status < 400:
@@ -738,7 +771,7 @@ class SignIn:
         code = "".join(ch for ch in code if ch.isdigit())
         if mode in ("device", "manual"):
             h = {**self._2fa_headers(), "security-code": code}
-            r = http("GET", "https://gsa.apple.com/grandslam/GsService2/validate", h)
+            r = self._auth_http("GET", "https://gsa.apple.com/grandslam/GsService2/validate", h)
             try:
                 ec = plistlib.loads(r.data).get("ec", 0)
             except Exception:
@@ -746,12 +779,12 @@ class SignIn:
             if ec != 0:
                 raise AppleError("That code isn't right. Check it and try again.")
         elif self._sms_route == "device":
-            r = http("POST", f"https://gsa.apple.com/auth/verify/device/{self._sms_device_id}/securitycode",
+            r = self._auth_http("POST", f"https://gsa.apple.com/auth/verify/device/{self._sms_device_id}/securitycode",
                      self._json_2fa_headers(), json.dumps({"code": code}).encode())
             if r.status not in (200, 204):
                 raise AppleError("That code isn't right. Check it and try again.")
         elif self._sms_route == "put":
-            r = http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode?referrer=/auth/verify/phone/put",
+            r = self._auth_http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode?referrer=/auth/verify/phone/put",
                      self._2fa_headers(), plistlib.dumps({
                          "securityCode.code": code,
                          "serverInfo": {"mode": "sms", "phoneNumber.id": str(self._phone_id)},
@@ -760,7 +793,7 @@ class SignIn:
             if r.status >= 400 or b"-21669" in r.data:
                 raise AppleError("That code isn't right. Check it and try again.")
         else:
-            r = http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode", self._json_2fa_headers(), json.dumps(
+            r = self._auth_http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode", self._json_2fa_headers(), json.dumps(
                 {"phoneNumber": {"id": self._phone_id or 1}, "securityCode": {"code": code}, "mode": "sms"}).encode())
             if r.status != 200:
                 raise AppleError("That code isn't right. Check it and try again.")
