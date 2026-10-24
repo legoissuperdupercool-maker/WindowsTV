@@ -321,6 +321,7 @@ class SignIn:
         self.apple_id = apple_id.strip()
         self.password = password
         self._spd: dict | None = None
+        self._phone_id: int | None = None
 
     def _cpd(self) -> dict:
         h = self.m.headers()
@@ -401,12 +402,40 @@ class SignIn:
 
     def _request_code(self, mode: str) -> None:
         if mode == "device":
-            http("GET", "https://gsa.apple.com/auth/verify/trusteddevice", self._2fa_headers())
-        else:
-            h = {**self._2fa_headers(), "Content-Type": "application/json", "Accept": "application/json"}
-            http("PUT", "https://gsa.apple.com/auth/verify/phone", h,
-                 json.dumps({"phoneNumber": {"id": 1}, "mode": "sms"}).encode())
+            r = http("GET", "https://gsa.apple.com/auth/verify/trusteddevice", self._2fa_headers())
+            if r.status >= 400:
+                # No device can show the code (common for new Apple IDs): text it instead.
+                _log_failure("2fa trusteddevice", r)
+                mode = "sms"
+        if mode == "sms":
+            self.request_sms()
         raise NeedsCode(mode)
+
+    def _json_2fa_headers(self) -> dict[str, str]:
+        return {**self._2fa_headers(), "Content-Type": "application/json", "Accept": "application/json"}
+
+    def request_sms(self) -> None:
+        """Text a code to the Apple ID's trusted phone number."""
+        if self._phone_id is None:
+            r = http("GET", "https://gsa.apple.com/auth", self._json_2fa_headers())
+            phones = []
+            try:
+                info = json.loads(r.data or b"{}")
+                phones = info.get("trustedPhoneNumbers") or info.get("phoneNumberVerification", {}).get("trustedPhoneNumbers") or []
+            except ValueError:
+                pass
+            if not phones:
+                _log_failure("2fa phones", r)
+                raise AppleError("Apple didn't share a phone number for this Apple ID. Add one at account.apple.com "
+                                 "(Sign-In and Security → Two-Factor Authentication), then try again.")
+            self._phone_id = phones[0].get("id", 1)
+        r = http("PUT", "https://gsa.apple.com/auth/verify/phone", self._json_2fa_headers(),
+                 json.dumps({"phoneNumber": {"id": self._phone_id}, "mode": "sms"}).encode())
+        if r.status >= 400:
+            _log_failure("2fa sms", r)
+            if r.status == 423:
+                raise AppleError("Apple has sent too many codes to this number. Wait a while, then try again.")
+            raise AppleError(f"Apple didn't send a text message (HTTP {r.status}): {_snippet(r)}")
 
     def submit_code(self, mode: str, code: str) -> None:
         code = "".join(ch for ch in code if ch.isdigit())
@@ -420,9 +449,8 @@ class SignIn:
             if ec != 0:
                 raise AppleError("That code isn't right. Check it and try again.")
         else:
-            h = {**self._2fa_headers(), "Content-Type": "application/json", "Accept": "application/json"}
-            r = http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode", h, json.dumps(
-                {"phoneNumber": {"id": 1}, "securityCode": {"code": code}, "mode": "sms"}).encode())
+            r = http("POST", "https://gsa.apple.com/auth/verify/phone/securitycode", self._json_2fa_headers(), json.dumps(
+                {"phoneNumber": {"id": self._phone_id or 1}, "securityCode": {"code": code}, "mode": "sms"}).encode())
             if r.status != 200:
                 raise AppleError("That code isn't right. Check it and try again.")
         # Signed in for real now: start over to get full tokens.
@@ -468,17 +496,25 @@ def sign_in(apple_id: str, password: str, ask_code: Callable[[str], str]) -> Ses
     try:
         s.login()
     except NeedsCode as need:
-        for attempt in range(3):
-            code = ask_code(need.mode)
+        mode = need.mode
+        attempt = 0
+        while attempt < 3:
+            code = ask_code(mode)
+            if code.strip() == "sms":
+                # "Text me a code instead" / "Send again".
+                s.request_sms()
+                mode = "sms"
+                continue
+            attempt += 1
             if not code.strip():
                 raise AppleError("Sign-in cancelled.")
             try:
-                s.submit_code(need.mode, code)
+                s.submit_code(mode, code)
                 break
             except NeedsCode:
                 raise AppleError("Apple asked for another code. Try signing in again.") from None
             except AppleError:
-                if attempt == 2:
+                if attempt >= 3:
                     raise
     return s.xcode_session()
 
