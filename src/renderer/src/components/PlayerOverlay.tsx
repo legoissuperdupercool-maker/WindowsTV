@@ -6,6 +6,7 @@ import { Initials } from './Initials'
 import { AudioMenu, SleepMenu, SubtitleMenu, VolumeMenu } from './PlayerMenus'
 import { useSkipIntro } from '../hooks/useSkipIntro'
 import { useRecordings } from '../hooks/useRecordings'
+import { lookOf } from '../theme'
 import type { EpgNowNext, MediaTrack, Programme } from '@shared/types'
 
 export function PlayerOverlay(): JSX.Element {
@@ -294,7 +295,7 @@ export function PlayerOverlay(): JSX.Element {
 
   return (
     <div
-      className={`player-root ${showControls || busy || errored || menu ? 'show-controls' : 'hide-cursor'} ${errored ? 'no-video' : ''} ${windowMode.pip ? 'pip' : ''}`}
+      className={`player-root look-${lookOf(settings?.uiTheme)} ${playback.paused ? 'paused' : ''} ${showControls || busy || errored || menu ? 'show-controls' : 'hide-cursor'} ${errored ? 'no-video' : ''} ${windowMode.pip ? 'pip' : ''}`}
       onMouseMove={reveal}
       onClick={(e) => {
         // Click on the empty video area toggles play/pause (not on a control);
@@ -457,8 +458,35 @@ export function PlayerOverlay(): JSX.Element {
         </div>
       )}
 
+      {/* Big controls in the middle of the picture (Premium, Wonder, Glass). */}
+      {!busy && !errored && (
+        <div className="player-center">
+          <button
+            className="focusable pc-btn"
+            title={isLive ? 'Previous channel' : 'Back 10 s'}
+            onClick={() => (isLive ? void playAdjacent(-1) : window.api.player.command({ action: 'seekRelative', value: -10 }))}
+          >
+            <Icon name={isLive ? 'prev' : 'replay10'} size={40} />
+          </button>
+          <button className="focusable pc-btn main" onClick={() => window.api.player.command({ action: 'toggle' })}>
+            <Icon name={playback.paused ? 'play' : 'pause'} size={58} />
+          </button>
+          <button
+            className="focusable pc-btn"
+            title={isLive ? 'Next channel' : 'Forward 10 s'}
+            onClick={() => (isLive ? void playAdjacent(1) : window.api.player.command({ action: 'seekRelative', value: 10 }))}
+          >
+            <Icon name={isLive ? 'next' : 'forward10'} size={40} />
+          </button>
+        </div>
+      )}
+
       {/* Bottom controls */}
       <div className="player-controls">
+        <div className="pc-title">
+          {title}
+          {isLive && <span className="live-pill">● LIVE</span>}
+        </div>
         {showStats && (
           <div className="stats-chip">
             <span>
@@ -497,29 +525,29 @@ export function PlayerOverlay(): JSX.Element {
 
         <div className="transport">
           {isLive && (
-            <button className="focusable tbtn" title="Previous channel" onClick={() => void playAdjacent(-1)}>
+            <button className="focusable tbtn tp-main" title="Previous channel" onClick={() => void playAdjacent(-1)}>
               <Icon name="prev" size={26} />
             </button>
           )}
           {!isLive && (
-            <button className="focusable tbtn" title="Back 15 s" onClick={() => window.api.player.command({ action: 'seekRelative', value: -15 })}>
-              <Icon name="prev" size={26} />
+            <button className="focusable tbtn tp-main" title="Back 10 s" onClick={() => window.api.player.command({ action: 'seekRelative', value: -10 })}>
+              <Icon name="replay10" size={26} />
             </button>
           )}
-          <button className="focusable tbtn primary" data-autofocus onClick={() => window.api.player.command({ action: 'toggle' })}>
+          <button className="focusable tbtn primary tp-main" data-autofocus onClick={() => window.api.player.command({ action: 'toggle' })}>
             <Icon name={playback.paused ? 'play' : 'pause'} size={32} />
           </button>
           {isLive ? (
-            <button className="focusable tbtn" title="Next channel" onClick={() => void playAdjacent(1)}>
+            <button className="focusable tbtn tp-main" title="Next channel" onClick={() => void playAdjacent(1)}>
               <Icon name="next" size={26} />
             </button>
           ) : nextEp ? (
-            <button className="focusable tbtn" title={`Next episode: ${nextEp.title}`} onClick={goNext}>
+            <button className="focusable tbtn tp-main" title={`Next episode: ${nextEp.title}`} onClick={goNext}>
               <Icon name="next" size={26} />
             </button>
           ) : (
-            <button className="focusable tbtn" title="Forward 15 s" onClick={() => window.api.player.command({ action: 'seekRelative', value: 15 })}>
-              <Icon name="next" size={26} />
+            <button className="focusable tbtn tp-main" title="Forward 10 s" onClick={() => window.api.player.command({ action: 'seekRelative', value: 10 })}>
+              <Icon name="forward10" size={26} />
             </button>
           )}
           <div className="pop-anchor">
@@ -534,7 +562,7 @@ export function PlayerOverlay(): JSX.Element {
               <VolumeMenu volume={playback.volume} muted={playback.muted} onClose={closeMenu} />
             )}
           </div>
-          <div style={{ flex: 1 }} />
+          <div className="transport-title">{title}</div>
           {isLive && <span className="key-hint">Type a channel number to jump</span>}
           <div className="pop-anchor">
             <button

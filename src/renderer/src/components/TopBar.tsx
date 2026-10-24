@@ -151,7 +151,6 @@ function TopNav({ look }: { look: Exclude<Look, 'theater' | 'classic'> }): JSX.E
         </button>
       )}
       <Clock />
-      <WindowButtons />
     </div>
   )
 }
@@ -223,14 +222,17 @@ function WindowStrip(): JSX.Element {
       )}
       {update?.status === 'downloading' && <span className="update-pill quiet">Updating… {update.percent ?? 0}%</span>}
       <Clock />
-      <WindowButtons />
     </div>
   )
 }
 
-function WindowButtons(): JSX.Element {
+/**
+ * Minimize / maximize / close, always in the top-right corner (the window has no
+ * frame of its own). Rendered once by App, over every screen.
+ */
+export function WindowControls(): JSX.Element {
   return (
-    <div className="win-ctrls">
+    <div className="app-winctrls">
       <button className="winbtn" title="Minimize" onClick={() => window.api.window.control('minimize')}>
         <Icon name="minimize" size={18} />
       </button>
@@ -319,8 +321,6 @@ function ClassicTopBar(): JSX.Element {
       )}
 
       <Clock />
-
-      <WindowButtons />
     </div>
   )
 }

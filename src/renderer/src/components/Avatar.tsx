@@ -41,7 +41,8 @@ export function Avatar({
 }): JSX.Element {
   const ref = profile.avatar
   const uploaded = useUploaded(ref)
-  const art = avatarArt(ref?.startsWith('art:') ? ref.slice(4) : fallbackArt(profile.id ?? profile.name))
+  // Pictures from an older set (no longer in AVATARS) get a face from the current one.
+  const art = avatarArt(ref?.startsWith('art:') ? ref.slice(4) : undefined) ?? avatarArt(fallbackArt(profile.id ?? profile.name))
   const radius = round ? '50%' : `${Math.max(4, Math.round(size * 0.12))}px`
   return (
     <span className="avatar pic" style={{ width: size, height: size, borderRadius: radius }} aria-hidden>

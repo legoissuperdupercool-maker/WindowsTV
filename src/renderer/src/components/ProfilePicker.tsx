@@ -260,7 +260,7 @@ function AvatarChooser({ current, name, onPick, onClose }: { current: string; na
           )}
         </div>
         {error && <div className="test-result bad">{error}</div>}
-        <h2>The ello crew</h2>
+        <h2>Faces</h2>
         <div className="ac-row">
           {AVATARS.map((a) => (
             <button

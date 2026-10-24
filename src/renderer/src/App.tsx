@@ -9,7 +9,7 @@ import {
   focusElement,
   getFocused
 } from './hooks/useSpatialNavigation'
-import { TopBar } from './components/TopBar'
+import { TopBar, WindowControls } from './components/TopBar'
 import { Home } from './pages/Home'
 import { LiveTV } from './pages/LiveTV'
 import { Guide } from './pages/Guide'
@@ -215,6 +215,7 @@ export default function App(): JSX.Element {
       <AppBackground />
       <LoadToast />
       {intro === 'playing' && <Intro look={look} onDone={() => setIntro('done')} />}
+      {!playerVisible && !webApp.open && <WindowControls />}
     </>
   )
 }

@@ -212,14 +212,27 @@ export function PosterCard({ c, onOpen }: { c: Channel; onOpen: (c: Channel) => 
   const year = metaStr(c, 'year')
   const rating = metaStr(c, 'rating')
   const genre = metaStr(c, 'genre')?.split(/[,/]/)[0]
+  const wide = metaStr(c, 'backdrop')
   return (
     <div className="nf-card">
       <button className="focusable nf-card-hit" onClick={() => onOpen(c)} title={title}>
-        <div className="nf-poster" style={{ ['--h' as string]: hue(title) }}>
+        <div className={`nf-poster ${wide ? 'has-wide' : ''}`} style={{ ['--h' as string]: hue(title) }}>
           <span className="nf-ph">{title}</span>
-          {c.logo && <FadeImg src={c.logo} alt="" />}
+          {/* Wide-card looks: real wide artwork when the provider has it, otherwise
+              a designed tile (blurred poster, the poster small, the title beside it). */}
+          {wide && <FadeImg src={wide} alt="" className="nf-art-wide" />}
+          {c.logo && <FadeImg src={c.logo} alt="" className="nf-art-blur" />}
+          {c.logo && <FadeImg src={c.logo} alt="" className="nf-art-poster" />}
+          <span className="nf-art-title">
+            <b>{title}</b>
+            {(year || genre) && <small>{[year, genre].filter(Boolean).join(' · ')}</small>}
+          </span>
         </div>
       </button>
+      <div className="nf-caption">
+        <b>{title}</b>
+        {(year || genre) && <small>{[year, genre].filter(Boolean).join(' · ')}</small>}
+      </div>
       <div className="nf-card-pop">
         <div className="nf-pop-actions">
           <button
