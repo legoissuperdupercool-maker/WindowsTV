@@ -137,7 +137,7 @@ export function InstallSection({
 
 /** Apple's two-factor code, asked whenever the helper needs it (sign-in or renewal). */
 export function CodePrompt(): JSX.Element | null {
-  const [mode, setMode] = useState<'device' | 'sms' | null>(null)
+  const [mode, setMode] = useState<'device' | 'sms' | 'manual' | null>(null)
   const [code, setCode] = useState('')
   useEffect(
     () =>
@@ -164,11 +164,15 @@ export function CodePrompt(): JSX.Element | null {
         <p className="lead small">
           {mode === 'device'
             ? 'Apple sent a 6-digit code to the devices signed in with this Apple ID. Allow it there, then type the code here.'
-            : 'Apple sent a code (4 or 6 digits) by text message to the phone number of this Apple ID.'}
+            : mode === 'sms'
+              ? 'Apple sent a code (4 or 6 digits) by text message to the phone number of this Apple ID.'
+              : 'Apple couldn’t send a code. On an iPhone, iPad or Mac signed in with this Apple ID, open Settings → your name → Sign-In & Security → Get Verification Code, and type that code here.'}
         </p>
-        <button className="btn ghost small" onClick={() => { void window.api.sendCode('sms'); setMode(null) }}>
-          {mode === 'device' ? 'No code? Text me a code instead' : 'No text? Send it again'}
-        </button>
+        {mode !== 'manual' && (
+          <button className="btn ghost small" onClick={() => { void window.api.sendCode('sms'); setMode(null) }}>
+            {mode === 'device' ? 'No code? Text me a code instead' : 'No text? Send it again'}
+          </button>
+        )}
         <input
           className="pin"
           autoFocus

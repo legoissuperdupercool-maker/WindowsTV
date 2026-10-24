@@ -60,7 +60,7 @@ export type HelperEvent =
   | { event: 'ready' }
   | { event: 'pin_required'; name: string }
   | { event: 'trust_required' }
-  | { event: 'code_required'; mode: 'device' | 'sms' }
+  | { event: 'code_required'; mode: 'device' | 'sms' | 'manual' }
   | { event: 'progress'; text: string; percent: number | null }
   | { event: 'renewed'; device: string; app: string; ok: boolean; error?: string }
   | { event: 'exited'; message: string }

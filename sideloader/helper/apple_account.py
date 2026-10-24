@@ -420,16 +420,20 @@ class SignIn:
         }
 
     def _request_code(self, mode: str) -> None:
+        """Ask Apple to deliver a code. When it won't, still ask for one: a code from
+        Settings → Sign-In & Security → Get Verification Code on a trusted device works too."""
         if mode == "device":
             r = http("GET", "https://gsa.apple.com/auth/verify/trusteddevice", self._2fa_headers())
             self._keep_session(r)
-            if r.status >= 400:
-                # No device can show the code (common for new Apple IDs): text it instead.
-                _log_failure("2fa trusteddevice", r)
-                mode = "sms"
-        if mode == "sms":
+            _log_2fa("trusteddevice", r)
+            if r.status < 400:
+                raise NeedsCode("device")
+            mode = "sms"
+        try:
             self.request_sms()
-        raise NeedsCode(mode)
+        except AppleError:
+            raise NeedsCode("manual") from None
+        raise NeedsCode("sms")
 
     def _json_2fa_headers(self) -> dict[str, str]:
         # Apple's two-factor pages tie requests together with scnt / session id (in _2fa_headers).
@@ -520,7 +524,7 @@ class SignIn:
 
     def submit_code(self, mode: str, code: str) -> None:
         code = "".join(ch for ch in code if ch.isdigit())
-        if mode == "device":
+        if mode in ("device", "manual"):
             h = {**self._2fa_headers(), "security-code": code}
             r = http("GET", "https://gsa.apple.com/grandslam/GsService2/validate", h)
             try:
@@ -598,8 +602,11 @@ def sign_in(apple_id: str, password: str, ask_code: Callable[[str], str]) -> Ses
             code = ask_code(mode)
             if code.strip() == "sms":
                 # "Text me a code instead" / "Send again".
-                s.request_sms()
-                mode = "sms"
+                try:
+                    s.request_sms()
+                    mode = "sms"
+                except AppleError:
+                    mode = "manual"
                 continue
             attempt += 1
             if not code.strip():
