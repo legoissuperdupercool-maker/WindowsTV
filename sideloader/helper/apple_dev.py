@@ -109,6 +109,7 @@ class DevServices:
                     self.call("ios/revokeDevelopmentCert.action", {"serialNumber": c["serialNumber"]}, team=team)
                 except AppleError:
                     pass
+        _log_note("making key and CSR")
         key_pem, csr_pem = _make_csr()
         try:
             req = self.call("ios/submitDevelopmentCSR.action", {
@@ -121,13 +122,25 @@ class DevServices:
                     "Revoke one at developer.apple.com → Certificates, then try again."
                 ) from e
             raise
-        serial = req.get("certRequest", {}).get("serialNumber")
-        for c in self.call("ios/listAllDevelopmentCerts.action", team=team).get("certificates", []):
-            if c.get("serialNumber") == serial:
-                cert_pem = _der_to_pem(c["certContent"])
-                save_secret(f"cert-{team}", {"serial": serial, "cert": cert_pem.decode(), "key": key_pem.decode()})
-                return cert_pem, key_pem
-        raise AppleError("Apple made the certificate but didn't return it. Try again.")
+        cr = req.get("certRequest") or {}
+        serial = str(cr.get("serialNumber") or cr.get("serialNum") or "").upper()
+        _log_note(f"certificate made, serial {serial or '(none)'}")
+        certs = self.call("ios/listAllDevelopmentCerts.action", team=team).get("certificates", [])
+        _log_note(f"{len(certs)} certificates listed")
+        match = next((c for c in certs if str(c.get("serialNumber") or c.get("serialNum") or "").upper() == serial and serial), None)
+        if match is None:
+            # Fall back to the newest certificate ello made.
+            ours = [c for c in certs if c.get("machineName") == MACHINE_NAME and c.get("certContent")]
+            ours.sort(key=lambda c: str(c.get("dateCreated") or ""), reverse=True)
+            match = ours[0] if ours else None
+        if match is None or not match.get("certContent"):
+            raise AppleError("Apple made the certificate but didn't return it. Try again.")
+        _log_note("converting certificate")
+        cert_pem = _der_to_pem(match["certContent"])
+        _log_note("saving certificate")
+        save_secret(f"cert-{team}", {"serial": str(match.get("serialNumber") or serial), "cert": cert_pem.decode(), "key": key_pem.decode()})
+        _log_note("certificate ready")
+        return cert_pem, key_pem
 
     # --- app ID & profile
 
@@ -194,6 +207,14 @@ def _log_call(path: str, status: int, seconds: float) -> None:
         pass
 
 
+def _log_note(text: str) -> None:
+    try:
+        with open(data_dir() / "last-apple-dev.txt", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now(timezone.utc).isoformat()} {text}\n")
+    except OSError:
+        pass
+
+
 def prepare(session: Session, machine: Machine, udid: str, device_name: str, tv: bool,
             base_bundle_id: str, app_name: str, progress=lambda text: None) -> Signing:
     """Everything needed to sign one app for one device with this Apple ID."""
@@ -207,6 +228,7 @@ def prepare(session: Session, machine: Machine, udid: str, device_name: str, tv:
     cert, key = dev.certificate(team)
     # Each Apple ID needs its own unique bundle ID.
     bundle_id = f"{base_bundle_id}.{team}".lower().replace("_", "-")
+    _log_note("certificate step done")
     progress("Registering the app with Apple…")
     app_id = dev.app_id(team, bundle_id, "".join(ch for ch in app_name if ch.isalnum() or ch == " ") or "ello", tv)
     progress("Getting the 7-day profile from Apple…")
