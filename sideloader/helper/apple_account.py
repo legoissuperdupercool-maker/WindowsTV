@@ -36,6 +36,8 @@ GSA = "https://gsa.apple.com/grandslam/GsService2"
 # Apple's sign-in server now answers 503 to clients that say they are Xcode
 # ("com.apple.dt.Xcode/…"); iCloud for Windows is accepted (checked Oct 2026).
 CLIENT_INFO = "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit.Win/1.0 (com.apple.iCloud/7.21)>"
+# Xcode on a Mac: only used for the two-factor code requests if Apple refuses the above.
+MAC_CLIENT_INFO = "<MacBookPro15,1> <Mac OS X;10.15.2;19C57> <com.apple.AuthKit/1 (com.apple.dt.Xcode/3594.4.19)>"
 XCODE_APP = "com.apple.gs.xcode.auth"
 
 
@@ -322,6 +324,8 @@ class SignIn:
         self.password = password
         self._spd: dict | None = None
         self._phone_id: int | None = None
+        self._mac_2fa = False
+        self._idms_session: dict[str, str] = {}
 
     def _cpd(self) -> dict:
         h = self.m.headers()
@@ -403,6 +407,7 @@ class SignIn:
     def _request_code(self, mode: str) -> None:
         if mode == "device":
             r = http("GET", "https://gsa.apple.com/auth/verify/trusteddevice", self._2fa_headers())
+            self._keep_session(r)
             if r.status >= 400:
                 # No device can show the code (common for new Apple IDs): text it instead.
                 _log_failure("2fa trusteddevice", r)
@@ -412,13 +417,25 @@ class SignIn:
         raise NeedsCode(mode)
 
     def _json_2fa_headers(self) -> dict[str, str]:
-        return {**self._2fa_headers(), "Content-Type": "application/json", "Accept": "application/json"}
+        h = {**self._2fa_headers(), "Content-Type": "application/json", "Accept": "application/json"}
+        if self._mac_2fa:
+            h["X-MMe-Client-Info"] = MAC_CLIENT_INFO
+        # Apple's two-factor pages tie requests together with these; send back what it gave us.
+        h.update(self._idms_session)
+        return h
+
+    def _keep_session(self, r: urllib3.BaseHTTPResponse) -> None:
+        for name in ("scnt", "X-Apple-ID-Session-Id"):
+            value = r.headers.get(name)
+            if value:
+                self._idms_session[name] = value
 
     def _trusted_phone_id(self) -> int:
         """The id of the Apple ID's first trusted phone number. Apple's answer varies in
         shape, so search it; when nothing is found, the first number (id 1) is the usual one."""
         try:
             r = http("GET", "https://gsa.apple.com/auth", self._json_2fa_headers())
+            self._keep_session(r)
             info = json.loads(r.data or b"{}")
         except (AppleError, ValueError):
             return 1
@@ -449,15 +466,24 @@ class SignIn:
 
     def request_sms(self) -> None:
         """Text a code to the Apple ID's trusted phone number."""
-        if self._phone_id is None:
+        if self._phone_id is None or not self._idms_session:
             self._phone_id = self._trusted_phone_id()
-        r = http("PUT", "https://gsa.apple.com/auth/verify/phone", self._json_2fa_headers(),
-                 json.dumps({"phoneNumber": {"id": self._phone_id}, "mode": "sms"}).encode())
+        body = json.dumps({"phoneNumber": {"id": self._phone_id}, "mode": "sms"}).encode()
+        r = http("PUT", "https://gsa.apple.com/auth/verify/phone/", self._json_2fa_headers(), body)
+        self._keep_session(r)
+        if r.status == 403:
+            # The code endpoints belong to Xcode's sign-in; some accounts are refused unless the
+            # request also looks like Xcode on a Mac. Try that once.
+            _log_failure("2fa sms (windows client)", r)
+            r = http("PUT", "https://gsa.apple.com/auth/verify/phone/", {**self._json_2fa_headers(), "X-MMe-Client-Info": MAC_CLIENT_INFO}, body)
+            if r.status < 400:
+                self._mac_2fa = True
         if r.status >= 400:
             _log_failure("2fa sms", r)
             if r.status == 423:
                 raise AppleError("Apple has sent too many codes to this number. Wait a while, then try again.")
-            raise AppleError(f"Apple didn't send a text message (HTTP {r.status}): {_snippet(r)}")
+            raise AppleError(f"Apple didn't send a text message (HTTP {r.status}): {_snippet(r)}. "
+                             "Check that this Apple ID has a trusted phone number at account.apple.com.")
 
     def submit_code(self, mode: str, code: str) -> None:
         code = "".join(ch for ch in code if ch.isdigit())
