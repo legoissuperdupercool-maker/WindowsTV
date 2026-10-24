@@ -2,6 +2,7 @@ import { activeProfile, useStore } from '../store'
 import { ACCENTS, LOOKS, PREMIUM_LOOKS, swatchBackground, type Look } from '../theme'
 import { useLook } from '../hooks/useLook'
 import { Icon } from './Icon'
+import { PREVIEW } from '../preview'
 import { Logo } from './Logo'
 
 /** Settings → Look: the app's style, the start-up animation and the profile's colour. */
@@ -53,6 +54,11 @@ export function AppearanceSettings(): JSX.Element | null {
         <button className="focusable btn" onClick={() => window.dispatchEvent(new Event('ello:intro'))}>
           Play intro
         </button>
+        {!PREVIEW && (
+          <button className="focusable btn" onClick={() => void window.api.devicePreview()} title="See ello at iPad and iPhone sizes">
+            Device preview
+          </button>
+        )}
       </div>
       {me && (
         <>

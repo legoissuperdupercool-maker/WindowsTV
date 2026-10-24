@@ -59,6 +59,7 @@ export const IPC = {
 
   // Launch an installed Windows app (Store/desktop) by protocol or path
   appLaunch: 'app:launch',
+  devicePreview: 'app:device-preview',
 
   // Auto-update
   updateState: 'update:state', // main -> renderer event

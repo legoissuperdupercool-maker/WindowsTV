@@ -31,6 +31,7 @@ import { Logo } from './components/Logo'
 import { LOOKS } from './theme'
 import { useLook } from './hooks/useLook'
 import { useGlassTilt } from './hooks/useGlassTilt'
+import { PREVIEW } from './preview'
 
 export default function App(): JSX.Element {
   const {
@@ -63,7 +64,7 @@ export default function App(): JSX.Element {
   // Logo animation at start (and from Settings → Look → "Play intro").
   const [intro, setIntro] = useState<'pending' | 'playing' | 'done'>('pending')
   useEffect(() => {
-    void window.api.settings.get().then((r) => setIntro(r.data?.intro === false ? 'done' : 'playing'))
+    void window.api.settings.get().then((r) => setIntro(r.data?.intro === false || PREVIEW ? 'done' : 'playing'))
     void useStore.getState().refreshLicense()
   }, [])
   useEffect(() => {
@@ -188,7 +189,7 @@ export default function App(): JSX.Element {
             </div>
           </div>
         ) : null}
-        <WindowControls />
+        {!PREVIEW && <WindowControls />}
       </>
     )
   }
@@ -233,7 +234,7 @@ export default function App(): JSX.Element {
       <AppBackground />
       <LoadToast />
       {intro === 'playing' && <Intro look={look} onDone={() => setIntro('done')} />}
-      {!playerVisible && !webApp.open && <WindowControls />}
+      {!playerVisible && !webApp.open && !PREVIEW && <WindowControls />}
     </>
   )
 }

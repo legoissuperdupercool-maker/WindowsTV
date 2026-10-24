@@ -1097,3 +1097,10 @@
 :is(.theme-premium, .theme-wonder, .theme-glass) .nf-card .nf-poster.has-wide .nf-ph {
   display: none;
 }
+
+/* Device preview: no window buttons, so no room kept for them. */
+:root.device-preview .topbar,
+:root.device-preview .look-nav,
+:root.device-preview .win-strip {
+  padding-right: 24px !important;
+}

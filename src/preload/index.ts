@@ -173,6 +173,7 @@ const api = {
     check: () => invoke<boolean>(IPC.updateCheck),
     install: () => invoke<boolean>(IPC.updateInstall)
   },
+  devicePreview: () => invoke<void>(IPC.devicePreview),
   launchApp: (target: string) => invoke<{ ok: boolean; message: string }>(IPC.appLaunch, target),
   openExternal: (url: string) => invoke<boolean>(IPC.openExternal, url),
   appInfo: () =>

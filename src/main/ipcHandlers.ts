@@ -8,6 +8,7 @@ import { dialog } from 'electron'
 import { readFileSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 import { getSettings, updateSettings } from './store'
+import { openDevicePreview } from './devicePreview'
 import { activateLicense, licenseState, refreshLicense, removeLicense } from './license'
 import type { Catalog } from './services/catalog'
 import type { MpvPlayer } from './mpv/MpvPlayer'
@@ -550,6 +551,8 @@ export function registerIpc(ctx: MainContext): void {
   })
 
   // ---------------------------------------------------------------- installed apps
+  ipcMain.handle(IPC.devicePreview, () => ok(openDevicePreview()))
+
   ipcMain.handle(IPC.appLaunch, async (_e, target: string) => {
     return ok(await launchInstalledApp(target))
   })
