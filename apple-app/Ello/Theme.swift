@@ -8,7 +8,24 @@ enum Theme {
     static let text = Color(hex: 0xE8EAED)
     static let dim = Color(hex: 0x9AA0A6)
     static let faint = Color(hex: 0x6B7076)
-    static let blue = Color(hex: 0x4C8DFF)
+    /// The active profile's theme colour (set by AppModel when the profile changes).
+    static var accentHex: UInt32 = 0x4C8DFF
+    static var blue: Color { Color(hex: accentHex) }
+    /// Black or white, whichever reads better on the accent.
+    static var onAccent: Color {
+        let r = Double((accentHex >> 16) & 0xFF), g = Double((accentHex >> 8) & 0xFF), b = Double(accentHex & 0xFF)
+        return (0.299 * r + 0.587 * g + 0.114 * b) > 170 ? .black : .white
+    }
+
+    static let accents: [(id: String, name: String, hex: UInt32)] = [
+        ("blue", "ello blue", 0x4C8DFF), ("red", "Cinema red", 0xE50914), ("purple", "Purple", 0x9B5CFF),
+        ("pink", "Pink", 0xFF3D8B), ("orange", "Orange", 0xFF7A1A), ("gold", "Gold", 0xF5B400),
+        ("green", "Green", 0x1FC65F), ("teal", "Teal", 0x14C2B0)
+    ]
+    static func accentValue(_ id: String?) -> UInt32 { accents.first { $0.id == id }?.hex ?? accents[0].hex }
+
+    /// Cinema look: near-black page.
+    static let cinemaBg = Color(hex: 0x141414)
     static let good = Color(hex: 0x34C759)
     static let bad = Color(hex: 0xFF453A)
     static let palette: [Color] = [0x1A73E8, 0xD93025, 0x188038, 0x9334E6, 0xE8710A, 0x007B83, 0xC5221F, 0xA142F4].map { Color(hex: $0) }

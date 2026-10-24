@@ -75,12 +75,17 @@ jobs:
             echo "PREVIEW $name $(base64 -i "shots/$name.jpg" | tr -d '\n')"
           }
           shoot picker picker
+          shoot editor picker -screen editor
+          shoot chooser picker -screen chooser
           shoot home
+          shoot movies -tab movies
+          shoot series -tab series
+          shoot mylist -tab my
           shoot live -tab live
           shoot filters -tab live -screen filters
           shoot guide -tab guide
-          shoot movies -tab movies
-          shoot series -tab series
+          shoot classic-home classic
+          shoot classic-movies classic -tab movies
           shoot settings -screen settings
 
       # Hand the .ipa to the Linux job below via the Actions cache (publishing

@@ -110,6 +110,10 @@ struct Profile: Codable, Identifiable, Hashable {
     var name: String
     var color: UInt32 = 0x1A73E8
     var emoji: String?
+    /// Profile picture: "art:<id>" (one of ello's characters) or "photo" (uploaded).
+    var avatar: String?
+    /// Theme colour id (see `Theme.accents`).
+    var accent: String?
     /// Only kids & family categories; never adult content.
     var kids = false
     var hideAdult = false
@@ -140,6 +144,8 @@ struct Profile: Codable, Identifiable, Hashable {
         name = try c.decode(String.self, forKey: .name)
         color = try c.decodeIfPresent(UInt32.self, forKey: .color) ?? 0x1A73E8
         emoji = try c.decodeIfPresent(String.self, forKey: .emoji)
+        avatar = try c.decodeIfPresent(String.self, forKey: .avatar)
+        accent = try c.decodeIfPresent(String.self, forKey: .accent)
         kids = try c.decodeIfPresent(Bool.self, forKey: .kids) ?? false
         hideAdult = try c.decodeIfPresent(Bool.self, forKey: .hideAdult) ?? false
         background = try c.decodeIfPresent(String.self, forKey: .background) ?? "default"
@@ -151,6 +157,18 @@ struct Profile: Codable, Identifiable, Hashable {
         hiddenCategories = try c.decodeIfPresent([String].self, forKey: .hiddenCategories) ?? []
         hiddenChannels = try c.decodeIfPresent([String].self, forKey: .hiddenChannels) ?? []
         channelSort = try c.decodeIfPresent(ChannelSort.self, forKey: .channelSort) ?? .provider
+    }
+}
+
+/// The two layouts: big artwork and rows (cinema), or rounded tiles and cards (classic).
+enum UITheme: String, Codable, CaseIterable, Identifiable {
+    case cinema, classic
+    var id: String { rawValue }
+    var label: String { self == .cinema ? "Cinema" : "Classic" }
+    var blurb: String {
+        self == .cinema
+            ? "Big artwork at the top, then rows of posters."
+            : "Rounded tiles and cards with a light, airy layout."
     }
 }
 

@@ -30,6 +30,13 @@ final class AppModel {
     /// Something to play full screen.
     var playing: PlayRequest?
 
+    /// Cinema or Classic layout (Settings → Look), for everyone on this device.
+    var uiTheme: UITheme = .cinema {
+        didSet { if !demo { defaults.set(uiTheme.rawValue, forKey: "uiTheme") } }
+    }
+    /// Bumped when the theme colour changes so views pick up `Theme.blue`.
+    var accentVersion = 0
+
     let demo = ProcessInfo.processInfo.arguments.contains("-demo")
     private let defaults = UserDefaults.standard
     private let cacheMaxAge: TimeInterval = 12 * 3600
@@ -45,6 +52,7 @@ final class AppModel {
             allCategories = d.categories
             refilter()
             showProfilePicker = ProcessInfo.processInfo.arguments.contains("picker")
+            if ProcessInfo.processInfo.arguments.contains("classic") { uiTheme = .classic }
             return
         }
         if let data = defaults.data(forKey: "sources"), let list = try? JSONDecoder().decode([Source].self, from: data) {
@@ -52,7 +60,18 @@ final class AppModel {
         }
         currentSourceId = defaults.string(forKey: "currentSource") ?? sources.first?.id
         loadProfiles()
+        uiTheme = UITheme(rawValue: defaults.string(forKey: "uiTheme") ?? "") ?? .cinema
         showProfilePicker = profiles.count > 1
+        applyAccent()
+    }
+
+    /// Point `Theme.blue` at the active profile's colour.
+    func applyAccent() {
+        let hex = Theme.accentValue(profile.accent)
+        if hex != Theme.accentHex {
+            Theme.accentHex = hex
+            accentVersion += 1
+        }
     }
 
     var currentSource: Source? { sources.first { $0.id == currentSourceId } }
@@ -129,6 +148,7 @@ final class AppModel {
         guard profiles.count > 1 else { return }
         profiles.removeAll { $0.id == id }
         try? FileManager.default.removeItem(at: Backdrop.photoURL(id))
+        try? FileManager.default.removeItem(at: ProfilePhoto.url(id))
         if activeProfileId == id { activeProfileId = profiles.first?.id }
         persistProfiles()
         refilter()
@@ -321,6 +341,7 @@ final class AppModel {
 
     /// Apply the active profile's Kids / hide-adult settings to the lists.
     func refilter() {
+        applyAccent()
         let shown = ContentFilter.apply(channels: allChannels, categories: allCategories, profile: profile)
         let sort = profile.channelSort
         live = sorted(shown.channels.filter { $0.kind == .live }, sort)

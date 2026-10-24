@@ -37,7 +37,7 @@ targets:
     info:
       path: Ello/Info.plist
       properties:
-        NSPhotoLibraryUsageDescription: Pick a photo as your profile background.
+        NSPhotoLibraryUsageDescription: Pick a photo for your profile picture or background.
         NSLocalNetworkUsageDescription: Play streams from IPTV servers on your home network.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true

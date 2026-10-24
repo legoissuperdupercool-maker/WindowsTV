@@ -21,8 +21,10 @@ struct ElloApp: App {
 }
 
 enum Tab: String, CaseIterable, Identifiable {
-    case home = "Home", live = "Live TV", guide = "Guide", movies = "Movies", series = "Series"
+    case home = "Home", live = "Live TV", guide = "Guide", movies = "Movies", series = "Series", mylist = "My List"
     var id: String { rawValue }
+    static let classic: [Tab] = [.home, .live, .guide, .movies, .series]
+    static let cinema: [Tab] = [.home, .series, .movies, .live, .guide, .mylist]
 }
 
 struct RootView: View {
@@ -46,16 +48,30 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var model = model
-        ZStack {
-            AppBackground(profile: model.profile)
+        let cinema = model.uiTheme == .cinema
+        ZStack(alignment: .top) {
+            if cinema {
+                Theme.cinemaBg.ignoresSafeArea()
+            } else {
+                AppBackground(profile: model.profile)
+            }
             VStack(spacing: 0) {
-                TopBar(tab: $tab, showSettings: $showSettings)
+                if !cinema || !fullBleed { TopBar(tab: $tab, showSettings: $showSettings) }
                 if model.sources.isEmpty {
                     WelcomeView(showSettings: $showSettings)
                 } else if model.loading {
                     LoadingView(text: model.status ?? "Loading…")
                 } else if let error = model.error, model.live.isEmpty, model.movies.isEmpty {
                     ErrorView(text: error)
+                } else if cinema {
+                    switch tab {
+                    case .home: CinemaHome(tab: $tab)
+                    case .live: LiveView()
+                    case .guide: GuideView()
+                    case .movies: CinemaLibrary(kind: .movie).id("movies")
+                    case .series: CinemaLibrary(kind: .series).id("series")
+                    case .mylist: CinemaMyList()
+                    }
                 } else {
                     switch tab {
                     case .home: HomeView(tab: $tab)
@@ -63,16 +79,29 @@ struct RootView: View {
                     case .guide: GuideView()
                     case .movies: LibraryView(kind: .movie)
                     case .series: LibraryView(kind: .series)
+                    case .mylist: HomeView(tab: $tab)
                     }
                 }
             }
+            // Cinema pages with a billboard run under a see-through top bar.
+            if cinema && fullBleed {
+                TopBar(tab: $tab, showSettings: $showSettings)
+                    .background(LinearGradient(colors: [.black.opacity(0.75), .clear], startPoint: .top, endPoint: .bottom).ignoresSafeArea())
+            }
         }
+        .id(model.accentVersion)
         .overlay {
             if model.showProfilePicker { ProfilePickerView().transition(.opacity) }
         }
         .animation(.easeOut(duration: 0.2), value: model.showProfilePicker)
+        .onChange(of: model.uiTheme) { if model.uiTheme == .classic && tab == .mylist { tab = .home } }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .fullScreenCover(item: $model.playing) { req in PlayerView(request: req) }
+    }
+
+    /// Billboard pages: Home, Movies and Series once the catalogue is in.
+    private var fullBleed: Bool {
+        [.home, .movies, .series].contains(tab) && !model.sources.isEmpty && !model.loading
     }
 }
 
@@ -82,46 +111,63 @@ struct TopBar: View {
     @Binding var showSettings: Bool
     @Environment(\.horizontalSizeClass) private var sizeClass
     private var compact: Bool { sizeClass == .compact }
+    private var cinema: Bool { model.uiTheme == .cinema }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: cinema ? 2 : 6) {
             if !compact {
-            HStack(spacing: 0) {
-                Text("ello").font(.system(size: 22, weight: .bold))
-                Text(".").font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.blue)
-                Text(" smartTV").font(.system(size: 22)).foregroundStyle(Theme.dim)
+                Wordmark(size: 22).padding(.trailing, 18)
             }
-            .padding(.trailing, 18)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: cinema ? 2 : 6) {
+                    ForEach(cinema ? Tab.cinema : Tab.classic) { t in
+                        if cinema {
+                            Button { tab = t } label: {
+                                VStack(spacing: 4) {
+                                    Text(t.rawValue).font(.system(size: 16, weight: tab == t ? .bold : .medium))
+                                        .foregroundStyle(tab == t ? Color.white : Color.white.opacity(0.72))
+                                    Capsule().fill(tab == t ? Theme.blue : .clear).frame(width: 22, height: 3)
+                                }
+                                .padding(.horizontal, compact ? 8 : 12).frame(height: 44)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Button(t.rawValue) { tab = t }
+                                .font(.system(size: 16, weight: .medium))
+                                .lineLimit(1)
+                                .padding(.horizontal, compact ? 10 : 16)
+                                .frame(height: 38)
+                                .foregroundStyle(tab == t ? Color.black : Theme.dim)
+                                .background(tab == t ? Theme.text : Color.clear, in: Capsule())
+                        }
+                    }
+                }
             }
-            ForEach(Tab.allCases) { t in
-                Button(t.rawValue) { tab = t }
-                    .font(.system(size: 16, weight: .medium))
-                    .lineLimit(1)
-                    .padding(.horizontal, compact ? 10 : 16)
-                    .frame(height: 38)
-                    .foregroundStyle(tab == t ? Color.black : Theme.dim)
-                    .background(tab == t ? Theme.text : Color.clear, in: Capsule())
-            }
-            Spacer()
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            Spacer(minLength: 8)
             if model.sources.count > 1 {
                 Menu {
                     ForEach(model.sources) { s in
                         Button(s.name) { model.select(s.id) }
                     }
                 } label: {
-                    Label(model.currentSource?.name ?? "Source", systemImage: "antenna.radiowaves.left.and.right")
-                        .font(.system(size: 15, weight: .medium))
+                    if compact {
+                        Image(systemName: "antenna.radiowaves.left.and.right").font(.system(size: 17))
+                    } else {
+                        Label(model.currentSource?.name ?? "Source", systemImage: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 15, weight: .medium))
+                    }
                 }
                 .tint(Theme.text)
             }
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape.fill").font(.system(size: 20)).frame(width: 44, height: 44)
             }
-            .foregroundStyle(Theme.dim)
-            Button { model.showProfilePicker = true } label: { Avatar(profile: model.profile, size: 38) }
+            .foregroundStyle(cinema ? .white : Theme.dim)
+            Button { model.showProfilePicker = true } label: { Avatar(profile: model.profile, size: 36) }
                 .padding(.leading, 4)
         }
-        .padding(.horizontal, 28)
+        .padding(.horizontal, compact ? 14 : 28)
         .padding(.top, 8)
         .padding(.bottom, 6)
     }

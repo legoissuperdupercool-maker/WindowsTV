@@ -59,14 +59,18 @@ enum DemoData {
                                        seriesId: "demo:series:0", position: 900, duration: 2600, updatedAt: Date().addingTimeInterval(-60))
         ]
         var me = Profile(id: "p1", name: "Me", color: 0x1A73E8)
+        me.avatar = "art:panda"
+        me.accent = "red"
         me.progress = progress
         me.favorites = ["demo:live:0", "demo:live:4", "demo:live:9"]
         me.recents = ["demo:live:4", "demo:live:0", "demo:live:7"]
         me.myList = [ListItem(key: "demo:series:1", title: "EN - The Wire Room", kind: .series, addedAt: Date()),
                      ListItem(key: "demo:movie:1", title: "EN - Northern Lights", kind: .movie, addedAt: Date())]
-        let profiles = [me,
-                        Profile(id: "p2", name: "Sam", color: 0x188038, emoji: "🎧"),
-                        Profile(id: "p3", name: "Kids", color: 0xE8710A, emoji: "🦊", kids: true)]
+        var sam = Profile(id: "p2", name: "Sam", color: 0x188038)
+        sam.avatar = "art:robo"
+        var kids = Profile(id: "p3", name: "Kids", color: 0xE8710A, kids: true)
+        kids.avatar = "art:fox"
+        let profiles = [me, sam, kids]
         return Sample(source: src, channels: channels, categories: categories, progress: progress, profiles: profiles)
     }
 
