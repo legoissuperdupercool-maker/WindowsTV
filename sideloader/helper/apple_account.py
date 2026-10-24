@@ -177,6 +177,84 @@ class Machine:
         return CLIENT_INFO
 
 
+class ICloudMachine:
+    """This PC as Apple's own iCloud for Windows sees it, like AltServer: iCloud's libraries
+    make the machine id and one-time password, so Apple gets the real thing instead of an
+    imitation. Used when iCloud for Windows 7.x (from apple.com) is installed."""
+
+    # What AltServer sends along with iCloud's values.
+    CLIENT_INFO = "<MacBookPro15,1> <Mac OS X;10.15.2;19C57> <com.apple.AuthKit/1 (com.apple.dt.Xcode/3594.4.19)>"
+
+    def __init__(self, python32: Path, script: Path) -> None:
+        self._python32 = python32
+        self._script = script
+        id_file = data_dir() / "icloud-device-id.txt"
+        if not id_file.exists():
+            id_file.write_text(str(uuid.uuid4()).upper(), encoding="utf-8")
+        self._device_id = id_file.read_text(encoding="utf-8").strip()
+
+    @classmethod
+    def available(cls) -> "ICloudMachine | None":
+        if sys.platform != "win32" or os.environ.get("ELLO_NO_ICLOUD"):
+            return None
+        here = Path(__file__).resolve().parent
+        python32 = here.parent / "python32" / "python.exe"
+        script = here / "icloud_anisette.py"
+        common = os.environ.get("CommonProgramFiles(x86)") or os.environ.get("CommonProgramFiles") or ""
+        if not (python32.exists() and script.exists() and (Path(common) / "Apple" / "Internet Services" / "AOSKit.dll").exists()):
+            return None
+        machine = cls(python32, script)
+        try:
+            machine._values()
+        except AppleError:
+            return None
+        return machine
+
+    def _values(self) -> dict[str, str]:
+        import subprocess
+
+        try:
+            out = subprocess.run([str(self._python32), "-I", str(self._script)], capture_output=True, text=True,
+                                 timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            data = json.loads((out.stdout or "").strip().splitlines()[-1])
+        except (OSError, ValueError, IndexError, subprocess.TimeoutExpired) as e:
+            raise AppleError(f"iCloud for Windows didn't answer ({type(e).__name__}).") from e
+        if "error" in data:
+            raise AppleError(f"iCloud for Windows: {data['error']}")
+        return data
+
+    def headers(self) -> dict[str, str]:
+        v = self._values()
+        return {
+            "X-Apple-I-MD-M": v["machineId"],
+            "X-Apple-I-MD": v["otp"],
+            "X-Apple-I-MD-LU": base64.b64encode(self._device_id.encode()).decode(),
+            "X-Apple-I-MD-RINFO": "17106176",
+            "X-Mme-Device-Id": self._device_id,
+            "X-Apple-I-SRL-NO": "C02LKHBBFD57",
+            "X-Apple-I-Client-Time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "X-Apple-I-TimeZone": "UTC",
+            "X-Apple-Locale": "en_US",
+            "X-Apple-I-Locale": "en_US",
+            "X-MMe-Client-Info": self.CLIENT_INFO,
+        }
+
+    @property
+    def client_info(self) -> str:
+        return self.CLIENT_INFO
+
+
+def pick_machine() -> "Machine | ICloudMachine":
+    """Apple's own iCloud when it's installed (most trusted), otherwise ello's built-in one."""
+    machine = ICloudMachine.available()
+    try:
+        (data_dir() / "anisette-source.txt").write_text(
+            "iCloud for Windows\n" if machine else "built-in (iCloud for Windows 7.x not found or not answering)\n", encoding="utf-8")
+    except OSError:
+        pass
+    return machine or Machine()
+
+
 # ----------------------------------------------------------------------------- http
 
 
@@ -591,7 +669,7 @@ def new_request_id() -> str:
 def sign_in(apple_id: str, password: str, ask_code: Callable[[str], str]) -> Session:
     """Full sign-in; `ask_code(mode)` returns the two-factor code the person typed."""
     (data_dir() / "last-apple-2fa.txt").unlink(missing_ok=True)
-    machine = Machine()
+    machine = pick_machine()
     s = SignIn(machine, apple_id, password)
     try:
         s.login()

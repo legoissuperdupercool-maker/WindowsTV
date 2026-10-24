@@ -440,7 +440,7 @@ async def cmd_install(msg: dict) -> dict:
             dev["udid"] = conn.udid
         progress("Signing in to Apple…")
         session = await asyncio.to_thread(_session)
-        machine = await asyncio.to_thread(apple_account.Machine)
+        machine = await asyncio.to_thread(apple_account.pick_machine)
         progress("Getting a signing certificate from Apple…")
         signing = await asyncio.to_thread(
             apple_dev.prepare, session, machine, conn.udid, dev.get("name") or "Device", tv,

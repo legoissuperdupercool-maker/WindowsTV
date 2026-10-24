@@ -24,6 +24,9 @@ echo "== Windows Python $PY_VERSION"
 fetch "https://www.python.org/ftp/python/$PY_VERSION/python-$PY_VERSION-embed-amd64.zip" python-embed.zip
 rm -rf "$OUT" && mkdir -p "$OUT/python" "$OUT/app"
 unzip -q "$CACHE/python-embed.zip" -d "$OUT/python"
+# 32-bit Python, only to talk to iCloud for Windows' 32-bit libraries (icloud_anisette.py).
+fetch "https://www.python.org/ftp/python/$PY_VERSION/python-$PY_VERSION-embed-win32.zip" python-embed-win32.zip
+mkdir -p "$OUT/python32" && unzip -q "$CACHE/python-embed-win32.zip" -d "$OUT/python32"
 PTH=$(ls "$OUT"/python/python3*._pth)
 printf 'python313.zip\n.\nLib\\site-packages\n..\\app\nimport site\n' > "$PTH"
 
@@ -53,7 +56,7 @@ fi
 cp "$CACHE/anisette-libs.bin" "$OUT/app/"
 
 echo "== helper scripts"
-cp helper/ello_apple_helper.py helper/apple_account.py helper/apple_dev.py helper/app_signer.py "$OUT/app/"
+cp helper/ello_apple_helper.py helper/apple_account.py helper/apple_dev.py helper/app_signer.py helper/icloud_anisette.py "$OUT/app/"
 if [ -n "${ELLO_IPA:-}" ]; then cp "$ELLO_IPA" "$OUT/app/ello-smartTV.ipa"; fi
 
 if command -v wine >/dev/null; then
