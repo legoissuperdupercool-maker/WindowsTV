@@ -421,11 +421,72 @@ function AccountPage({
           </li>
           <li>
             <Icon name="shield" size={18} /> The login check Apple requires (“anisette”) is made on this PC with Apple’s own
-            code, not by someone else’s server.
+            code, unless you set an anisette server below.
           </li>
         </ul>
       </div>
+      <AnisetteCard />
     </>
+  )
+}
+
+/** Advanced: get Apple's machine data ("anisette") from a server instead of this PC. */
+function AnisetteCard(): JSX.Element {
+  const [url, setUrl] = useState('')
+  const [saved, setSaved] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  useEffect(() => {
+    void window.api.getAnisette().then((r) => {
+      if (r.ok) {
+        setUrl(r.data)
+        setSaved(r.data)
+      }
+    })
+  }, [])
+  const save = async (value: string): Promise<void> => {
+    setBusy(true)
+    setMsg(null)
+    const r = await window.api.setAnisette(value)
+    setBusy(false)
+    if (r.ok) {
+      setSaved(r.data)
+      setUrl(r.data)
+      setMsg({ ok: true, text: r.data ? 'The server answers. Sign-ins now use it.' : 'Back to this PC (iCloud for Windows or built-in).' })
+    } else setMsg({ ok: false, text: r.error })
+  }
+  return (
+    <div className="card wide">
+      <h3 style={{ margin: '0 0 6px' }}>Anisette server (advanced)</h3>
+      <p className="lead small">
+        Apple wants machine data with every sign-in. Leave this empty to make it on this PC. Or enter an anisette server that
+        answers with v1 JSON, such as a public SideStore server or your own (anisette-v3-server). That server sees no password,
+        only that a sign-in is happening.
+      </p>
+      <form
+        className="signin"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void save(url)
+        }}
+      >
+        <label>
+          <span>Server address</span>
+          <input type="url" spellCheck={false} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://ani.example.com" />
+        </label>
+        {msg && <div className={`msg ${msg.ok ? 'good' : 'bad'}`}>{msg.text}</div>}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn primary" disabled={busy || url.trim() === saved}>
+            {busy ? 'Checking…' : 'Use this server'}
+          </button>
+          {saved && (
+            <button type="button" className="btn ghost" disabled={busy} onClick={() => void save('')}>
+              Stop using it
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
   )
 }
 

@@ -51,7 +51,7 @@ function createWindow(): void {
 
 const ALLOWED = new Set([
   'devices', 'discover', 'pair', 'check', 'trustUsb', 'forget', 'revealDevMode',
-  'account', 'signIn', 'signOut', 'appInfo', 'install'
+  'account', 'signIn', 'signOut', 'appInfo', 'install', 'getAnisette', 'setAnisette'
 ])
 
 /**

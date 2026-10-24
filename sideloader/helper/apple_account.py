@@ -244,12 +244,66 @@ class ICloudMachine:
         return self.CLIENT_INFO
 
 
-def pick_machine() -> "Machine | ICloudMachine":
-    """Apple's own iCloud when it's installed (most trusted), otherwise ello's built-in one."""
-    machine = ICloudMachine.available()
+class RemoteMachine:
+    """Machine data from an anisette server (SideStore's, or one you run yourself, e.g.
+    Dadoum's anisette-v3-server in Docker). It answers GET <url> with the headers as JSON,
+    the format AltStore and SideStore use."""
+
+    def __init__(self, url: str) -> None:
+        self.url = url
+        self._client_info = CLIENT_INFO
+
+    def headers(self) -> dict[str, str]:
+        try:
+            r = _http.request("GET", self.url, headers={"Accept": "application/json"}, timeout=urllib3.Timeout(connect=10, read=20))
+            data = json.loads(r.data.decode("utf-8"))
+        except Exception as e:
+            raise AppleError(f"The anisette server didn't answer ({type(e).__name__}). Check the address.") from e
+        if r.status != 200 or not isinstance(data, dict) or not data.get("X-Apple-I-MD") or not data.get("X-Apple-I-MD-M"):
+            raise AppleError(f"The anisette server gave no machine data (HTTP {r.status}). Use an address that serves anisette v1 JSON.")
+        h = {str(k): str(v) for k, v in data.items() if isinstance(v, (str, int))}
+        self._client_info = h.get("X-MMe-Client-Info") or CLIENT_INFO
+        h.setdefault("X-MMe-Client-Info", self._client_info)
+        h.setdefault("X-Apple-I-Client-Time", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        h.setdefault("X-Apple-I-TimeZone", "UTC")
+        h.setdefault("X-Apple-Locale", "en_US")
+        h.setdefault("X-Apple-I-Locale", "en_US")
+        return h
+
+    @property
+    def client_info(self) -> str:
+        return self._client_info
+
+
+def anisette_server() -> str:
+    """The anisette server set in the app ("" = none)."""
+    try:
+        return (data_dir() / "anisette-server.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def set_anisette_server(url: str) -> str:
+    url = url.strip()
+    if url and not url.lower().startswith(("http://", "https://")):
+        url = "https://" + url
+    f = data_dir() / "anisette-server.txt"
+    if url:
+        f.write_text(url, encoding="utf-8")
+    else:
+        f.unlink(missing_ok=True)
+    return url
+
+
+def pick_machine() -> "Machine | ICloudMachine | RemoteMachine":
+    """An anisette server when one is set, else Apple's own iCloud when it's installed (most
+    trusted), otherwise ello's built-in one."""
+    url = anisette_server()
+    machine: "Machine | ICloudMachine | RemoteMachine | None" = RemoteMachine(url) if url else ICloudMachine.available()
     try:
         (data_dir() / "anisette-source.txt").write_text(
-            "iCloud for Windows\n" if machine else "built-in (iCloud for Windows 7.x not found or not answering)\n", encoding="utf-8")
+            f"anisette server: {url}\n" if url else "iCloud for Windows\n" if machine else "built-in (iCloud for Windows 7.x not found or not answering)\n",
+            encoding="utf-8")
     except OSError:
         pass
     return machine or Machine()

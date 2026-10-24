@@ -310,6 +310,19 @@ async def cmd_account(_: dict) -> dict:
     return apple_account.describe()
 
 
+async def cmd_get_anisette(msg: dict) -> str:
+    return apple_account.anisette_server()
+
+
+async def cmd_set_anisette(msg: dict) -> str:
+    """Use an anisette server for Apple's machine data ("" = back to iCloud / built-in)."""
+    url = apple_account.set_anisette_server(str(msg.get("url") or ""))
+    if url:
+        # Check it answers before anyone signs in with it.
+        await asyncio.to_thread(apple_account.RemoteMachine(url).headers)
+    return url
+
+
 async def cmd_sign_in(msg: dict) -> dict:
     import apple_account
 
@@ -510,6 +523,8 @@ COMMANDS: dict[str, Callable[[dict], Any]] = {
     "account": cmd_account,
     "signIn": cmd_sign_in,
     "signOut": cmd_sign_out,
+    "getAnisette": cmd_get_anisette,
+    "setAnisette": cmd_set_anisette,
     "appInfo": cmd_app_info,
     "install": cmd_install,
 }
