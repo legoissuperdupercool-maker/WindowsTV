@@ -194,11 +194,35 @@ async def cmd_pair(msg: dict) -> dict:
     from pymobiledevice3.remote.tunnel_service import RemotePairingManualPairingService
 
     _pairing_name[0] = msg.get("name") or "Apple TV"
+    # The TV can announce several addresses (IPv4, IPv6): try each until one connects.
+    addresses = [(msg["ip"], int(msg["port"]))]
     try:
-        async with RemotePairingManualPairingService(msg["identifier"], msg["ip"], int(msg["port"])) as service:
-            await service.connect(autopair=True)
-    except RemotePairingCompletedError:
+        from pymobiledevice3.bonjour import browse_remotepairing_manual_pairing
+
+        for answer in await browse_remotepairing_manual_pairing(timeout=4):
+            if answer.properties.get("identifier") != msg["identifier"]:
+                continue
+            for address in sorted(answer.addresses, key=lambda a: ":" in a.full_ip):
+                if (address.full_ip, answer.port) not in addresses:
+                    addresses.append((address.full_ip, answer.port))
+    except Exception:
         pass
+    errors = []
+    for ip, port in addresses:
+        try:
+            async with RemotePairingManualPairingService(msg["identifier"], ip, port) as service:
+                await service.connect(autopair=True)
+            break
+        except RemotePairingCompletedError:
+            break
+        except OSError as e:
+            errors.append(f"{ip}: {e.strerror or e}")
+    else:
+        hint = (" Windows blocked the connection: allow ello-apple-check.exe in Windows Firewall (Private and Public), "
+                "remove any block rules for it, and allow it in your antivirus."
+                if any("denied" in x.lower() for x in errors) else
+                " Check that the PC and the Apple TV are on the same network (not a guest network) and that no VPN is on.")
+        raise RuntimeError("Couldn't connect to the Apple TV (" + "; ".join(errors) + ")." + hint)
     # Confirm with a real secure connection, then remember the device.
     for _ in range(3):
         online = await _paired_wifi(timeout=6)
